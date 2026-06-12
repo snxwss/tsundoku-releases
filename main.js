@@ -745,13 +745,26 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
   // VBScript through wscript.exe: wscript has no console window, and Run(…, 0, …)
   // launches the delete with a hidden window — so nothing flashes on screen (a plain
   // detached cmd.exe shows a console even with windowsHide). The script sleeps ~2s for
-  // the app to fully exit, removes both folders, then deletes itself.
+  // the app to fully exit, removes the folders, then deletes itself.
+  //
+  // Must wipe EVERY location the app can restore from, or a reinstall resurrects the
+  // library: the current ProgramData store, the per-PC exe-paths, the %APPDATA%\Tsundoku
+  // copy left as a fallback by the 1.3.26 migration, and the two pre-rename legacy dirs
+  // that migrateLegacyStore() still merges from.
   if (deleteData) {
     try { clearInterval(pollTimer); pollTimer = null; } catch {}
     try { dataWatcher?.close(); dataWatcher = null; } catch {}
     try {
+      const appData = app.getPath('appData');
+      const wipe = [
+        DATA_DIR,                                            // C:\ProgramData\Tsundoku (current)
+        LOCAL_DIR,                                           // %LOCALAPPDATA%\Tsundoku (exe paths)
+        path.join(appData, 'Tsundoku'),                     // %APPDATA%\Tsundoku (1.3.26 fallback + chromium userData)
+        path.join(appData, 'vn-launcher'),                  // legacy (pre-rename)
+        path.join(appData, 'Electron', 'vn-launcher'),      // legacy (electron default name)
+      ];
       const vbsPath = path.join(app.getPath('temp'), `tsundoku-wipe-${Date.now()}.vbs`);
-      const del = [DATA_DIR, LOCAL_DIR].map(d => `rmdir /s /q ""${d}""`).join(' & ');
+      const del = wipe.map(d => `rmdir /s /q ""${d}""`).join(' & ');
       const vbs = [
         'Set s = CreateObject("WScript.Shell")',
         'WScript.Sleep 2000',

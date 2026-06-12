@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.3 — 2026-06-12
+- **"Also delete my library data" now wipes everything.** It previously removed only the current data folder, so a reinstall would restore your library from the old `%APPDATA%` fallback copy (left behind by the data-location move) — making it look like the delete did nothing. The wipe now clears every location the app can restore from.
+
 ## 1.4.2 — 2026-06-12
 - The "Also delete my library data" wipe no longer briefly flashes a terminal window — it now runs hidden in the background.
 
