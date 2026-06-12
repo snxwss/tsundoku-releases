@@ -514,7 +514,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-results { min-width: 0; }
 .browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: flex-start; gap: 20px; }
 .browse-wrap.browse-side-mode .browse-side {
-  flex: 0 0 224px; width: 224px;
+  flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
   display: flex; flex-direction: column; gap: 10px;
 }
@@ -526,6 +526,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-wrap.browse-side-mode #filters-toggle { display: none; }
 .browse-wrap.browse-side-mode #filter-drawer { display: flex !important; margin-top: 0; padding: 12px; gap: 11px; }
 .browse-wrap.browse-side-mode .filter-line { gap: 6px; }
+/* Each section (YEAR/RATING/LENGTH/STUDIO/TAG) starts on its own row in the rail. */
+.browse-wrap.browse-side-mode .filter-line .flbl-section { flex-basis: 100%; margin: 6px 0 1px !important; }
 .browse-wrap.browse-side-mode .filter-line .bchip { padding: 5px 8px; font-size: 10px; }
 .browse-wrap.browse-side-mode .filter-line .year-input,
 .browse-wrap.browse-side-mode .filter-line .rating-input { width: 58px; }

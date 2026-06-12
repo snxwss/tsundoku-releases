@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.7 — 2026-06-12
+- Browse sidebar: each filter group (Year / Rating / Length / Studio / Tag) now sits on its own row, and the rail is a little wider so it doesn't feel empty.
+
 ## 1.4.6 — 2026-06-12
 - **Browse sidebar is back, done right** — the optional right-rail layout now uses compact chips that wrap to fit the narrow column (no more giant stretched buttons), and the rail is sticky so the sort & filters stay on screen as you scroll through titles.
 
