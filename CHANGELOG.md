@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.9 — 2026-06-12
+- **Filter Browse by multiple tags** — type a tag and press Enter to add it as a chip; add several and titles must match all of them. Remove a tag with its ✕.
+- Removed the stray "+" next to the rating filter.
+- **Scanner remembers your choices** — folders whose match you left unchecked stay deselected on future rescans, so you only ever confirm genuinely new matches (re-tick one anytime to add it).
+
 ## 1.4.8 — 2026-06-12
 - A title's detail panel now always offers **Remove from library** alongside **Exclude from library**, so you can fully remove an item even when it's installed and not excluded (previously Remove only appeared for not-installed or excluded titles).
 

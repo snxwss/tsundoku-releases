@@ -111,14 +111,14 @@ let browseYearTo   = null;
 let browseRatingMin = null; // 10–100 scale (e.g. 70 = "7+")
 let browseLength    = null; // 1–5 (VNDB length category)
 let browseDevId     = null; // resolved VNDB producer id (e.g. "p57")
-let browseTagId     = null; // resolved VNDB tag id (e.g. "g349")
+let browseTagIds    = []; // resolved VNDB tags to filter by (AND): [{ id, name }]
 
 // Bundle the active browse/search filters for an API call.
 function currentFilterOpts() {
   return {
     yearFrom: browseYearFrom, yearTo: browseYearTo,
     ratingMin: browseRatingMin, length: browseLength,
-    devId: browseDevId || null, tagId: browseTagId || null,
+    devId: browseDevId || null, tagIds: browseTagIds.map(t => t.id),
   };
 }
 
@@ -150,8 +150,23 @@ function updateFilterCount() {
   if (browseRatingMin) n++;
   if (browseLength)     n++;
   if (browseDevId)      n++;
-  if (browseTagId)      n++;
+  if (browseTagIds.length) n++;
   el.textContent = n ? ` · ${n}` : '';
+}
+
+// Render the active tag-filter chips (each removable). Tags AND together.
+function renderBrowseTags() {
+  const box = document.getElementById('filter-tags');
+  if (!box) return;
+  box.innerHTML = browseTagIds.map(t =>
+    `<span class="tag-chip" data-id="${escHtml(t.id)}">${escHtml(t.name)}<span class="tag-chip-x" title="Remove">✕</span></span>`
+  ).join('');
+  box.querySelectorAll('.tag-chip-x').forEach(x =>
+    x.addEventListener('click', () => {
+      browseTagIds = browseTagIds.filter(t => t.id !== x.parentElement.dataset.id);
+      renderBrowseTags();
+      reapplyBrowse();
+    }));
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1798,23 +1813,33 @@ function initBrowse() {
     if (!dev) showBrowseStatus(`No studio matching “${name}”.`);
     reapplyBrowse();
   });
-  // Tag: resolve the typed name to a VNDB tag id, then filter.
-  document.getElementById('filter-tag')?.addEventListener('change', async e => {
-    const name = e.target.value.trim();
-    if (!name) { browseTagId = null; reapplyBrowse(); return; }
+  // Tag: type a tag name + Enter to add it as a filter chip. Multiple tags AND
+  // together (a title must carry all of them). Each resolves to a VNDB tag id.
+  const tagInput = document.getElementById('filter-tag');
+  const addBrowseTag = async () => {
+    const name = tagInput.value.trim();
+    if (!name) return;
+    tagInput.disabled = true;
     const tag = await window.api.vndbTagSearch(name).catch(() => null);
-    browseTagId = tag ? tag.id : null;
-    if (tag && tag.name) e.target.value = tag.name; // snap to the matched tag
-    if (!tag) showBrowseStatus(`No tag matching “${name}”.`);
+    tagInput.disabled = false;
+    tagInput.focus();
+    if (!tag) { showBrowseStatus(`No tag matching “${name}”.`); return; }
+    if (browseTagIds.some(t => t.id === tag.id)) { tagInput.value = ''; return; }
+    browseTagIds.push({ id: tag.id, name: tag.name });
+    tagInput.value = '';
+    renderBrowseTags();
     reapplyBrowse();
-  });
+  };
+  tagInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addBrowseTag(); } });
+  renderBrowseTags();
   document.getElementById('filter-clear')?.addEventListener('click', () => {
-    browseRatingMin = null; browseLength = null; browseDevId = null; browseTagId = null;
+    browseRatingMin = null; browseLength = null; browseDevId = null; browseTagIds = [];
     browseYearFrom = null; browseYearTo = null;
     document.querySelectorAll('.length-chip, .decade-chip').forEach(c => c.classList.remove('on'));
     ['filter-dev', 'filter-tag', 'year-from', 'year-to', 'rating-min'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
+    renderBrowseTags();
     reapplyBrowse();
   });
 
@@ -2989,22 +3014,26 @@ async function runScan() {
   try {
     const result = await window.api.scanFolder();
     if (!result) return;
+    // Folders whose match the user explicitly left unchecked on a previous scan —
+    // keep them deselected so a rescan doesn't re-suggest something already rejected.
+    const dismissed = new Set(settings.dismissedScans || []);
     scanState = result.matches.map(m => {
       const candidates = reconcileScanMatch(m);
       const top = candidates[0];
-      // Auto-check only confident matches: a library reconnect, or a candidate whose
-      // title actually resembles the folder name. Weak matches stay listed but
-      // unchecked so the user opts in (avoids Steam games being added as VNs).
+      // Auto-check only confident NEW matches (or library reconnects), so the user just
+      // confirms them. Weak matches stay unchecked so they opt in (avoids Steam games
+      // being added as VNs), and anything previously deselected stays deselected.
       const confident = !!top && (top.inLibrary
         || scanNameMatches(m.query, top.title)
         || scanNameMatches(m.folderName, top.title));
+      const rejected = dismissed.has(m.exePath) && !(top && top.inLibrary);
       return {
         folderName: m.folderName,
         exePath:    m.exePath,
         query:      m.query,
         candidates,
         selectedId: top ? top.id : '',
-        include:    confident,
+        include:    confident && !rejected,
       };
     });
     const reconnects = scanState.filter(r => r.candidates.find(c => c.id === r.selectedId)?.inLibrary).length;
@@ -3255,12 +3284,20 @@ async function init() {
   document.getElementById('scan-add')?.addEventListener('click', async () => {
     const btn = document.getElementById('scan-add');
     btn.disabled = true;
+    // Remember decisions: added folders are cleared from the dismissed set; folders
+    // with a real match that the user left unchecked are remembered so a future rescan
+    // keeps them deselected.
+    const dismissed = new Set(settings.dismissedScans || []);
     for (const row of scanState) {
-      if (!row.include || !row.selectedId) continue;
-      const cand = row.candidates.find(c => c.id === row.selectedId);
-      if (!cand) continue;
-      await window.api.libraryAddScanned(metaOf(cand), row.exePath);
+      if (row.include && row.selectedId) {
+        const cand = row.candidates.find(c => c.id === row.selectedId);
+        if (cand) await window.api.libraryAddScanned(metaOf(cand), row.exePath);
+        dismissed.delete(row.exePath);
+      } else if (row.candidates.length) {
+        dismissed.add(row.exePath);
+      }
     }
+    await setSetting('dismissedScans', [...dismissed]);
     document.getElementById('scan-overlay').classList.add('hidden');
     await loadEntries();
     switchView('library');

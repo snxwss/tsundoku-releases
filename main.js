@@ -896,7 +896,7 @@ function allowedDevFilter() {
 
 // Shared query builder for both browse and search so they behave identically
 // (same vote floor, same sort options, same year filters).
-function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTES, ratingMin, length, devSearch, devId, tagId, simpleFloor } = {}) {
+function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTES, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor } = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const presets = {
     rating:  { sort: 'rating',    reverse: true },
@@ -924,7 +924,10 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   if (length)       filters.push(['length', '=', length]);             // 1=v.short … 5=v.long
   if (devId)        filters.push(['developer', '=', ['id', '=', devId]]);     // exact studio match
   else if (devSearch) filters.push(['developer', '=', ['search', '=', devSearch]]);
-  if (tagId)        filters.push(['tag', '=', tagId]);
+  // One or more tags — a title must carry ALL of them (AND).
+  const tags = (Array.isArray(tagIds) ? tagIds : []).concat(tagId ? [tagId] : []).filter(Boolean);
+  if (tags.length === 1)      filters.push(['tag', '=', tags[0]]);
+  else if (tags.length > 1)   filters.push(['and', ...tags.map(t => ['tag', '=', t])]);
 
   const body = {
     fields: LIST_FIELDS,
@@ -944,7 +947,7 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
   vndbVN(buildVnQuery(sort, {
     query, minVotes: opts.minVotes,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
-    ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId,
+    ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
   })));
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
@@ -1056,7 +1059,7 @@ ipcMain.handle('vndb-browse', (_e, sort, opts = {}) =>
   vndbVN(buildVnQuery(sort, {
     page: opts.page || 1,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
-    ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId,
+    ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
   })));
 
 // "Top Rated" uses an IMDb-style weighted ranking instead of raw average, so a
@@ -1071,8 +1074,8 @@ const WR_C = 65;     // pulled toward this (≈ global VN average) when low-vote
 const topRatedCache = new Map();
 const TOP_RATED_TTL = 5 * 60 * 1000;
 ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
-  const { yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId } = opts;
-  const key = JSON.stringify({ yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId });
+  const { yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds } = opts;
+  const key = JSON.stringify({ yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds });
   const hit = topRatedCache.get(key);
   if (hit && Date.now() - hit.ts < TOP_RATED_TTL) return { results: hit.results };
 
@@ -1080,7 +1083,7 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
   // 2 pages (200) is plenty for a weighted top list, and skipping the dev-bypass
   // OR (simpleFloor) keeps each query cheap — together this avoids the throttling.
   for (let page = 1; page <= 2; page++) {
-    const body = buildVnQuery('rating', { page, yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, simpleFloor: true });
+    const body = buildVnQuery('rating', { page, yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor: true });
     body.results = 100;
     let data;
     // Let a page-1 failure (network / VNDB down / rate-limit) propagate so the UI

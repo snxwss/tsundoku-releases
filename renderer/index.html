@@ -157,7 +157,6 @@
             <div class="filter-line">
               <span class="browse-sort-lbl flbl-section">RATING</span>
               <input class="rating-input" id="rating-min" type="number" min="0" max="10" step="0.1" placeholder="min" />
-              <span class="browse-sort-lbl">+</span>
               <span class="browse-sort-lbl flbl-section" style="margin-left:14px">LENGTH</span>
               <div class="bchip length-chip" data-length="1">V. short</div>
               <div class="bchip length-chip" data-length="2">Short</div>
@@ -169,7 +168,8 @@
               <span class="browse-sort-lbl flbl-section">STUDIO</span>
               <input class="filter-input" id="filter-dev" type="text" placeholder="Developer name…" />
               <span class="browse-sort-lbl flbl-section" style="margin-left:6px">TAG</span>
-              <input class="filter-input" id="filter-tag" type="text" placeholder="e.g. time loop…" />
+              <input class="filter-input" id="filter-tag" type="text" placeholder="Add a tag, press Enter…" />
+              <span id="filter-tags" class="filter-tags"></span>
               <div class="bchip" id="allow-nsfw" title="Show 18+ titles in browse &amp; search">Allow 18+</div>
               <div class="btn-sm sec" id="filter-clear" style="margin-left:auto">Clear all</div>
             </div>
