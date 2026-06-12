@@ -739,17 +739,27 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
   // created, so it's never touched by the uninstaller.
   const uninstallerPath = path.join(path.dirname(app.getPath('exe')), 'Uninstall Tsundoku.exe');
   try { spawn(uninstallerPath, [], { detached: true, stdio: 'ignore' }).unref(); } catch {}
-  // When the user opts in, wipe the data folders from a DETACHED shell that waits for
-  // this app to exit first. Deleting them in-process raced the OS releasing the
-  // data-folder watch handle (rmSync threw EPERM/EBUSY, which got swallowed, so the
-  // wipe silently failed) and could be re-created by a last-moment write. `ping` is a
-  // ~2s delay needing no console input; `rmdir /s /q` is silent + recursive.
+  // When the user opts in, wipe the data folders AFTER this app exits (deleting
+  // in-process raced the OS releasing the data-folder watch handle — rmSync threw
+  // EPERM/EBUSY, swallowed, so the wipe silently failed). We run it via a hidden
+  // VBScript through wscript.exe: wscript has no console window, and Run(…, 0, …)
+  // launches the delete with a hidden window — so nothing flashes on screen (a plain
+  // detached cmd.exe shows a console even with windowsHide). The script sleeps ~2s for
+  // the app to fully exit, removes both folders, then deletes itself.
   if (deleteData) {
     try { clearInterval(pollTimer); pollTimer = null; } catch {}
     try { dataWatcher?.close(); dataWatcher = null; } catch {}
     try {
-      const cmd = `ping -n 3 127.0.0.1 >nul & rmdir /s /q "${DATA_DIR}" & rmdir /s /q "${LOCAL_DIR}"`;
-      spawn('cmd.exe', ['/c', cmd], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      const vbsPath = path.join(app.getPath('temp'), `tsundoku-wipe-${Date.now()}.vbs`);
+      const del = [DATA_DIR, LOCAL_DIR].map(d => `rmdir /s /q ""${d}""`).join(' & ');
+      const vbs = [
+        'Set s = CreateObject("WScript.Shell")',
+        'WScript.Sleep 2000',
+        `s.Run "cmd /c ${del}", 0, True`,
+        `s.Run "cmd /c del ""${vbsPath}""", 0, False`,
+      ].join('\r\n');
+      fs.writeFileSync(vbsPath, vbs);
+      spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
     } catch {}
   }
   setTimeout(() => app.quit(), 300);
