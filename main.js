@@ -734,20 +734,24 @@ ipcMain.handle('open-path', (_e, p) => {
   return true;
 });
 ipcMain.handle('uninstall-app', (_e, deleteData) => {
-  // The NSIS uninstaller only removes the installed program (and leaves data, since
-  // deleteAppDataOnUninstall is false). The library lives in C:\ProgramData\Tsundoku,
-  // which the installer never created, so it's never touched. When the user explicitly
-  // opts in, wipe the data folders ourselves first — stop the poller so it can't
-  // re-create them on the next tick.
+  // The NSIS uninstaller only removes the installed program (deleteAppDataOnUninstall
+  // is false). The library lives in C:\ProgramData\Tsundoku, which the installer never
+  // created, so it's never touched by the uninstaller.
+  const uninstallerPath = path.join(path.dirname(app.getPath('exe')), 'Uninstall Tsundoku.exe');
+  try { spawn(uninstallerPath, [], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+  // When the user opts in, wipe the data folders from a DETACHED shell that waits for
+  // this app to exit first. Deleting them in-process raced the OS releasing the
+  // data-folder watch handle (rmSync threw EPERM/EBUSY, which got swallowed, so the
+  // wipe silently failed) and could be re-created by a last-moment write. `ping` is a
+  // ~2s delay needing no console input; `rmdir /s /q` is silent + recursive.
   if (deleteData) {
     try { clearInterval(pollTimer); pollTimer = null; } catch {}
     try { dataWatcher?.close(); dataWatcher = null; } catch {}
-    for (const dir of [DATA_DIR, LOCAL_DIR]) {
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
-    }
+    try {
+      const cmd = `ping -n 3 127.0.0.1 >nul & rmdir /s /q "${DATA_DIR}" & rmdir /s /q "${LOCAL_DIR}"`;
+      spawn('cmd.exe', ['/c', cmd], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    } catch {}
   }
-  const uninstallerPath = path.join(path.dirname(app.getPath('exe')), 'Uninstall Tsundoku.exe');
-  try { spawn(uninstallerPath, [], { detached: true, stdio: 'ignore' }).unref(); } catch {}
   setTimeout(() => app.quit(), 300);
 });
 

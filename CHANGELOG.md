@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.1 — 2026-06-12
+- **Fixed "Also delete my library data" not actually wiping anything** — the in-process delete raced the OS releasing the data-folder watch handle and silently failed. The wipe now runs from a detached shell after the app exits, so it reliably removes `C:\ProgramData\Tsundoku` and `%LOCALAPPDATA%\Tsundoku`.
+- Sky theme: lighter, more pastel logo color.
+
 ## 1.4.0 — 2026-06-12
 A consolidated roundup of everything added and fixed across the 1.3.x line, plus a clickable Releases link in Settings → About.
 
