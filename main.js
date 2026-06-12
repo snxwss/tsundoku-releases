@@ -1352,9 +1352,10 @@ ipcMain.handle('export-data', async () => {
   if (r.canceled || !r.filePath) return { ok: false };
   const entries = Object.values(readStore());
   const payload = {
-    type: 'tsundoku-backup', version: 1,
+    type: 'tsundoku-backup', version: 2,
     exportedAt: Date.now(), appVersion: app.getVersion(),
     count: entries.length, entries,
+    settings: readSettings(), // appearance + preferences (theme/palette/auto times live here too)
   };
   try {
     fs.writeFileSync(r.filePath, JSON.stringify(payload, null, 2), 'utf8');
@@ -1411,7 +1412,22 @@ ipcMain.handle('import-data', async () => {
     }
   }
   writeStore(store);
-  return { ok: true, added, updated };
+
+  // Restore appearance + preferences from the backup. Whitelist only the portable
+  // preference keys — machine-specific ones (scan folders, autostart) stay local, and
+  // we don't clobber local collections/sessions/hidden tags.
+  let settingsApplied = false;
+  if (data && data.settings && typeof data.settings === 'object') {
+    const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
+      'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
+      'showExcluded', 'minimizeOnClose'];
+    const local = readSettings();
+    for (const k of PREF_KEYS) {
+      if (data.settings[k] !== undefined) { local[k] = data.settings[k]; settingsApplied = true; }
+    }
+    if (settingsApplied) writeSettings(local);
+  }
+  return { ok: true, added, updated, settingsApplied };
 });
 
 // ── Folder scanner ────────────────────────────────────────────────────────────

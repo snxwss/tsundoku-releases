@@ -380,17 +380,6 @@ async function setCardSize(size) {
   if (activeView === 'settings') renderSettingsSection('Appearance');
 }
 
-// Browse controls layout: 'top' (sort + filters across the top) or 'side' (right sidebar).
-function applyBrowseLayout() {
-  const w = document.querySelector('.browse-wrap');
-  if (w) w.classList.toggle('browse-side-mode', (settings.browseLayout || 'top') === 'side');
-}
-async function setBrowseLayout(v) {
-  await setSetting('browseLayout', v);
-  applyBrowseLayout();
-  if (activeView === 'settings') renderSettingsSection('Appearance');
-}
-
 // Theme prefs are mirrored to BOTH localStorage (instant first paint) and
 // settings.json (durable — the Chromium localStorage profile has proven
 // unreliable across builds, which is why "Auto" wasn't being remembered).
@@ -2215,14 +2204,6 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Browse controls</div><div class="settings-sub">Show the Browse sort &amp; filters across the top, or in a right sidebar</div></div>
-          <div class="settings-toggle">
-            <div class="stog-btn ${(settings.browseLayout || 'top') === 'top' ? 'on' : ''}" data-browselayout="top">Top bar</div>
-            <div class="stog-btn ${settings.browseLayout === 'side' ? 'on' : ''}" data-browselayout="side">Sidebar</div>
-          </div>
-        </div>
-
-        <div class="settings-row">
           <div><div class="settings-label">Zoom</div><div class="settings-sub">Scale the entire interface</div></div>
           <div class="zoom-options">
             ${ZOOM_LEVELS.map(z => `<div class="zoom-btn${zoom === z ? ' on' : ''}" data-zoom="${z}">${z}%</div>`).join('')}
@@ -2242,8 +2223,6 @@ async function renderSettingsSection(section) {
     document.getElementById('tlang-kanji')?.addEventListener('click', () => setTitleLang('kanji'));
     content.querySelectorAll('[data-cardsize]').forEach(el =>
       el.addEventListener('click', () => setCardSize(el.dataset.cardsize)));
-    content.querySelectorAll('[data-browselayout]').forEach(el =>
-      el.addEventListener('click', () => setBrowseLayout(el.dataset.browselayout)));
     content.querySelectorAll('.zoom-btn').forEach(el =>
       el.addEventListener('click', async () => {
         await setSetting('zoom', parseInt(el.dataset.zoom));
@@ -2572,7 +2551,7 @@ async function renderSettingsSection(section) {
         <div class="settings-row">
           <div>
             <div class="settings-label">Backup &amp; restore</div>
-            <div class="settings-sub">Export your whole library — status, playtime, last played, ratings — to a file, or import one onto another PC. Install paths stay on this machine and are never imported, so titles you don't have here just show as “not on device” while keeping their history.</div>
+            <div class="settings-sub">Export your whole library — status, playtime, last played, ratings — plus your appearance &amp; preferences (theme, color palette, card size, zoom, NSFW toggles) to a file, or import one onto another PC. Install paths stay on this machine and are never imported, so titles you don't have here just show as “not on device” while keeping their history.</div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0">
             <div class="btn-sm sec" id="btn-export">${icon('folder', 12)} Export</div>
@@ -2605,8 +2584,19 @@ async function renderSettingsSection(section) {
       st.textContent = 'Choose a backup file…';
       const r = await window.api.importData().catch(e => ({ ok: false, error: e.message }));
       if (r?.ok) {
-        st.textContent = `✓ Imported — ${r.added} added, ${r.updated} updated. Install paths unchanged.`;
+        st.textContent = `✓ Imported — ${r.added} added, ${r.updated} updated${r.settingsApplied ? ', preferences restored' : ''}. Install paths unchanged.`;
         await loadEntries();
+        if (r.settingsApplied) {
+          // Pull the restored settings back in and re-apply appearance. Color prefs
+          // are mirrored to localStorage (first-paint cache), so sync those too.
+          settings = await window.api.getSettings().catch(() => settings);
+          if (settings.themeMode) { themeMode = settings.themeMode; localStorage.setItem('tsund-theme-mode', themeMode); }
+          if (settings.palette)   { palette   = settings.palette;   localStorage.setItem('tsund-palette', palette); }
+          if (settings.autoLight) { autoLight = settings.autoLight; localStorage.setItem('tsund-auto-light', autoLight); }
+          if (settings.autoDark)  { autoDark  = settings.autoDark;  localStorage.setItem('tsund-auto-dark', autoDark); }
+          applyTheme(); applyCardSize(); applyZoom();
+          renderSettingsSection('System');
+        }
       } else if (r?.error) st.textContent = 'Import failed: ' + r.error;
       else st.textContent = '';
     });
@@ -3114,7 +3104,6 @@ async function init() {
   applyTheme();
   applyZoom();
   applyCardSize();
-  applyBrowseLayout();
   renderWindowIcon();   // upgrade taskbar icon to the real 積 kanji
   initWindowControls();
 
