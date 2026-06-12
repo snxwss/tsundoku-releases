@@ -506,6 +506,26 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .bchip.on    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .bchip:hover:not(.on) { border-color: var(--line); color: var(--ink); background: var(--panel); }
 .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 200px), 1fr)); gap: 22px 18px; }
+
+/* Browse controls layout: default = stacked across the top (sort row + filter drawer
+   above the grid). The .browse-side-mode variant moves them into a right sidebar. */
+.browse-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.browse-results { min-width: 0; }
+.browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: flex-start; gap: 24px; }
+.browse-wrap.browse-side-mode .browse-side {
+  flex: 0 0 248px; width: 248px; display: flex; flex-direction: column; gap: 12px;
+  position: sticky; top: 0;
+}
+.browse-wrap.browse-side-mode .browse-results { flex: 1 1 auto; }
+.browse-wrap.browse-side-mode .browse-sort-row { flex-direction: column; align-items: stretch; gap: 6px; }
+.browse-wrap.browse-side-mode .browse-sort-row .bchip { text-align: center; }
+.browse-wrap.browse-side-mode .browse-sort-row .browse-sort-lbl { margin-bottom: 2px; }
+.browse-wrap.browse-side-mode #filters-toggle { display: none; }
+.browse-wrap.browse-side-mode #filter-drawer { display: flex !important; margin-top: 0; }
+.browse-wrap.browse-side-mode .filter-line { flex-direction: column; align-items: stretch; gap: 8px; }
+.browse-wrap.browse-side-mode .filter-line .year-input,
+.browse-wrap.browse-side-mode .filter-line .rating-input,
+.browse-wrap.browse-side-mode .filter-line .filter-input { width: 100%; }
 .browse-item { cursor: pointer; }
 .browse-item .bi-poster { position: relative; }
 .browse-item .pv2 { border-radius: 12px; border: 2px solid var(--border); box-shadow: 0 4px 0 var(--edge); transition: transform .14s; }

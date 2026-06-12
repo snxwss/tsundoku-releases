@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.4 — 2026-06-12
+- **Browse layout option** — a new "Browse controls" setting in Settings → Appearance lets you move the sort + filters into a right-hand sidebar (Steam-style), where the filters stay open beside the results, or keep them across the top as before.
+
 ## 1.4.3 — 2026-06-12
 - **"Also delete my library data" now wipes everything.** It previously removed only the current data folder, so a reinstall would restore your library from the old `%APPDATA%` fallback copy (left behind by the data-location move) — making it look like the delete did nothing. The wipe now clears every location the app can restore from.
 

@@ -380,6 +380,17 @@ async function setCardSize(size) {
   if (activeView === 'settings') renderSettingsSection('Appearance');
 }
 
+// Browse controls layout: 'top' (sort + filters across the top) or 'side' (right sidebar).
+function applyBrowseLayout() {
+  const w = document.querySelector('.browse-wrap');
+  if (w) w.classList.toggle('browse-side-mode', (settings.browseLayout || 'top') === 'side');
+}
+async function setBrowseLayout(v) {
+  await setSetting('browseLayout', v);
+  applyBrowseLayout();
+  if (activeView === 'settings') renderSettingsSection('Appearance');
+}
+
 // Theme prefs are mirrored to BOTH localStorage (instant first paint) and
 // settings.json (durable — the Chromium localStorage profile has proven
 // unreliable across builds, which is why "Auto" wasn't being remembered).
@@ -2204,6 +2215,14 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
+          <div><div class="settings-label">Browse controls</div><div class="settings-sub">Show the Browse sort &amp; filters across the top, or in a right sidebar</div></div>
+          <div class="settings-toggle">
+            <div class="stog-btn ${(settings.browseLayout || 'top') === 'top' ? 'on' : ''}" data-browselayout="top">Top bar</div>
+            <div class="stog-btn ${settings.browseLayout === 'side' ? 'on' : ''}" data-browselayout="side">Sidebar</div>
+          </div>
+        </div>
+
+        <div class="settings-row">
           <div><div class="settings-label">Zoom</div><div class="settings-sub">Scale the entire interface</div></div>
           <div class="zoom-options">
             ${ZOOM_LEVELS.map(z => `<div class="zoom-btn${zoom === z ? ' on' : ''}" data-zoom="${z}">${z}%</div>`).join('')}
@@ -2223,6 +2242,8 @@ async function renderSettingsSection(section) {
     document.getElementById('tlang-kanji')?.addEventListener('click', () => setTitleLang('kanji'));
     content.querySelectorAll('[data-cardsize]').forEach(el =>
       el.addEventListener('click', () => setCardSize(el.dataset.cardsize)));
+    content.querySelectorAll('[data-browselayout]').forEach(el =>
+      el.addEventListener('click', () => setBrowseLayout(el.dataset.browselayout)));
     content.querySelectorAll('.zoom-btn').forEach(el =>
       el.addEventListener('click', async () => {
         await setSetting('zoom', parseInt(el.dataset.zoom));
@@ -3093,6 +3114,7 @@ async function init() {
   applyTheme();
   applyZoom();
   applyCardSize();
+  applyBrowseLayout();
   renderWindowIcon();   // upgrade taskbar icon to the real 積 kanji
   initWindowControls();
 
