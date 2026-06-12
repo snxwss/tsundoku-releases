@@ -2727,7 +2727,7 @@ async function openModal(item) {
       ${inLib && onDevice ? `<div class="btn-sm sec" id="m-change-exe">${icon('folder', 13)} Change EXE</div>` : ''}
       ${inLib && !isExcluded ? `<div class="btn-sm sec" id="m-exclude" style="color:var(--mut)">${icon('exclude', 13)} Exclude from library</div>` : ''}
       ${inLib && isExcluded ? `<div class="btn-sm sec" id="m-unexclude">↩ Include back</div>` : ''}
-      ${inLib && (!onDevice || isExcluded) ? `<div class="btn-sm danger" id="m-remove-lib">${icon('trash', 13)} Remove from library</div>` : ''}
+      ${inLib ? `<div class="btn-sm danger" id="m-remove-lib">${icon('trash', 13)} Remove from library</div>` : ''}
     </div>
 
     ${(pt || lp) ? `<div class="pv-playtime" style="margin-top:auto">

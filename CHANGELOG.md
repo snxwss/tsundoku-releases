@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.8 — 2026-06-12
+- A title's detail panel now always offers **Remove from library** alongside **Exclude from library**, so you can fully remove an item even when it's installed and not excluded (previously Remove only appeared for not-installed or excluded titles).
+
 ## 1.4.7 — 2026-06-12
 - Browse sidebar: each filter group (Year / Rating / Length / Studio / Tag) now sits on its own row, and the rail is a little wider so it doesn't feel empty.
 
