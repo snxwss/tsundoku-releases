@@ -1,0 +1,53 @@
+{
+  "name": "vn-launcher",
+  "productName": "Tsundoku",
+  "version": "1.4.0",
+  "description": "Visual Novel Launcher powered by VNDB",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-packager . Tsundoku --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --prune=true --ignore=\"(^/dist$)\" --ignore=\"(^/\\.git)\"",
+    "installer": "electron-builder --win nsis --publish never",
+    "publish": "electron-builder --win nsis --publish never && node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^26.15.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "build": {
+    "appId": "com.tsundoku.launcher",
+    "productName": "Tsundoku",
+    "directories": {
+      "output": "dist-installer",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "build/icon.ico"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tsundoku",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/snxwss/tsundoku-releases/releases/latest/download"
+    }
+  }
+}
