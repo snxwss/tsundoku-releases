@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.6 — 2026-06-12
+- **Browse sidebar is back, done right** — the optional right-rail layout now uses compact chips that wrap to fit the narrow column (no more giant stretched buttons), and the rail is sticky so the sort & filters stay on screen as you scroll through titles.
+
 ## 1.4.5 — 2026-06-12
 - **Backups now include your appearance & preferences** — theme, color palette, auto-schedule, card size, zoom, title language, and NSFW toggles are saved in the export and restored on import (library merge and per-PC install paths are unchanged).
 - Reverted the Browse sidebar layout option (the filters didn't lay out well in the narrow column) — Browse is back to the top sort/filter bar.
