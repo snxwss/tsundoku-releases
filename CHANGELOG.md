@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.3 — 2026-06-12
+- New **Most Relevant** sort — when you've typed a title search it orders results by best match (VNDB relevance); for plain browsing it falls back to Top Rated.
+- Top filter bar: tag chips stay inline next to "Allow 18+" again (only the sidebar layout puts them on their own row).
+
 ## 1.5.2 — 2026-06-12
 - Browse sidebar: the search field now matches the other filter fields (same font, size, and border) and drops the oversized Search button — just press Enter to search, like the tag field.
 

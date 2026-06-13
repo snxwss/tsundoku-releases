@@ -946,12 +946,16 @@ function allowedDevFilter() {
 function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTES, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor } = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const presets = {
-    rating:  { sort: 'rating',    reverse: true },
-    popular: { sort: 'votecount', reverse: true },
-    newest:  { sort: 'released',  reverse: true, extra: ['released', '<=', today] },
-    title:   { sort: 'title',     reverse: false },
+    rating:   { sort: 'rating',    reverse: true },
+    popular:  { sort: 'votecount', reverse: true },
+    newest:   { sort: 'released',  reverse: true, extra: ['released', '<=', today] },
+    title:    { sort: 'title',     reverse: false },
+    relevant: { sort: 'searchrank', reverse: false },
   };
-  const cfg = presets[sort] || presets.rating;
+  let cfg = presets[sort] || presets.rating;
+  // VNDB only allows the "searchrank" sort alongside a text search; when the user is
+  // just browsing/filtering (no query) fall back to Top Rated so it doesn't 400.
+  if (cfg.sort === 'searchrank' && !query) cfg = presets.rating;
 
   const filters = [];
   // Vote floor, but always allow games by well-known developers through. The dev

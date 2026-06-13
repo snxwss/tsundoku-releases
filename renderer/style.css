@@ -765,9 +765,11 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .newgames-strip .ngs-text { font-size: 14px; font-weight: 700; color: var(--ink); }
 .newgames-strip .ngs-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
-/* Active tag chips sit on their own row (never sharing a line with Allow 18+). */
-.filter-tags { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; width: 100%; }
+.filter-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-tags:empty { display: none; }
+/* In the sidebar rail (narrow), tag chips get their own row; in the top filter bar
+   they stay inline next to Allow 18+. */
+.browse-wrap.browse-side-mode .filter-tags { flex-basis: 100%; width: 100%; }
 .tag-chip { display: inline-flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 5px 9px; border-radius: 9px; border: 2px solid var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .tag-chip-x { cursor: pointer; color: var(--faint); font-size: 10px; }
 .tag-chip-x:hover { color: var(--coral-deep); }
