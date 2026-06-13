@@ -999,7 +999,7 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
 // opts.minVotes = 0 to bypass the floor (used by the folder-scan matcher).
 ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
   vndbVN(buildVnQuery(sort, {
-    query, minVotes: opts.minVotes,
+    query, minVotes: opts.minVotes, simpleFloor: opts.simpleFloor,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
   }), { priority: PRI.HIGH }));

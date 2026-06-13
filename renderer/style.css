@@ -517,17 +517,26 @@ html, body { height: 100%; background: #141714; user-select: none; }
 /* In the rail, the search field matches the filter fields (STUDIO/TAG) exactly — same
    Space Mono font, height, border and radius — and drops the oversized Search button
    (Enter runs the search, like the tag field). */
-.browse-wrap.browse-side-mode .browse-top { flex-direction: column; align-items: stretch; gap: 8px; }
+/* Search field matches the Library search bar's shape/size, with a compact Search
+   button inline beside it (not a big block below). */
+.browse-wrap.browse-side-mode .browse-top { flex-direction: row; align-items: center; gap: 6px; }
 .browse-wrap.browse-side-mode .browse-input {
-  height: 34px; font-family: 'Space Mono', monospace; font-size: 11px;
-  border: 2px solid var(--line-2); border-radius: 9px; padding: 0 11px;
+  flex: 1; min-width: 0; height: 32px; font-family: 'Space Mono', monospace; font-size: 11px;
+  border: 2px solid var(--line-2); border-radius: 10px; padding: 0 12px;
 }
 .browse-wrap.browse-side-mode .browse-input:focus { border-color: var(--accent-deep); }
-.browse-wrap.browse-side-mode #browse-search-btn { justify-content: center; padding: 9px 12px; font-size: 12px; }
+.browse-wrap.browse-side-mode #browse-search-btn { flex-shrink: 0; padding: 8px 11px; font-size: 11px; }
 .browse-wrap.browse-side-mode .browse-side {
   flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
   display: flex; flex-direction: column; gap: 10px;
+  /* On short windows the rail can exceed the viewport — let it scroll on its own so
+     the bottom filters (Clear all, etc.) stay reachable. */
+  max-height: calc(100vh - 92px); overflow-y: auto; padding-right: 2px;
+}
+/* Narrower rail on smaller windows so the results grid keeps enough room. */
+@media (max-width: 1040px) {
+  .browse-wrap.browse-side-mode .browse-side { flex-basis: 230px; width: 230px; }
 }
 .browse-wrap.browse-side-mode .browse-results { flex: 1 1 auto; }
 /* Compact sort: small stacked buttons */

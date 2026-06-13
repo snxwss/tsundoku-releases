@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.5 — 2026-06-12
+- Browse sidebar: the search field now has the same shape and size as the Library search bar, with a compact Search button inline beside it.
+- **Most Relevant** search no longer surfaces obscure, unrated same-named titles — it keeps a modest popularity floor so notable matches come first.
+- The Browse sidebar now scrolls on its own when it's taller than the window (so the bottom filters stay reachable) and narrows on smaller windows so the grid keeps room.
+
 ## 1.5.4 — 2026-06-12
 - **Tag filtering is now meaningful** — it only matches titles where a tag is actually applied (not ones where it's barely/loosely tagged), so results are genuinely about that tag.
 - Detail page tags now show the **strongest story/content tags first** (sorted by how strongly they apply, with technical tags hidden) instead of an arbitrary slice — so a title's defining tags are actually visible.

@@ -1961,10 +1961,12 @@ async function runBrowseSearch() {
   resetBrowse();
   showBrowseStatus('Searching…');
   try {
-    // Title search drops the vote floor (minVotes:0): the user typed a specific
-    // title, so surface it even if niche — and this skips the heavy vote-floor +
-    // 40-studio OR query that VNDB rate-limits (429), which was stalling search.
-    const data = await window.api.vndbSearch(q, browseSort, { ...currentFilterOpts(), minVotes: 0 });
+    // Most title searches drop the vote floor (minVotes:0) to surface niche titles you
+    // typed. But "Most Relevant" (searchrank) is meant to surface NOTABLE matches, so
+    // it keeps a modest floor — otherwise an obscure, unrated same-named title can
+    // outrank the well-known one.
+    const minVotes = browseSort === 'relevant' ? 50 : 0;
+    const data = await window.api.vndbSearch(q, browseSort, { ...currentFilterOpts(), minVotes, simpleFloor: browseSort === 'relevant' });
     document.getElementById('browse-status').classList.add('hidden');
     browseVns = data.results || [];
     renderBrowseGrid(browseVns);
