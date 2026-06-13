@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.1 — 2026-06-12
+- **Faster loading.** The 1.5.0 request pacing was too conservative; it's now adaptive — quick by default (~0.55s spacing) and only slows down if VNDB actually starts throttling, then speeds back up. Steam links/screenshots are fetched at high priority so they appear sooner.
+- No more flash when adding/removing a title to the wishlist from its detail page (the button updates in place instead of re-rendering the whole panel).
+- Browse sidebar polish: the search field matches the rail's styling, tag chips sit on their own row (no longer sharing a line with "Allow 18+"), and tighter, cleaner spacing.
+
 ## 1.5.0 — 2026-06-12
 - **Fixed VNDB rate-limit stalls (429).** All VNDB calls now go through a single paced, prioritised queue with proper backoff + caching, so Browse keeps loading as you scroll, cards load quickly, and detail pages reliably show their tags and Steam gallery (which were vanishing when the detail fetch got throttled). Background metadata enrichment now yields to whatever you're actively doing.
 - **Detail description no longer collapses** to one line on tag-heavy / Steam titles — it shows in full and the panel scrolls.

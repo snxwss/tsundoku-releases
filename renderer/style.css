@@ -514,10 +514,16 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-side { display: flex; flex-direction: column; gap: 14px; }
 .browse-results { min-width: 0; }
 .browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: flex-start; gap: 20px; }
-/* In the rail, stack the search input + button so they fit the narrow column. */
+/* In the rail, stack the search input + button and make the input match the lighter
+   filter-field styling (the full-size 50px/heavy-border search bar looks out of place
+   in the narrow column). */
 .browse-wrap.browse-side-mode .browse-top { flex-direction: column; align-items: stretch; gap: 8px; }
-.browse-wrap.browse-side-mode .browse-input { height: 42px; font-size: 14px; }
-.browse-wrap.browse-side-mode .browse-top .btn-sm { justify-content: center; }
+.browse-wrap.browse-side-mode .browse-input {
+  height: 40px; font-size: 13px; border-width: 2px; border-color: var(--line-2);
+  border-radius: 11px; padding: 0 14px;
+}
+.browse-wrap.browse-side-mode .browse-input:focus { border-color: var(--accent-deep); }
+.browse-wrap.browse-side-mode .browse-top .btn-sm { justify-content: center; padding: 10px 13px; font-size: 12px; }
 .browse-wrap.browse-side-mode .browse-side {
   flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
@@ -526,7 +532,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-wrap.browse-side-mode .browse-results { flex: 1 1 auto; }
 /* Compact sort: small stacked buttons */
 .browse-wrap.browse-side-mode .browse-sort-row { flex-direction: column; align-items: stretch; gap: 5px; }
-.browse-wrap.browse-side-mode .browse-sort-row .bchip { text-align: center; padding: 7px 10px; }
+.browse-wrap.browse-side-mode .browse-sort-row .bchip { text-align: center; padding: 8px 10px; }
+.browse-wrap.browse-side-mode .browse-side .browse-sort-lbl { font-size: 10px; letter-spacing: 1px; color: var(--faint); }
 /* Filters always open in the rail; smaller chips/inputs that wrap to fit the width */
 .browse-wrap.browse-side-mode #filters-toggle { display: none; }
 .browse-wrap.browse-side-mode #filter-drawer { display: flex !important; margin-top: 0; padding: 12px; gap: 11px; }
@@ -758,7 +765,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .newgames-strip .ngs-text { font-size: 14px; font-weight: 700; color: var(--ink); }
 .newgames-strip .ngs-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
-.filter-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Active tag chips sit on their own row (never sharing a line with Allow 18+). */
+.filter-tags { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; width: 100%; }
 .filter-tags:empty { display: none; }
 .tag-chip { display: inline-flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 5px 9px; border-radius: 9px; border: 2px solid var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .tag-chip-x { cursor: pointer; color: var(--faint); font-size: 10px; }

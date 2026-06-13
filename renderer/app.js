@@ -2812,15 +2812,26 @@ async function openModal(item) {
     else await window.api.addToList(metaOf(full), 'library');
     reopen();
   });
-  document.getElementById('m-wishlist')?.addEventListener('click', async () => {
-    if (inWish) await window.api.removeFromList(full.id, 'wishlist');
-    else await window.api.addToList(metaOf(full), 'wishlist');
-    reopen();
+  // Wishlist toggles update the button in place (no modal re-render) to avoid a flash.
+  let wishOn = inWish;
+  const wishBtn = document.getElementById('m-wishlist');
+  wishBtn?.addEventListener('click', async () => {
+    wishOn = !wishOn;
+    wishBtn.style.color = wishOn ? 'var(--coral-deep)' : '';
+    wishBtn.innerHTML = `${icon('heart', 13)} ${wishOn ? 'Wishlisted' : 'Wishlist'}`;
+    if (wishOn) await window.api.addToList(metaOf(full), 'wishlist');
+    else await window.api.removeFromList(full.id, 'wishlist');
+    await loadEntries();
   });
-  document.getElementById('m-wishlist-priv')?.addEventListener('click', async () => {
-    if (inWishPriv) await window.api.removeFromList(full.id, 'wishlistPrivate');
-    else await window.api.addToList(metaOf(full), 'wishlistPrivate');
-    reopen();
+  let privOn = inWishPriv;
+  const privBtn = document.getElementById('m-wishlist-priv');
+  privBtn?.addEventListener('click', async () => {
+    privOn = !privOn;
+    privBtn.style.color = privOn ? 'var(--coral-deep)' : '';
+    privBtn.innerHTML = `🔒 ${privOn ? 'In private list' : 'Private wishlist'}`;
+    if (privOn) await window.api.addToList(metaOf(full), 'wishlistPrivate');
+    else await window.api.removeFromList(full.id, 'wishlistPrivate');
+    await loadEntries();
   });
   document.getElementById('m-hide')?.addEventListener('click', async () => {
     if (isHidden) {

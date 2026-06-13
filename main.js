@@ -818,7 +818,11 @@ ipcMain.handle('wishlist-get-releases', async (_e, vnIds) => {
 // blow past its budget. Serialize ALL VNDB calls through one queue with a minimum
 // spacing; higher-priority (user-initiated) requests jump ahead of low-priority
 // background work (backfill, release checks).
-const VNDB_MIN_GAP = 1100; // ms between requests
+// Adaptive spacing: run fast normally, automatically slow down if VNDB starts
+// throttling (429), then recover. This keeps things snappy without bursting.
+const VNDB_GAP_MIN = 550;
+const VNDB_GAP_MAX = 2200;
+let vndbGap = VNDB_GAP_MIN;
 const PRI = { HIGH: 2, NORMAL: 1, LOW: 0 };
 const vndbQueue = [];
 let vndbBusy = false;
@@ -839,7 +843,7 @@ async function vndbPump() {
   const item = vndbQueue.shift();
   if (!item) return;
   vndbBusy = true;
-  const wait = Math.max(0, VNDB_MIN_GAP - (Date.now() - vndbLastAt));
+  const wait = Math.max(0, vndbGap - (Date.now() - vndbLastAt));
   if (wait) await new Promise(r => setTimeout(r, wait));
   try { item.resolve(await item.run()); }
   catch (e) { item.reject(e); }
@@ -858,12 +862,14 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL } = {}) {
         body: JSON.stringify(body),
       });
       if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+        vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 450); // back off globally
         const ra = parseInt(res.headers.get('retry-after'), 10);
         const ms = Number.isFinite(ra) ? ra * 1000 : Math.min(8000, 1000 * 2 ** attempt);
         await new Promise(r => setTimeout(r, ms));
         continue;
       }
       if (!res.ok) throw new Error(`VNDB ${res.status}`);
+      vndbGap = Math.max(VNDB_GAP_MIN, vndbGap - 60); // healthy — speed back up
       return res.json();
     }
   }, priority);
@@ -1029,7 +1035,7 @@ async function steamAppIdForVn(vnId) {
       filters: ['vn', '=', ['id', '=', vnId]],
       fields: 'extlinks.url, extlinks.name',
       results: 100, // VNDB page max; most VNs have far fewer releases than this
-    }, { priority: PRI.NORMAL });
+    }, { priority: PRI.HIGH });
   } catch { return null; }
   for (const rel of (d.results || [])) {
     for (const l of (rel.extlinks || [])) {
