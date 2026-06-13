@@ -511,8 +511,13 @@ html, body { height: 100%; background: #141714; user-select: none; }
    above the grid). The .browse-side-mode variant moves them into a compact right rail
    that sticks in place while the results scroll. */
 .browse-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.browse-side { display: flex; flex-direction: column; gap: 14px; }
 .browse-results { min-width: 0; }
 .browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: flex-start; gap: 20px; }
+/* In the rail, stack the search input + button so they fit the narrow column. */
+.browse-wrap.browse-side-mode .browse-top { flex-direction: column; align-items: stretch; gap: 8px; }
+.browse-wrap.browse-side-mode .browse-input { height: 42px; font-size: 14px; }
+.browse-wrap.browse-side-mode .browse-top .btn-sm { justify-content: center; }
 .browse-wrap.browse-side-mode .browse-side {
   flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
@@ -618,7 +623,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
 .modal-meta-cell .mk { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px; color: var(--faint); }
 .modal-meta-cell .mv { font-weight: 800; font-size: 14px; color: var(--ink); margin-top: 3px; }
-.modal-desc { font-size: 13px; line-height: 1.65; color: var(--mut); margin-top: 16px; max-height: 160px; overflow-y: auto; }
+.modal-desc { font-size: 13px; line-height: 1.65; color: var(--mut); margin-top: 16px; flex-shrink: 0; }
 .modal-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .modal-tag  { font-family: 'Space Mono', monospace; font-size: 10.5px; color: color-mix(in oklch, var(--accent-deep) 68%, var(--ink)); background: color-mix(in oklch, var(--accent) 30%, var(--card)); border: 1px solid color-mix(in oklch, var(--accent) 45%, var(--card)); padding: 4px 9px; border-radius: 7px; }
 .modal-links-row { margin-top: 16px; }
@@ -742,6 +747,17 @@ html, body { height: 100%; background: #141714; user-select: none; }
   border-radius: 13px; box-shadow: 0 2px 0 var(--edge);
 }
 .filter-line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* "New games found" startup strip (floating, bottom-center) */
+.newgames-strip {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 18px;
+  background: var(--card); border: 2px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 28px oklch(0.1 0.01 160 / 0.28), 0 4px 0 var(--edge);
+  padding: 12px 16px; max-width: calc(100% - 48px);
+}
+.newgames-strip .ngs-text { font-size: 14px; font-weight: 700; color: var(--ink); }
+.newgames-strip .ngs-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
 .filter-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-tags:empty { display: none; }
 .tag-chip { display: inline-flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 5px 9px; border-radius: 9px; border: 2px solid var(--accent-deep); color: var(--accent-deep); background: var(--panel); }

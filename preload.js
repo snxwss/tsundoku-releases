@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   // VNDB
   vndbSearch:  (query, sort, opts) => ipcRenderer.invoke('vndb-search', query, sort, opts),
-  vndbGet:     (id)           => ipcRenderer.invoke('vndb-get', id),
+  vndbGet:     (id, opts)     => ipcRenderer.invoke('vndb-get', id, opts),
   vndbBrowse:  (sort, opts)   => ipcRenderer.invoke('vndb-browse', sort, opts),
   vndbTopRated: (opts)        => ipcRenderer.invoke('vndb-top-rated', opts),
   vndbTagSearch: (name)       => ipcRenderer.invoke('vndb-tag-search', name),
@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('api', {
   onVNStarted: (cb)            => ipcRenderer.on('vn-started', (_e, id) => cb(id)),
   setAutoStart: (enabled)      => ipcRenderer.invoke('set-auto-start', enabled),
   scanFolder: ()               => ipcRenderer.invoke('scan-folder'),
+  scanFolderSilent: ()         => ipcRenderer.invoke('scan-folder-silent'),
 
   // Settings
   getSettings:   ()          => ipcRenderer.invoke('get-settings'),

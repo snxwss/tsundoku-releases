@@ -395,6 +395,7 @@ function ensureEntry(store, meta) {
       exe_path:         null,
       status:           'unplayed',
       wishlist:         false,
+      wishlistPrivate:  false,
       excluded:         false,
       playtime_seconds: 0,
       last_played:      null,
@@ -540,7 +541,7 @@ function writeRuntimeDebug() {
 function pruneIfOrphan(store, id) {
   const e = store[id];
   // Keep entries that have playtime history, or are hidden from browse, so the flag persists.
-  if (e && !e.library && !e.wishlist && !e.hidden && !e.playtime_seconds && !e.last_played) {
+  if (e && !e.library && !e.wishlist && !e.wishlistPrivate && !e.hidden && !e.playtime_seconds && !e.last_played) {
     delete store[id];
   }
 }
@@ -791,17 +792,14 @@ ipcMain.handle('wishlist-get-releases', async (_e, vnIds) => {
       const vnFilter = chunk.length === 1
         ? ['vn', '=', chunk[0]]
         : ['or', ...chunk.map(id => ['vn', '=', id])];
-      const res = await fetch('https://api.vndb.org/kana/release', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let data;
+      try {
+        data = await vndbFetch('release', {
           filters: ['and', ['lang', '=', 'en'], ['official', '=', true], vnFilter],
           fields: 'id,title,released,patch,vns.id',
           results: 100,
-        }),
-      });
-      if (!res.ok) continue;
-      const data = await res.json();
+        }, { priority: PRI.LOW });
+      } catch { continue; }
       for (const rel of (data.results || [])) {
         for (const vn of (rel.vns || [])) {
           if (!vnIds.includes(vn.id)) continue;
@@ -814,22 +812,65 @@ ipcMain.handle('wishlist-get-releases', async (_e, vnIds) => {
   return out;
 });
 
-// ── VNDB ──────────────────────────────────────────────────────────────────────
-async function vndbVN(body, attempt = 0) {
-  const res = await fetch('https://api.vndb.org/kana/vn', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+// ── VNDB request queue ────────────────────────────────────────────────────────
+// VNDB rate-limits hard (429) and bills by query execution time, so bursts of
+// concurrent calls (browse infinite-scroll + background backfill + modal opens)
+// blow past its budget. Serialize ALL VNDB calls through one queue with a minimum
+// spacing; higher-priority (user-initiated) requests jump ahead of low-priority
+// background work (backfill, release checks).
+const VNDB_MIN_GAP = 1100; // ms between requests
+const PRI = { HIGH: 2, NORMAL: 1, LOW: 0 };
+const vndbQueue = [];
+let vndbBusy = false;
+let vndbLastAt = 0;
+
+function vndbEnqueue(run, priority = PRI.NORMAL) {
+  return new Promise((resolve, reject) => {
+    const item = { run, resolve, reject, priority };
+    // Insert by priority (higher first), stable/FIFO within the same priority.
+    let i = vndbQueue.length;
+    while (i > 0 && vndbQueue[i - 1].priority < priority) i--;
+    vndbQueue.splice(i, 0, item);
+    vndbPump();
   });
-  // VNDB throttles with 429 (it bills by query execution time, so heavy sorted
-  // queries hit it fast). Back off and retry a few times before surfacing an error.
-  if ((res.status === 429 || res.status >= 500) && attempt < 3) {
-    await new Promise(r => setTimeout(r, 900 * (attempt + 1)));
-    return vndbVN(body, attempt + 1);
-  }
-  if (!res.ok) throw new Error(`VNDB ${res.status}`);
-  return res.json();
 }
+async function vndbPump() {
+  if (vndbBusy) return;
+  const item = vndbQueue.shift();
+  if (!item) return;
+  vndbBusy = true;
+  const wait = Math.max(0, VNDB_MIN_GAP - (Date.now() - vndbLastAt));
+  if (wait) await new Promise(r => setTimeout(r, wait));
+  try { item.resolve(await item.run()); }
+  catch (e) { item.reject(e); }
+  finally { vndbLastAt = Date.now(); vndbBusy = false; vndbPump(); }
+}
+
+// One POST to a VNDB endpoint, enqueued so spacing is enforced. Retries 429/5xx
+// with exponential backoff (honouring Retry-After) — the backoff sleeps inside the
+// queue slot, so it also delays the following request.
+function vndbFetch(endpoint, body, { priority = PRI.NORMAL } = {}) {
+  return vndbEnqueue(async () => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`https://api.vndb.org/kana/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+        const ra = parseInt(res.headers.get('retry-after'), 10);
+        const ms = Number.isFinite(ra) ? ra * 1000 : Math.min(8000, 1000 * 2 ** attempt);
+        await new Promise(r => setTimeout(r, ms));
+        continue;
+      }
+      if (!res.ok) throw new Error(`VNDB ${res.status}`);
+      return res.json();
+    }
+  }, priority);
+}
+
+// ── VNDB ──────────────────────────────────────────────────────────────────────
+const vndbVN = (body, opts = {}) => vndbFetch('vn', body, opts);
 
 // Fields we always request for list/search results.
 // tags.{name,category,rating} drive accurate 18+ detection (cover rating alone
@@ -948,19 +989,14 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
     query, minVotes: opts.minVotes,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  })));
+  }), { priority: PRI.HIGH }));
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
 ipcMain.handle('vndb-tag-search', async (_e, name) => {
   if (!name || !name.trim()) return null;
   try {
-    const res = await fetch('https://api.vndb.org/kana/tag', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: 'id,name,vn_count', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 1 }),
-    });
-    if (!res.ok) return null;
-    const d = await res.json();
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 1 }, { priority: PRI.HIGH });
     return (d.results && d.results[0]) ? { id: d.results[0].id, name: d.results[0].name } : null;
   } catch { return null; }
 });
@@ -970,12 +1006,7 @@ ipcMain.handle('vndb-tag-search', async (_e, name) => {
 ipcMain.handle('vndb-producer-search', async (_e, name) => {
   if (!name || !name.trim()) return null;
   try {
-    const res = await fetch('https://api.vndb.org/kana/producer', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: 'id,name', filters: ['search', '=', name.trim()], sort: 'searchrank', results: 1 }),
-    });
-    if (!res.ok) return null;
-    const d = await res.json();
+    const d = await vndbFetch('producer', { fields: 'id,name', filters: ['search', '=', name.trim()], sort: 'searchrank', results: 1 }, { priority: PRI.HIGH });
     return (d.results && d.results[0]) ? { id: d.results[0].id, name: d.results[0].name } : null;
   } catch { return null; }
 });
@@ -992,16 +1023,14 @@ const STEAM_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
 // Find the Steam appid for a VN via its VNDB releases' external links.
 async function steamAppIdForVn(vnId) {
-  const res = await fetch('https://api.vndb.org/kana/release', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  let d;
+  try {
+    d = await vndbFetch('release', {
       filters: ['vn', '=', ['id', '=', vnId]],
       fields: 'extlinks.url, extlinks.name',
       results: 100, // VNDB page max; most VNs have far fewer releases than this
-    }),
-  });
-  if (!res.ok) return null;
-  const d = await res.json();
+    }, { priority: PRI.NORMAL });
+  } catch { return null; }
   for (const rel of (d.results || [])) {
     for (const l of (rel.extlinks || [])) {
       if (l && l.name === 'steam' && typeof l.url === 'string') {
@@ -1049,18 +1078,29 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
   return data;
 });
 
-ipcMain.handle('vndb-get', (_e, id) => vndbVN({
-  filters: ['id', '=', id],
-  fields: DETAIL_FIELDS,
-  results: 1,
-}));
+// Per-id detail cache so reopening a modal / a backfill pass doesn't refetch.
+// `background:true` (used by backfill) runs at LOW priority so it yields to the
+// user's browse/modal requests.
+const vnDetailCache = new Map(); // id -> { data, ts }
+const VN_DETAIL_TTL = 30 * 60 * 1000; // 30 min
+ipcMain.handle('vndb-get', async (_e, id, { background = false } = {}) => {
+  const hit = vnDetailCache.get(id);
+  if (hit && Date.now() - hit.ts < VN_DETAIL_TTL) return hit.data;
+  const data = await vndbVN({
+    filters: ['id', '=', id],
+    fields: DETAIL_FIELDS,
+    results: 1,
+  }, { priority: background ? PRI.LOW : PRI.HIGH });
+  vnDetailCache.set(id, { data, ts: Date.now() });
+  return data;
+});
 
 ipcMain.handle('vndb-browse', (_e, sort, opts = {}) =>
   vndbVN(buildVnQuery(sort, {
     page: opts.page || 1,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  })));
+  }), { priority: PRI.HIGH }));
 
 // "Top Rated" uses an IMDb-style weighted ranking instead of raw average, so a
 // 9.0 with 16k votes outranks a 9.0 with 141 votes. We fetch a pool of the
@@ -1089,7 +1129,7 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
     // Let a page-1 failure (network / VNDB down / rate-limit) propagate so the UI
     // shows a real error instead of a misleading "Nothing to show". Once we have
     // some results, a later page failing just ends pagination.
-    try { data = await vndbVN(body); }
+    try { data = await vndbVN(body, { priority: PRI.HIGH }); }
     catch (e) { if (page === 1) throw e; break; }
     const r = data.results || [];
     pool.push(...r);
@@ -1154,7 +1194,7 @@ ipcMain.handle('entry-enrich', (_e, meta) => {
 
 // ── List membership ───────────────────────────────────────────────────────────
 ipcMain.handle('entry-add-to-list', (_e, meta, list) => {
-  if (list !== 'library' && list !== 'wishlist') throw new Error('bad list');
+  if (list !== 'library' && list !== 'wishlist' && list !== 'wishlistPrivate') throw new Error('bad list');
   const store = readStore();
   const entry = ensureEntry(store, meta);
   entry[list] = true;
@@ -1164,7 +1204,7 @@ ipcMain.handle('entry-add-to-list', (_e, meta, list) => {
 });
 
 ipcMain.handle('entry-remove-from-list', (_e, id, list) => {
-  if (list !== 'library' && list !== 'wishlist') throw new Error('bad list');
+  if (list !== 'library' && list !== 'wishlist' && list !== 'wishlistPrivate') throw new Error('bad list');
   const store = readStore();
   if (store[id]) {
     store[id][list] = false;
@@ -1397,6 +1437,7 @@ ipcMain.handle('import-data', async () => {
       // Merge: keep LOCAL exe_path, never lose playtime, keep the latest play.
       local.library  = local.library  || !!imp.library;
       local.wishlist = local.wishlist || !!imp.wishlist;
+      local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
       if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
       local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
       const plays = [local.last_played, imp.last_played].filter(v => v != null);
@@ -1514,6 +1555,23 @@ ipcMain.handle('scan-folder', async () => {
     writeSettings(s);
   }
   // Scan every configured directory and aggregate the results.
+  const matches = [], noExe = [];
+  for (const root of dirs) {
+    try {
+      const res = await scanDirectory(root);
+      matches.push(...res.matches);
+      noExe.push(...res.noExe);
+    } catch { /* skip unreadable dir */ }
+  }
+  return { root: dirs.join('  ·  '), matches, noExe };
+});
+
+// Non-interactive scan of the SAVED folders only (for the startup "new games"
+// check). Returns null when no scan folders are configured — never pops a dialog.
+ipcMain.handle('scan-folder-silent', async () => {
+  const s = readSettings();
+  const dirs = getScanDirs(s).filter(d => d && fs.existsSync(d));
+  if (!dirs.length) return null;
   const matches = [], noExe = [];
   for (const root of dirs) {
     try {

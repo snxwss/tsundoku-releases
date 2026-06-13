@@ -130,12 +130,12 @@
       <!-- Browse -->
       <div id="view-browse" class="view">
         <div class="browse-wrap">
+          <div class="browse-body">
+          <div class="browse-side">
           <div class="browse-top">
             <input id="browse-search" class="browse-input" type="text" placeholder="Search VNDB by title…" />
             <button class="btn-sm pri" id="browse-search-btn">Search</button>
           </div>
-          <div class="browse-body">
-          <div class="browse-side">
           <div class="browse-sort-row">
             <span class="browse-sort-lbl">SORT</span>
             <div class="bchip on" data-sort="rating">Top Rated</div>
@@ -191,6 +191,10 @@
           <div class="wishlist-head">
             <h2>Wishlist</h2>
             <span class="sub" id="wish-count"></span>
+            <div class="settings-toggle wish-view-toggle" id="wish-view-toggle">
+              <div class="stog-btn on" data-wishview="public">Public</div>
+              <div class="stog-btn" data-wishview="private">Private</div>
+            </div>
             <input id="wish-search" class="lib-search-input" type="text" placeholder="Search wishlist…" />
           </div>
           <div id="wish-alerts" class="wish-alerts hidden"></div>

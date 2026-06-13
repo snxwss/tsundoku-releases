@@ -96,6 +96,7 @@ let updateStatusState = null; // latest auto-update state from main process
 let libSearch      = '';
 let libCollFilter  = null;   // null = no collection filter; string id when active
 let wishSearch     = '';
+let wishView       = 'public'; // 'public' = wishlist, 'private' = wishlistPrivate
 let wishlistAlerts = [];     // [{ vnId, vnTitle, releases: [] }]
 
 // Browse pagination state
@@ -829,7 +830,7 @@ async function backfillMeta() {
     let anyChanged = false;
     for (const e of missing) {
       try {
-        const data = await window.api.vndbGet(e.id);
+        const data = await window.api.vndbGet(e.id, { background: true });
         const full = data.results?.[0];
         if (full) {
           const changed = await window.api.entryEnrich({
@@ -2060,8 +2061,11 @@ function renderBrowseGrid(vns) {
 
 // ── WISHLIST ──────────────────────────────────────────────────────────────────
 function renderWishlist() {
-  let items = entries.filter(e => e.wishlist).sort(byNewest);
-  if (settings.nsfwHideLibrary) items = items.filter(e => !isNsfw(e));
+  const isPrivate = wishView === 'private';
+  const flag = isPrivate ? 'wishlistPrivate' : 'wishlist';
+  let items = entries.filter(e => e[flag]).sort(byNewest);
+  // Don't NSFW-hide the Private list — that's exactly where private/18+ titles live.
+  if (!isPrivate && settings.nsfwHideLibrary) items = items.filter(e => !isNsfw(e));
   const savedTotal = items.length;
   if (wishSearch.trim()) {
     const q = wishSearch.toLowerCase();
@@ -2073,9 +2077,9 @@ function renderWishlist() {
   const empty     = document.getElementById('wishlist-empty');
   const alertsEl  = document.getElementById('wish-alerts');
 
-  // Alerts strip
+  // Alerts strip (release alerts apply to the public wishlist only)
   if (alertsEl) {
-    if (wishlistAlerts.length) {
+    if (!isPrivate && wishlistAlerts.length) {
       alertsEl.classList.remove('hidden');
       alertsEl.innerHTML = `
         <div class="wish-alert-head">
@@ -2123,8 +2127,10 @@ function renderWishlist() {
       if (et) et.textContent = `No results for "${wishSearch}"`;
       if (es) es.innerHTML = 'Try a different search term.';
     } else {
-      if (et) et.textContent = 'Nothing on your wishlist';
-      if (es) es.innerHTML = 'Browse VNDB and hover a cover<br />to wishlist titles for later.';
+      if (et) et.textContent = isPrivate ? 'Your private wishlist is empty' : 'Nothing on your wishlist';
+      if (es) es.innerHTML = isPrivate
+        ? 'Open any title and use the lock button<br />to add it here, privately.'
+        : 'Browse VNDB and hover a cover<br />to wishlist titles for later.';
     }
     return;
   }
@@ -2178,7 +2184,7 @@ function renderWishlist() {
   grid.querySelectorAll('.wi-remove').forEach(el => {
     el.addEventListener('click', async e => {
       e.stopPropagation();
-      await window.api.removeFromList(el.dataset.id, 'wishlist');
+      await window.api.removeFromList(el.dataset.id, flag);
       await loadEntries(); renderWishlist();
     });
   });
@@ -2699,6 +2705,7 @@ async function openModal(item) {
   const entry      = entryById(full.id) || {};
   const inLib      = !!entry.library;
   const inWish     = !!entry.wishlist;
+  const inWishPriv = !!entry.wishlistPrivate;
   const onDevice   = !!entry.exe_path;
   const isExcluded = !!entry.excluded;
   const isHidden   = !!entry.hidden;
@@ -2747,6 +2754,9 @@ async function openModal(item) {
       </div>
       <div class="btn-sm sec" id="m-wishlist" style="${inWish ? 'color:var(--coral-deep)' : ''}">
         ${icon('heart', 13)} ${inWish ? 'Wishlisted' : 'Wishlist'}
+      </div>
+      <div class="btn-sm sec" id="m-wishlist-priv" style="${inWishPriv ? 'color:var(--coral-deep)' : ''}">
+        🔒 ${inWishPriv ? 'In private list' : 'Private wishlist'}
       </div>
       ${!inLib ? `<div class="btn-sm sec" id="m-hide" style="color:var(--mut)">${icon('exclude', 13)} ${isHidden ? 'Unhide' : 'Hide from browse'}</div>` : ''}
       ${inLib && onDevice ? `<div class="btn-sm sec" id="m-change-exe">${icon('folder', 13)} Change EXE</div>` : ''}
@@ -2805,6 +2815,11 @@ async function openModal(item) {
   document.getElementById('m-wishlist')?.addEventListener('click', async () => {
     if (inWish) await window.api.removeFromList(full.id, 'wishlist');
     else await window.api.addToList(metaOf(full), 'wishlist');
+    reopen();
+  });
+  document.getElementById('m-wishlist-priv')?.addEventListener('click', async () => {
+    if (inWishPriv) await window.api.removeFromList(full.id, 'wishlistPrivate');
+    else await window.api.addToList(metaOf(full), 'wishlistPrivate');
     reopen();
   });
   document.getElementById('m-hide')?.addEventListener('click', async () => {
@@ -3008,48 +3023,90 @@ function reconcileScanMatch(m) {
   return candidates;
 }
 
+// Build scanState from a scan result and open the review modal. Shared by the
+// manual "Scan now" button and the startup "new games found" alert.
+function openScanResults(result) {
+  if (!result) return;
+  // Folders whose match the user explicitly left unchecked on a previous scan —
+  // keep them deselected so a rescan doesn't re-suggest something already rejected.
+  const dismissed = new Set(settings.dismissedScans || []);
+  scanState = result.matches.map(m => {
+    const candidates = reconcileScanMatch(m);
+    const top = candidates[0];
+    // Auto-check only confident NEW matches (or library reconnects), so the user just
+    // confirms them. Weak matches stay unchecked so they opt in (avoids Steam games
+    // being added as VNs), and anything previously deselected stays deselected.
+    const confident = !!top && (top.inLibrary
+      || scanNameMatches(m.query, top.title)
+      || scanNameMatches(m.folderName, top.title));
+    const rejected = dismissed.has(m.exePath) && !(top && top.inLibrary);
+    return {
+      folderName: m.folderName,
+      exePath:    m.exePath,
+      query:      m.query,
+      candidates,
+      selectedId: top ? top.id : '',
+      include:    confident && !rejected,
+    };
+  });
+  const reconnects = scanState.filter(r => r.candidates.find(c => c.id === r.selectedId)?.inLibrary).length;
+  const weak       = scanState.filter(r => r.candidates.length && !r.include).length;
+  const noExeNote  = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
+  const reconNote  = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
+  const weakNote   = weak ? ` ${weak} weak match(es) left unchecked — tick them if they're correct.` : '';
+  document.getElementById('scan-subtitle').textContent =
+    `Found ${scanState.length} game folder(s) in ${result.root}.${reconNote}${weakNote}${noExeNote}`;
+  renderScanList();
+  document.getElementById('scan-overlay').classList.remove('hidden');
+}
+
 async function runScan() {
   const btn = document.getElementById('settings-scan-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = `${icon('clock', 13)} Scanning…`; }
   try {
     const result = await window.api.scanFolder();
-    if (!result) return;
-    // Folders whose match the user explicitly left unchecked on a previous scan —
-    // keep them deselected so a rescan doesn't re-suggest something already rejected.
-    const dismissed = new Set(settings.dismissedScans || []);
-    scanState = result.matches.map(m => {
-      const candidates = reconcileScanMatch(m);
-      const top = candidates[0];
-      // Auto-check only confident NEW matches (or library reconnects), so the user just
-      // confirms them. Weak matches stay unchecked so they opt in (avoids Steam games
-      // being added as VNs), and anything previously deselected stays deselected.
-      const confident = !!top && (top.inLibrary
-        || scanNameMatches(m.query, top.title)
-        || scanNameMatches(m.folderName, top.title));
-      const rejected = dismissed.has(m.exePath) && !(top && top.inLibrary);
-      return {
-        folderName: m.folderName,
-        exePath:    m.exePath,
-        query:      m.query,
-        candidates,
-        selectedId: top ? top.id : '',
-        include:    confident && !rejected,
-      };
-    });
-    const reconnects = scanState.filter(r => r.candidates.find(c => c.id === r.selectedId)?.inLibrary).length;
-    const weak       = scanState.filter(r => r.candidates.length && !r.include).length;
-    const noExeNote  = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
-    const reconNote  = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
-    const weakNote   = weak ? ` ${weak} weak match(es) left unchecked — tick them if they're correct.` : '';
-    document.getElementById('scan-subtitle').textContent =
-      `Found ${scanState.length} game folder(s) in ${result.root}.${reconNote}${weakNote}${noExeNote}`;
-    renderScanList();
-    document.getElementById('scan-overlay').classList.remove('hidden');
+    openScanResults(result);
   } catch (err) {
     alert('Scan failed: ' + err.message);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = `${icon('scan', 13)} Scan now`; }
   }
+}
+
+// Startup check: silently scan the saved folders and, if there are NEW confident
+// matches that aren't in the library and weren't previously dismissed, show a
+// dismissible strip offering to review + add them. Covers newly installed Steam
+// games when the Steam library is one of the scan folders.
+async function checkNewGames() {
+  let result;
+  try { result = await window.api.scanFolderSilent(); } catch { return; }
+  if (!result || !result.matches || !result.matches.length) return;
+  const dismissed = new Set(settings.dismissedScans || []);
+  const fresh = result.matches.filter(m => {
+    const top = reconcileScanMatch(m)[0];
+    if (!top || isKnownId(top.id) || dismissed.has(m.exePath)) return false;
+    return scanNameMatches(m.query, top.title) || scanNameMatches(m.folderName, top.title);
+  });
+  if (fresh.length) showNewGamesStrip(fresh.length, result);
+}
+
+function showNewGamesStrip(count, result) {
+  document.getElementById('newgames-strip')?.remove();
+  const strip = document.createElement('div');
+  strip.id = 'newgames-strip';
+  strip.className = 'newgames-strip';
+  strip.innerHTML = `
+    <span class="ngs-text">🎮 ${count} new game${count !== 1 ? 's' : ''} found in your folders</span>
+    <div class="ngs-actions">
+      <div class="btn-sm pri" id="ngs-review">Review &amp; add</div>
+      <div class="btn-sm sec" id="ngs-dismiss">Dismiss</div>
+    </div>`;
+  (document.getElementById('app') || document.body).appendChild(strip);
+  document.getElementById('ngs-review').addEventListener('click', () => {
+    strip.remove();
+    openScanResults(result);
+  });
+  document.getElementById('ngs-dismiss').addEventListener('click', () => strip.remove());
 }
 
 function renderScanList() {
@@ -3201,6 +3258,15 @@ async function init() {
     wishSearch = e.target.value;
     renderWishlist();
   });
+  // Public / Private wishlist toggle
+  document.querySelectorAll('#wish-view-toggle [data-wishview]').forEach(el => {
+    el.addEventListener('click', () => {
+      wishView = el.dataset.wishview;
+      document.querySelectorAll('#wish-view-toggle [data-wishview]').forEach(b =>
+        b.classList.toggle('on', b.dataset.wishview === wishView));
+      renderWishlist();
+    });
+  });
 
   // Library sort
   document.querySelectorAll('.fsort-item').forEach(el => {
@@ -3321,6 +3387,7 @@ async function init() {
   updateWishBadge();
   // Check for new English releases on wishlisted VNs (fire-and-forget)
   setTimeout(checkWishlistAlerts, 3000);
+  setTimeout(checkNewGames, 5000); // detect newly installed games in scan folders
   backfillMeta(); // fire-and-forget background metadata enrichment
 }
 

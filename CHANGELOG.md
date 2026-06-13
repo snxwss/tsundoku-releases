@@ -2,6 +2,13 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.0 — 2026-06-12
+- **Fixed VNDB rate-limit stalls (429).** All VNDB calls now go through a single paced, prioritised queue with proper backoff + caching, so Browse keeps loading as you scroll, cards load quickly, and detail pages reliably show their tags and Steam gallery (which were vanishing when the detail fetch got throttled). Background metadata enrichment now yields to whatever you're actively doing.
+- **Detail description no longer collapses** to one line on tag-heavy / Steam titles — it shows in full and the panel scrolls.
+- **Private wishlist** — a separate, private wishlist alongside the main one. Toggle Public/Private in the Wishlist header; add titles via the 🔒 button in a title's detail page. (Not NSFW-hidden, so it's the spot for private titles.)
+- **New-game alerts** — on startup Tsundoku scans your folders and, if it finds newly installed games (including new Steam games when Steam is a scan folder), shows a "Review & add" strip. Reuses your scan decisions, so it won't nag about ones you've already added or skipped.
+- Browse **Sidebar** layout now keeps the search bar inside the sidebar too.
+
 ## 1.4.9 — 2026-06-12
 - **Filter Browse by multiple tags** — type a tag and press Enter to add it as a chip; add several and titles must match all of them. Remove a tag with its ✕.
 - Removed the stray "+" next to the rating filter.
