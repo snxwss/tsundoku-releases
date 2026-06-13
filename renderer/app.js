@@ -399,12 +399,7 @@ async function setCardSize(size) {
 // Browse controls layout: 'top' (sort + filters across the top) or 'side' (compact right rail).
 function applyBrowseLayout() {
   const w = document.querySelector('.browse-wrap');
-  if (!w) return;
-  const side = (settings.browseLayout || 'top') === 'side';
-  w.classList.toggle('browse-side-mode', side);
-  // The rail drops the Search button, so cue Enter in the placeholder (top mode keeps the button).
-  const search = document.getElementById('browse-search');
-  if (search) search.placeholder = side ? 'Search VNDB, press Enter…' : 'Search VNDB by title…';
+  if (w) w.classList.toggle('browse-side-mode', (settings.browseLayout || 'top') === 'side');
 }
 async function setBrowseLayout(v) {
   await setSetting('browseLayout', v);
@@ -2721,7 +2716,14 @@ async function openModal(item) {
   const lengthH  = full.length_minutes ? `${Math.round(full.length_minutes / 60)}h avg` : '—';
   const dev      = devName(full);
   const alttitle = full.alttitle || null;
-  const tags     = (full.tags || []).slice(0, 20).map(t => `<span class="modal-tag">${escHtml(t.name || t)}</span>`).join('');
+  // Show the strongest content/sexual tags first (drop technical ones, which aren't
+  // about the story). VNDB doesn't return tags sorted, so sort by rating here.
+  const tags     = (full.tags || [])
+    .filter(t => !t || t.category !== 'tech')
+    .slice()
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, 26)
+    .map(t => `<span class="modal-tag">${escHtml(t.name || t)}</span>`).join('');
   // External links: VNDB page (always) + only English Wikipedia and
   // HowLongToBeat when present — one of each, no duplicates.
   const WANT_LINKS = ['enwiki', 'howlongtobeat'];

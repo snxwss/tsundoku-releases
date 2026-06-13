@@ -975,10 +975,13 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   if (length)       filters.push(['length', '=', length]);             // 1=v.short … 5=v.long
   if (devId)        filters.push(['developer', '=', ['id', '=', devId]]);     // exact studio match
   else if (devSearch) filters.push(['developer', '=', ['search', '=', devSearch]]);
-  // One or more tags — a title must carry ALL of them (AND).
+  // One or more tags — a title must carry ALL of them (AND). The [id, maxspoiler,
+  // minlevel] form requires the tag to be meaningfully applied (avg level ≥ 1.5),
+  // so a title that's only barely/loosely tagged doesn't match.
+  const tagClause = id => ['tag', '=', [id, 2, 1.5]];
   const tags = (Array.isArray(tagIds) ? tagIds : []).concat(tagId ? [tagId] : []).filter(Boolean);
-  if (tags.length === 1)      filters.push(['tag', '=', tags[0]]);
-  else if (tags.length > 1)   filters.push(['and', ...tags.map(t => ['tag', '=', t])]);
+  if (tags.length === 1)      filters.push(tagClause(tags[0]));
+  else if (tags.length > 1)   filters.push(['and', ...tags.map(tagClause)]);
 
   const body = {
     fields: LIST_FIELDS,

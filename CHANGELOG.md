@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.4 — 2026-06-12
+- **Tag filtering is now meaningful** — it only matches titles where a tag is actually applied (not ones where it's barely/loosely tagged), so results are genuinely about that tag.
+- Detail page tags now show the **strongest story/content tags first** (sorted by how strongly they apply, with technical tags hidden) instead of an arbitrary slice — so a title's defining tags are actually visible.
+- Browse sidebar: the **Search button is back** under the search field (which keeps its clean, filter-field styling).
+
 ## 1.5.3 — 2026-06-12
 - New **Most Relevant** sort — when you've typed a title search it orders results by best match (VNDB relevance); for plain browsing it falls back to Top Rated.
 - Top filter bar: tag chips stay inline next to "Allow 18+" again (only the sidebar layout puts them on their own row).

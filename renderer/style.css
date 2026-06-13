@@ -523,7 +523,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
   border: 2px solid var(--line-2); border-radius: 9px; padding: 0 11px;
 }
 .browse-wrap.browse-side-mode .browse-input:focus { border-color: var(--accent-deep); }
-.browse-wrap.browse-side-mode #browse-search-btn { display: none; }
+.browse-wrap.browse-side-mode #browse-search-btn { justify-content: center; padding: 9px 12px; font-size: 12px; }
 .browse-wrap.browse-side-mode .browse-side {
   flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
