@@ -399,7 +399,12 @@ async function setCardSize(size) {
 // Browse controls layout: 'top' (sort + filters across the top) or 'side' (compact right rail).
 function applyBrowseLayout() {
   const w = document.querySelector('.browse-wrap');
-  if (w) w.classList.toggle('browse-side-mode', (settings.browseLayout || 'top') === 'side');
+  if (!w) return;
+  const side = (settings.browseLayout || 'top') === 'side';
+  w.classList.toggle('browse-side-mode', side);
+  // The rail drops the Search button, so cue Enter in the placeholder (top mode keeps the button).
+  const search = document.getElementById('browse-search');
+  if (search) search.placeholder = side ? 'Search VNDB, press Enter…' : 'Search VNDB by title…';
 }
 async function setBrowseLayout(v) {
   await setSetting('browseLayout', v);

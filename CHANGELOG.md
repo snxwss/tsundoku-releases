@@ -2,6 +2,9 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.2 — 2026-06-12
+- Browse sidebar: the search field now matches the other filter fields (same font, size, and border) and drops the oversized Search button — just press Enter to search, like the tag field.
+
 ## 1.5.1 — 2026-06-12
 - **Faster loading.** The 1.5.0 request pacing was too conservative; it's now adaptive — quick by default (~0.55s spacing) and only slows down if VNDB actually starts throttling, then speeds back up. Steam links/screenshots are fetched at high priority so they appear sooner.
 - No more flash when adding/removing a title to the wishlist from its detail page (the button updates in place instead of re-rendering the whole panel).

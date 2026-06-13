@@ -514,16 +514,16 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-side { display: flex; flex-direction: column; gap: 14px; }
 .browse-results { min-width: 0; }
 .browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: flex-start; gap: 20px; }
-/* In the rail, stack the search input + button and make the input match the lighter
-   filter-field styling (the full-size 50px/heavy-border search bar looks out of place
-   in the narrow column). */
+/* In the rail, the search field matches the filter fields (STUDIO/TAG) exactly — same
+   Space Mono font, height, border and radius — and drops the oversized Search button
+   (Enter runs the search, like the tag field). */
 .browse-wrap.browse-side-mode .browse-top { flex-direction: column; align-items: stretch; gap: 8px; }
 .browse-wrap.browse-side-mode .browse-input {
-  height: 40px; font-size: 13px; border-width: 2px; border-color: var(--line-2);
-  border-radius: 11px; padding: 0 14px;
+  height: 34px; font-family: 'Space Mono', monospace; font-size: 11px;
+  border: 2px solid var(--line-2); border-radius: 9px; padding: 0 11px;
 }
 .browse-wrap.browse-side-mode .browse-input:focus { border-color: var(--accent-deep); }
-.browse-wrap.browse-side-mode .browse-top .btn-sm { justify-content: center; padding: 10px 13px; font-size: 12px; }
+.browse-wrap.browse-side-mode #browse-search-btn { display: none; }
 .browse-wrap.browse-side-mode .browse-side {
   flex: 0 0 268px; width: 268px;
   align-self: flex-start; position: sticky; top: 0;
