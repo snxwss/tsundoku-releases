@@ -1533,9 +1533,10 @@ ipcMain.handle('import-data', async () => {
   }
   writeStore(store);
 
-  // Restore appearance + preferences from the backup. Whitelist only the portable
-  // preference keys — machine-specific ones (scan folders, autostart) stay local, and
-  // we don't clobber local collections/sessions/hidden tags.
+  // Restore appearance + preferences from the backup. Whitelisted prefs are taken from
+  // the backup; cumulative data (sessions, achievements, blocked tags, collections) is
+  // MERGED so it survives a restore. Machine-specific keys (scan folders, autostart,
+  // API token) stay local.
   let settingsApplied = false;
   if (data && data.settings && typeof data.settings === 'object') {
     const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
@@ -1568,6 +1569,27 @@ ipcMain.handle('import-data', async () => {
           merged[id] = { ...merged[id], unlockedAt: Math.min(merged[id].unlockedAt, v.unlockedAt) };
       }
       local.achievements = merged;
+      settingsApplied = true;
+    }
+    // Blocked tags + collections: merge by id (union) so they survive a restore and
+    // combine across PCs instead of being dropped.
+    if (Array.isArray(imp.hiddenTags) && imp.hiddenTags.length) {
+      const merged = Array.isArray(local.hiddenTags) ? local.hiddenTags.slice() : [];
+      const seen = new Set(merged.map(t => t && t.id));
+      for (const t of imp.hiddenTags) if (t && t.id && !seen.has(t.id)) { merged.push(t); seen.add(t.id); }
+      local.hiddenTags = merged;
+      settingsApplied = true;
+    }
+    if (Array.isArray(imp.collections) && imp.collections.length) {
+      const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
+      const byId = new Map(merged.map(c => [c.id, c]));
+      for (const c of imp.collections) {
+        if (!c || !c.id) continue;
+        const ex = byId.get(c.id);
+        if (!ex) { merged.push(c); byId.set(c.id, c); }
+        else ex.vnIds = [...new Set([...(ex.vnIds || []), ...(c.vnIds || [])])]; // union members
+      }
+      local.collections = merged;
       settingsApplied = true;
     }
     if (settingsApplied) writeSettings(local);
