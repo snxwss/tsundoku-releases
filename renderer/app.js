@@ -89,6 +89,7 @@ let libSelId   = null;
 let modalToken = 0;
 let scanState  = [];
 let vndbImportState = [];
+let dzFlash = null;          // one-shot "✓ done" message shown after a Danger-zone action
 let browseSort = 'rating';
 let browseLoaded = false;
 let settingsSection = 'Appearance';
@@ -2598,9 +2599,9 @@ async function renderSettingsSection(section) {
             <div class="btn-sm pri" id="btn-vndb-fetch">${icon('plus', 12)} Fetch list</div>
           </div>
         </div>
-        <div class="settings-sub" id="vndb-import-status" style="margin-top:8px;min-height:14px"></div>
+        <div class="settings-sub" id="vndb-import-status" style="margin-top:8px"></div>
 
-        <div class="settings-row" style="margin-top:18px">
+        <div class="settings-row">
           <div>
             <div class="settings-label">When importing, prioritize</div>
             <div class="settings-sub">Which side wins when an import and your existing entry disagree.</div>
@@ -2762,6 +2763,7 @@ async function renderSettingsSection(section) {
       themeMode = 'light'; palette = 'banana'; autoLight = '07:00'; autoDark = '19:00';
       settings = await window.api.getSettings().catch(() => settings);
       applyTheme(); applyCardSize(); applyZoom(); applyBrowseLayout();
+      dzFlash = { id: 'dz-restore-ctrl', msg: 'Settings reset!' };
       renderSettingsSection('System');
     });
 
@@ -2770,6 +2772,7 @@ async function renderSettingsSection(section) {
       settings = await window.api.getSettings().catch(() => settings);
       await loadEntries();
       updateAchBadge();
+      dzFlash = { id: 'dz-wipe-ctrl', msg: 'Data wiped!' };
       renderSettingsSection('System');
     });
 
@@ -2806,6 +2809,20 @@ async function renderSettingsSection(section) {
         document.getElementById('uninst-confirm2').addEventListener('click', () => window.api.uninstallApp(deleteData));
       });
     });
+
+    // One-shot green success flash after a Danger-zone action (set just before the
+    // re-render that lands us back here). Fades out after a few seconds.
+    if (dzFlash) {
+      const ctrl = document.getElementById(dzFlash.id);
+      if (ctrl) {
+        const f = document.createElement('div');
+        f.textContent = '✓ ' + dzFlash.msg;
+        f.style.cssText = 'font-size:11px;color:var(--read-deep);font-weight:600;margin-top:6px;text-align:right';
+        ctrl.appendChild(f);
+        setTimeout(() => f.remove(), 4000);
+      }
+      dzFlash = null;
+    }
   }
 }
 

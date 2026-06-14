@@ -1080,6 +1080,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .danger-zone .settings-h { color: var(--coral-deep); margin: 16px 0 4px; }
 .dz-btn { color: var(--coral-deep); border-color: var(--coral-deep); }
 .dz-btn:hover { background: oklch(0.7 0.17 18 / 0.1); }
+/* Status lines reserve no space until they actually have a message. */
+#vndb-import-status:empty, #backup-status:empty { display: none; }
 .vndb-row-dates { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); margin-top: 6px; }
 
 /* =====================================================================
