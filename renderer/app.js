@@ -2797,14 +2797,14 @@ async function renderSettingsSection(section) {
         const warn = deleteData
           ? 'Really? This permanently deletes the app and your library data.'
           : 'Really? This permanently deletes all app files.';
-        // Replace the whole row: warning in the wide left column (so it wraps cleanly),
-        // buttons on the right — same layout as a normal settings row.
-        const row = document.getElementById('uninstall-row');
-        row.innerHTML = `
-          <div><div class="settings-label" style="color:var(--coral-deep)">${warn}</div></div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            <div class="btn-sm sec" id="uninst-cancel2">Cancel</div>
-            <div class="btn-sm sec dz-btn" id="uninst-confirm2">Yes, remove it</div>
+        // Same layout as the first confirm: buttons on top, warning right-aligned below.
+        ctrl.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            <div style="display:flex;gap:6px">
+              <div class="btn-sm sec" id="uninst-cancel2">Cancel</div>
+              <div class="btn-sm sec dz-btn" id="uninst-confirm2">Yes, remove it</div>
+            </div>
+            <span style="font-size:11px;color:var(--coral-deep);font-weight:600;text-align:right">${warn}</span>
           </div>`;
         document.getElementById('uninst-cancel2').addEventListener('click', () => renderSettingsSection('System'));
         document.getElementById('uninst-confirm2').addEventListener('click', () => window.api.uninstallApp(deleteData));
