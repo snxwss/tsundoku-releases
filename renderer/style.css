@@ -1072,9 +1072,12 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .vndb-badge-hidden { color: var(--faint); border-color: var(--line-2); }
 .scan-cover.nsfw-blur { filter: blur(8px); }
 
-/* Danger zone (Settings → System) */
-.danger-zone { border: 2px solid var(--coral-deep); border-radius: 16px; padding: 6px 20px 14px; margin-top: 28px; background: oklch(0.7 0.17 18 / 0.05); }
-.danger-zone .settings-h { color: var(--coral-deep); }
+/* Danger zone (Settings → System): red-marked, but rows stay the same width and
+   height as every other settings section. Negative L/R margins offset the padding so
+   the rows align to the 520px column (buttons reach the same right edge); the negative
+   top margin pulls it just below the section above instead of a big gap. */
+.danger-zone { border: 1.5px solid var(--coral-deep); border-radius: 12px; background: oklch(0.7 0.17 18 / 0.04); padding: 0 18px; margin: -20px -18px 44px; }
+.danger-zone .settings-h { color: var(--coral-deep); margin: 16px 0 4px; }
 .dz-btn { color: var(--coral-deep); border-color: var(--coral-deep); }
 .dz-btn:hover { background: oklch(0.7 0.17 18 / 0.1); }
 .vndb-row-dates { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); margin-top: 6px; }
