@@ -1038,7 +1038,7 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
 ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
   if (!name || !name.trim()) return null;
   try {
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 25 }, { priority: PRI.HIGH });
     let results = d.results || [];
     if (!results.length) return null;
     const q = name.trim().toLowerCase();
@@ -1050,9 +1050,14 @@ ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
       if (words.every(w => n.includes(w))) return 1;
       return 0;
     };
-    if (!nsfw) results = results.filter(t => t.category !== 'ero' || score(t) > 0);
+    // Ero tags always require query to cover ≥70% of the tag name
+    // ("lesbian" = 63% of "Lesbian Sex" → blocked; "lesbian s" = 82% → passes)
+    results = results.filter(t => t.category !== 'ero' || (score(t) > 0 && q.length / t.name.length >= 0.7));
+    // With NSFW off, block all remaining ero tags
+    if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
-    results.sort((a, b) => score(b) - score(a));
+    // Higher score wins; within same score, prefer shorter names ("Yuri" over "Yuri Game Jam")
+    results.sort((a, b) => score(b) - score(a) || a.name.length - b.name.length);
     return { id: results[0].id, name: results[0].name };
   } catch { return null; }
 });
