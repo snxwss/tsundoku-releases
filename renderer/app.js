@@ -198,7 +198,7 @@ const byNewest    = (a, b) => (b.added_at || 0) - (a.added_at || 0);
 // metadata derivation changes — it gates the lazy backfill, so raising it forces a
 // one-time re-fetch + re-derive of every stored entry. (4: developer is now the full
 // "A & B & C" list. 5: capture per-language titles for the title-language setting.)
-const NSFW_RULE_VERSION = 5;
+const NSFW_RULE_VERSION = 6;
 
 // Ero-category tags that describe *themes/dialogue* or non-depicted content
 // rather than depicted sexual acts. These appear on plenty of all-ages titles
@@ -217,13 +217,13 @@ const NSFW_THEME_TAGS = new Set([
 // nsfw flag for entries fetched without tags.
 const isNsfw = vn => {
   if (vn.nsfw) return true;
-  if (vn.image && typeof vn.image === 'object' && Number(vn.image.sexual) >= 2) return true;
+  if (vn.image && typeof vn.image === 'object' && Number(vn.image.sexual) >= 1.5) return true;
   const explicit = (vn.tags || []).filter(t =>
     t && t.category === 'ero' &&
     !/text-only/i.test(t.name || '') &&
     !NSFW_THEME_TAGS.has((t.name || '').toLowerCase()) &&
     Number(t.rating) >= 2.0);
-  return explicit.length >= 2;
+  return explicit.length >= 1;
 };
 
 function escHtml(str) {

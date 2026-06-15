@@ -301,7 +301,7 @@ const SETTINGS_DEFAULTS = {
   zoom:             100,
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
-  startWithWindows: true,    // launch hidden in the tray at Windows login (on by default)
+  startWithWindows: false,   // launch hidden in the tray at Windows login
 };
 
 function readSettings() {
@@ -1036,7 +1036,8 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
 const tagSearchCache = new Map();
-ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
+ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
+  const { nsfw = true } = opts || {};
   if (!name || !name.trim()) return null;
   const cacheKey = `${name.trim().toLowerCase()}|${nsfw}`;
   if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);

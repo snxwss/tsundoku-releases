@@ -1,7 +1,7 @@
 {
   "name": "vn-launcher",
   "productName": "Tsundoku",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Visual Novel Launcher powered by VNDB",
   "main": "main.js",
   "scripts": {
