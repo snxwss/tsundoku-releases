@@ -1035,10 +1035,13 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
+const tagSearchCache = new Map();
 ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
   if (!name || !name.trim()) return null;
+  const cacheKey = `${name.trim().toLowerCase()}|${nsfw}`;
+  if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);
   try {
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 25 }, { priority: PRI.HIGH });
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
     let results = d.results || [];
     if (!results.length) return null;
     const q = name.trim().toLowerCase();
@@ -1058,7 +1061,9 @@ ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
     if (!results.length) return null;
     // Higher score wins; within same score, prefer shorter names ("Yuri" over "Yuri Game Jam")
     results.sort((a, b) => score(b) - score(a) || a.name.length - b.name.length);
-    return { id: results[0].id, name: results[0].name };
+    const result = { id: results[0].id, name: results[0].name };
+    tagSearchCache.set(cacheKey, result);
+    return result;
   } catch { return null; }
 });
 
