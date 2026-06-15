@@ -1281,7 +1281,7 @@ function renderLibPreview(entry) {
     </div>
 
     <div class="pv-title">${escHtml(entry.title)}</div>
-    ${entry.alttitle ? `<div class="pv-alttitle">${escHtml(entry.alttitle)}</div>` : ''}
+    ${(settings.titleLang === 'kanji' && (entry.title_orig || entry.title_en)) ? `<div class="pv-alttitle">${escHtml(entry.title_orig || entry.title_en)}</div>` : ''}
 
     <div class="pv-meta">
       ${yr  ? `<div class="m"><span class="mk">YEAR</span><span class="mv">${escHtml(yr)}</span></div>` : ''}
@@ -2887,7 +2887,8 @@ async function openModal(item) {
   const released = full.released ? full.released.slice(0, 4) : '—';
   const lengthH  = full.length_minutes ? `${Math.round(full.length_minutes / 60)}h avg` : '—';
   const dev      = devName(full);
-  const alttitle = full.alttitle || null;
+  // In kanji mode show the romaji/English reference below; in English/romaji mode no subtitle.
+  const alttitle = (settings.titleLang === 'kanji') ? (full.title || null) : null;
   // Show the strongest content/sexual tags first (drop technical ones, which aren't
   // about the story). Any tag you filtered Browse by is ALWAYS included (even if it
   // ranks lower) and highlighted, so you can see exactly why a title matched.
