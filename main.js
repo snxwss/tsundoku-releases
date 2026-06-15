@@ -1040,7 +1040,6 @@ ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
   try {
     const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
     let results = d.results || [];
-    if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
     const q = name.trim().toLowerCase();
     const words = q.split(/\s+/);
@@ -1051,6 +1050,8 @@ ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
       if (words.every(w => n.includes(w))) return 1;
       return 0;
     };
+    if (!nsfw) results = results.filter(t => t.category !== 'ero' || score(t) > 0);
+    if (!results.length) return null;
     results.sort((a, b) => score(b) - score(a));
     return { id: results[0].id, name: results[0].name };
   } catch { return null; }
