@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   vndbGet:     (id, opts)     => ipcRenderer.invoke('vndb-get', id, opts),
   vndbBrowse:  (sort, opts)   => ipcRenderer.invoke('vndb-browse', sort, opts),
   vndbTopRated: (opts)        => ipcRenderer.invoke('vndb-top-rated', opts),
-  vndbTagSearch: (name)       => ipcRenderer.invoke('vndb-tag-search', name),
+  vndbTagSearch: (name, opts) => ipcRenderer.invoke('vndb-tag-search', name, opts),
   vndbProducerSearch: (name)  => ipcRenderer.invoke('vndb-producer-search', name),
   steamAppDetails: (vnId)     => ipcRenderer.invoke('steam-appdetails', vnId),
   vndbCharacters: (vnId)      => ipcRenderer.invoke('vndb-characters', vnId),

@@ -3569,7 +3569,7 @@ async function init() {
     const name = libTagInput.value.trim();
     if (!name) return;
     libTagInput.disabled = true;
-    const tag = await window.api.vndbTagSearch(name).catch(() => null);
+    const tag = await window.api.vndbTagSearch(name, { nsfw: settings.browseNsfwFilter ?? true }).catch(() => null);
     libTagInput.disabled = false;
     libTagInput.focus();
     if (!tag) { libTagInput.value = ''; libTagInput.placeholder = `No tag matching “${name}”`; return; }

@@ -1035,11 +1035,24 @@ ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
-ipcMain.handle('vndb-tag-search', async (_e, name) => {
+ipcMain.handle('vndb-tag-search', async (_e, name, { nsfw = true } = {}) => {
   if (!name || !name.trim()) return null;
   try {
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 1 }, { priority: PRI.HIGH });
-    return (d.results && d.results[0]) ? { id: d.results[0].id, name: d.results[0].name } : null;
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
+    let results = d.results || [];
+    if (!nsfw) results = results.filter(t => t.category !== 'ero');
+    if (!results.length) return null;
+    const q = name.trim().toLowerCase();
+    const words = q.split(/\s+/);
+    const score = t => {
+      const n = t.name.toLowerCase();
+      if (n === q) return 3;
+      if (n.startsWith(q)) return 2;
+      if (words.every(w => n.includes(w))) return 1;
+      return 0;
+    };
+    results.sort((a, b) => score(b) - score(a));
+    return { id: results[0].id, name: results[0].name };
   } catch { return null; }
 });
 
