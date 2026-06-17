@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.20 — 2026-06-17
+
+**Browse**
+- Fixed the refresh button doing nothing when browse was stuck — it now clears the stuck loading state before reloading, so it actually recovers.
+
 ## 1.0.19 — 2026-06-17
 
 **Browse**

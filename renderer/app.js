@@ -1902,6 +1902,10 @@ function initBrowse() {
       const q = browseSearch.value.trim();
       browseRefreshBtn.classList.add('spinning');
       setTimeout(() => browseRefreshBtn.classList.remove('spinning'), 600);
+      // Clear any stuck in-flight state first — a hung load is the whole reason to
+      // hit refresh, and loadBrowse/runBrowseSearch bail out if these stay true.
+      browseLoading = false;
+      browseFilling = false;
       if (q) { browseIsSearch = true; runBrowseSearch(); }
       else { browseIsSearch = false; resetBrowse(); loadBrowse(); }
     });
