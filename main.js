@@ -302,6 +302,9 @@ const SETTINGS_DEFAULTS = {
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
   startWithWindows: false,   // launch hidden in the tray at Windows login
+  syncGistId:       null,    // GitHub Gist ID used for cross-device sync
+  syncGithubPat:    null,    // GitHub PAT (excluded from backups)
+  lastSyncAt:       null,    // timestamp of last successful sync
 };
 
 function readSettings() {
@@ -343,6 +346,186 @@ function writeJsonAtomic(file, data) {
 
 function writeSettings(s) {
   writeJsonAtomic(SETTINGS_PATH, s);
+}
+
+// ── GitHub Gist sync ──────────────────────────────────────────────────────────
+const GIST_FILENAME = 'tsundoku-sync.json';
+const GIST_API      = 'https://api.github.com/gists';
+
+function gistHeaders(pat) {
+  return {
+    Authorization: `token ${pat}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'Tsundoku',
+    'Content-Type': 'application/json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+}
+
+async function gistCreate(pat) {
+  const payload = buildSyncPayload();
+  const res = await fetchWithTimeout(GIST_API, {
+    method: 'POST',
+    headers: gistHeaders(pat),
+    body: JSON.stringify({
+      description: 'Tsundoku sync data',
+      public: false,
+      files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } },
+    }),
+  }, 15000);
+  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+  const data = await res.json();
+  return data.id;
+}
+
+async function gistPushData(gistId, pat) {
+  const payload = buildSyncPayload();
+  const res = await fetchWithTimeout(`${GIST_API}/${gistId}`, {
+    method: 'PATCH',
+    headers: gistHeaders(pat),
+    body: JSON.stringify({
+      files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } },
+    }),
+  }, 15000);
+  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+}
+
+async function gistPullData(gistId, pat) {
+  const res = await fetchWithTimeout(`${GIST_API}/${gistId}`, {
+    method: 'GET',
+    headers: gistHeaders(pat),
+  }, 15000);
+  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+  const data = await res.json();
+  const file = data.files && data.files[GIST_FILENAME];
+  if (!file) throw new Error('Sync file not found in Gist');
+  return JSON.parse(file.content);
+}
+
+const SYNC_PREF_KEYS = [
+  'themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
+  'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
+  'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername',
+  'sessions', 'achievements', 'hiddenTags', 'collections',
+];
+
+function buildSyncPayload() {
+  const entries = Object.values(readStore());
+  const s = readSettings();
+  const syncSettings = {};
+  for (const k of SYNC_PREF_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
+  return { version: 1, updatedAt: Date.now(), entries, settings: syncSettings };
+}
+
+function mergeFromPayload(payload) {
+  if (!payload || !Array.isArray(payload.entries)) throw new Error('Invalid sync payload');
+  const store = readStore();
+  let added = 0, updated = 0;
+  for (const imp of payload.entries) {
+    if (!imp || !imp.id) continue;
+    const local = store[imp.id];
+    if (!local) {
+      store[imp.id] = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
+      added++;
+    } else {
+      local.library  = local.library  || !!imp.library;
+      local.wishlist = local.wishlist || !!imp.wishlist;
+      local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
+      if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
+      local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
+      const plays = [local.last_played, imp.last_played].filter(v => v != null);
+      local.last_played = plays.length ? plays.reduce((a, b) => (a > b ? a : b)) : null;
+      const starts = [local.started_at, imp.started_at].filter(v => v != null);
+      if (starts.length) local.started_at = Math.min(...starts);
+      if (local.finished_at == null && imp.finished_at != null) local.finished_at = imp.finished_at;
+      if (imp.excluded) local.excluded = true;
+      if (imp.rating != null && local.rating == null) local.rating = imp.rating;
+      for (const k of ['title', 'alttitle', 'image', 'description', 'released', 'developer', 'length_minutes', 'nsfw']) {
+        if ((local[k] == null || local[k] === '') && imp[k] != null) local[k] = imp[k];
+      }
+      updated++;
+    }
+  }
+  writeStore(store);
+
+  let settingsApplied = false;
+  if (payload.settings && typeof payload.settings === 'object') {
+    const imp = payload.settings;
+    const local = readSettings();
+    const SCALAR_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
+      'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
+      'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
+    for (const k of SCALAR_KEYS) {
+      if (imp[k] !== undefined) { local[k] = imp[k]; settingsApplied = true; }
+    }
+    if (Array.isArray(imp.sessions) && imp.sessions.length) {
+      const merged = Array.isArray(local.sessions) ? local.sessions.slice() : [];
+      const seen = new Set(merged.map(s => `${s.vnId}|${s.endedAt}`));
+      for (const s of imp.sessions) {
+        const key = `${s.vnId}|${s.endedAt}`;
+        if (!seen.has(key)) { merged.push(s); seen.add(key); }
+      }
+      merged.sort((a, b) => (a.endedAt || 0) - (b.endedAt || 0));
+      local.sessions = merged;
+      settingsApplied = true;
+    }
+    if (imp.achievements && typeof imp.achievements === 'object') {
+      const merged = { ...(local.achievements || {}) };
+      for (const [id, v] of Object.entries(imp.achievements)) {
+        if (!merged[id]) merged[id] = v;
+        else if (v?.unlockedAt && merged[id]?.unlockedAt)
+          merged[id] = { ...merged[id], unlockedAt: Math.min(merged[id].unlockedAt, v.unlockedAt) };
+      }
+      local.achievements = merged;
+      settingsApplied = true;
+    }
+    if (Array.isArray(imp.hiddenTags) && imp.hiddenTags.length) {
+      const merged = Array.isArray(local.hiddenTags) ? local.hiddenTags.slice() : [];
+      const seen = new Set(merged.map(t => t && t.id));
+      for (const t of imp.hiddenTags) if (t && t.id && !seen.has(t.id)) { merged.push(t); seen.add(t.id); }
+      local.hiddenTags = merged;
+      settingsApplied = true;
+    }
+    if (Array.isArray(imp.collections) && imp.collections.length) {
+      const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
+      const byId = new Map(merged.map(c => [c.id, c]));
+      for (const c of imp.collections) {
+        if (!c || !c.id) continue;
+        const ex = byId.get(c.id);
+        if (!ex) { merged.push(c); byId.set(c.id, c); }
+        else ex.vnIds = [...new Set([...(ex.vnIds || []), ...(c.vnIds || [])])];
+      }
+      local.collections = merged;
+      settingsApplied = true;
+    }
+    if (settingsApplied) writeSettings(local);
+  }
+  return { added, updated, settingsApplied };
+}
+
+let _gistPushDebounce = null;
+function scheduleGistPush() {
+  const s = readSettings();
+  if (!s.syncGistId || !s.syncGithubPat) return;
+  clearTimeout(_gistPushDebounce);
+  _gistPushDebounce = setTimeout(() => doGistPush(s.syncGistId, s.syncGithubPat), 3000);
+}
+
+async function doGistPush(gistId, pat) {
+  try {
+    await gistPushData(gistId, pat);
+    const s = readSettings();
+    s.lastSyncAt = Date.now();
+    writeSettings(s);
+    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: true, at: s.lastSyncAt });
+  } catch { /* fire-and-forget */ }
+}
+
+function gistFireAndForgetPush() {
+  try {
+    const s = readSettings();
+    if (s.syncGistId && s.syncGithubPat) doGistPush(s.syncGistId, s.syncGithubPat).catch(() => {});
+  } catch {}
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -391,6 +574,7 @@ function writeStore(store) {
   }
   if (pathsChanged) writeExePaths(localPaths);
   writeJsonAtomic(DB_PATH, synced);
+  scheduleGistPush();
 }
 
 function ensureEntry(store, meta) {
@@ -663,7 +847,7 @@ function createWindow() {
     if (isQuitting) return;
     let minimize = true;
     try { minimize = readSettings().minimizeOnClose !== false; } catch {}
-    if (minimize) { e.preventDefault(); win.hide(); }
+    if (minimize) { e.preventDefault(); win.hide(); gistFireAndForgetPush(); }
   });
 }
 
@@ -689,13 +873,30 @@ if (!gotLock) {
     createWindow();
     createTray();
     watchDataDir();
+    // Pull from Gist on launch (background, non-blocking)
+    ;(async () => {
+      try {
+        const s = readSettings();
+        if (s.syncGistId && s.syncGithubPat) {
+          const payload = await gistPullData(s.syncGistId, s.syncGithubPat);
+          mergeFromPayload(payload);
+          const ns = readSettings();
+          ns.lastSyncAt = Date.now();
+          writeSettings(ns);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('entries-changed');
+            win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
+          }
+        }
+      } catch {}
+    })();
     // Begin automatic playtime detection.
     pollRunningGames();
     pollTimer = setInterval(pollRunningGames, POLL_INTERVAL_MS);
     // Check for updates (installed build only).
     initAutoUpdate();
   });
-  app.on('before-quit', () => { isQuitting = true; });
+  app.on('before-quit', () => { isQuitting = true; gistFireAndForgetPush(); });
   app.on('activate', () => showWindow());
   // Fires only when the window is truly closed (not when hidden to tray), so the
   // "minimize on close" case never reaches here — it just quits as expected.
@@ -1581,7 +1782,8 @@ ipcMain.handle('export-data', async () => {
   if (r.canceled || !r.filePath) return { ok: false };
   const entries = Object.values(readStore());
   const exportSettings = { ...readSettings() };
-  delete exportSettings.vndbToken; // never write the private API token into a backup file
+  delete exportSettings.vndbToken;    // never write the private API token into a backup file
+  delete exportSettings.syncGithubPat; // never write the GitHub PAT into a backup file
   const payload = {
     type: 'tsundoku-backup', version: 2,
     exportedAt: Date.now(), appVersion: app.getVersion(),
@@ -1707,6 +1909,80 @@ ipcMain.handle('import-data', async () => {
     if (settingsApplied) writeSettings(local);
   }
   return { ok: true, added, updated, settingsApplied };
+});
+
+// ── Device sync (GitHub Gist) ─────────────────────────────────────────────────
+ipcMain.handle('sync-get-info', () => {
+  const s = readSettings();
+  return { connected: !!(s.syncGistId && s.syncGithubPat), gistId: s.syncGistId || null, lastSyncAt: s.lastSyncAt || null };
+});
+
+ipcMain.handle('sync-create', async (_e, pat) => {
+  if (!pat || !pat.trim()) return { ok: false, error: 'No PAT provided.' };
+  try {
+    const gistId = await gistCreate(pat.trim());
+    const s = readSettings();
+    s.syncGistId = gistId;
+    s.syncGithubPat = pat.trim();
+    s.lastSyncAt = Date.now();
+    writeSettings(s);
+    return { ok: true, gistId };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync-connect', async (_e, gistId, pat) => {
+  if (!gistId || !gistId.trim()) return { ok: false, error: 'No sync token provided.' };
+  if (!pat || !pat.trim()) return { ok: false, error: 'No PAT provided.' };
+  try {
+    const payload = await gistPullData(gistId.trim(), pat.trim());
+    const result = mergeFromPayload(payload);
+    const s = readSettings();
+    s.syncGistId = gistId.trim();
+    s.syncGithubPat = pat.trim();
+    s.lastSyncAt = Date.now();
+    writeSettings(s);
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync-push', async () => {
+  const s = readSettings();
+  if (!s.syncGistId || !s.syncGithubPat) return { ok: false, error: 'Not connected.' };
+  try {
+    await doGistPush(s.syncGistId, s.syncGithubPat);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync-pull', async () => {
+  const s = readSettings();
+  if (!s.syncGistId || !s.syncGithubPat) return { ok: false, error: 'Not connected.' };
+  try {
+    const payload = await gistPullData(s.syncGistId, s.syncGithubPat);
+    const result = mergeFromPayload(payload);
+    const ns = readSettings();
+    ns.lastSyncAt = Date.now();
+    writeSettings(ns);
+    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync-disconnect', () => {
+  const s = readSettings();
+  delete s.syncGistId;
+  delete s.syncGithubPat;
+  delete s.lastSyncAt;
+  writeSettings(s);
+  return { ok: true };
 });
 
 // ── VNDB list import ──────────────────────────────────────────────────────────

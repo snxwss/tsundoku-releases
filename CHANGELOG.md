@@ -2,6 +2,16 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.0 — 2026-06-18
+
+**Device Sync**
+- New Sync section in Settings: keep your library in sync across multiple PCs using a private GitHub Gist.
+- Create a sync with your GitHub PAT (Gist scope only) — you get a shareable sync token.
+- On your other PC, paste the same PAT and the sync token to connect and pull everything across.
+- Syncs automatically in the background: on launch (pull), on every status or library change (push, debounced 3s), and when closing to tray or quitting.
+- Last synced time shown in the Sync section. Disconnect any time without losing local data.
+- GitHub PAT is never included in backup exports.
+
 ## 1.1.1 — 2026-06-17
 
 - Tag filter now uses VNDB's own ranking to pick the best match (reverts custom scoring added in a prior release).
