@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.15 — 2026-06-17
+
+**Browse**
+- Scrollbar in the sidebar layout now appears between the title grid and the filter rail instead of at the far edge of the window.
+
 ## 1.0.14 — 2026-06-17
 
 - Removed controller scroll support.
