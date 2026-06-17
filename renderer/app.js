@@ -20,6 +20,7 @@ const ICONS = {
   exclude:  'M17 7L7 17M7 7l10 10',
   grid:     'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   list:     'M4 6h16M4 12h16M4 18h16',
+  refresh:  'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.4L23 10M20.5 15a9 9 0 0 1-14.8 3.4L1 14',
 };
 
 function icon(name, size = 20, filled = false) {
@@ -1253,7 +1254,6 @@ function renderLibPreview(entry) {
   const onDev    = !!entry.exe_path;
   const status   = entry.status || 'unplayed';
   const rating   = ratingStr(entry.rating);
-  const desc     = stripBBCode(entry.description || '');
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const yr       = entry.released ? entry.released.slice(0, 4) : null;
@@ -1303,9 +1303,9 @@ function renderLibPreview(entry) {
       ${lp ? `<span class="pt-last">last played: ${lp}</span>` : ''}
     </div>` : ''}
 
-    ${desc ? `<div class="pv-desc">${escHtml(desc)}</div>` : ''}
-
-    <div id="pv-tags-area"></div>
+    <div id="pv-tags-area">${(entry.tags && entry.tags.length)
+      ? `<div class="pv-tags">${entry.tags.slice(0, 10).map(t => `<span class="pv-tag">${escHtml(t.name || t)}</span>`).join('')}</div>`
+      : ''}</div>
 
     <div class="pv-actions-stack">
       <div class="pv-actions-row">
@@ -1350,7 +1350,7 @@ function renderLibPreview(entry) {
     // Just inject tags into the current panel
     const tagsArea = document.getElementById('pv-tags-area');
     if (!tagsArea || libSelId !== entry.id) return;
-    const tags = (full.tags || []).slice(0, 8);
+    const tags = (full.tags || []).slice(0, 10);
     if (tags.length) {
       tagsArea.innerHTML = `<div class="pv-tags">${tags.map(t => `<span class="pv-tag">${escHtml(t.name || t)}</span>`).join('')}</div>`;
     }
@@ -1893,6 +1893,19 @@ function initBrowse() {
   // Search
   browseSearchBtn.addEventListener('click', runBrowseSearch);
   browseSearch.addEventListener('keydown', e => { if (e.key === 'Enter') runBrowseSearch(); });
+
+  // Refresh — reloads the current browse view from page 1 (recovers if it gets stuck).
+  const browseRefreshBtn = document.getElementById('browse-refresh');
+  if (browseRefreshBtn) {
+    browseRefreshBtn.innerHTML = icon('refresh', 14);
+    browseRefreshBtn.addEventListener('click', () => {
+      const q = browseSearch.value.trim();
+      browseRefreshBtn.classList.add('spinning');
+      setTimeout(() => browseRefreshBtn.classList.remove('spinning'), 600);
+      if (q) { browseIsSearch = true; runBrowseSearch(); }
+      else { browseIsSearch = false; resetBrowse(); loadBrowse(); }
+    });
+  }
 
   // Infinite scroll: observer + direct scroll fallback. The fallback matters when
   // layout changes while the sentinel is already visible, which may not emit a new

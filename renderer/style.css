@@ -211,11 +211,11 @@ html, body { height: 100%; background: #141714; user-select: none; }
 }
 
 /* ─── scrollbars ─── */
-.app2 *::-webkit-scrollbar             { width: 6px; height: 6px; }
+.app2 *::-webkit-scrollbar             { width: 10px; height: 10px; }
 .app2 *::-webkit-scrollbar-track       { background: transparent; }
-.app2 *::-webkit-scrollbar-thumb       { background: var(--line); border-radius: 99px; }
-.app2 *::-webkit-scrollbar-thumb:hover { background: var(--mut); }
-.app2 *                                 { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.app2 *::-webkit-scrollbar-thumb       { background: var(--mut); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+.app2 *::-webkit-scrollbar-thumb:hover { background: var(--ink); background-clip: padding-box; border: 2px solid transparent; }
+.app2 *                                 { scrollbar-width: thin; scrollbar-color: var(--mut) transparent; }
 
 /* ─── utilities ─── */
 .hidden { display: none !important; }
@@ -509,6 +509,10 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .bchip.on    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .bchip:hover:not(.on) { border-color: var(--line); color: var(--ink); background: var(--panel); }
 .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 200px), 1fr)); gap: 22px 18px; }
+.browse-refresh-btn { flex-shrink: 0; display: inline-grid; place-items: center; padding: 0; width: 38px; aspect-ratio: 1; }
+.browse-wrap.browse-side-mode .browse-refresh-btn { width: 32px; }
+.browse-refresh-btn.spinning svg { animation: browse-refresh-spin 0.6s ease; }
+@keyframes browse-refresh-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
 /* Browse controls layout. Default = stacked across the top (sort row + filter drawer
    above the grid). The .browse-side-mode variant moves them into a compact right rail

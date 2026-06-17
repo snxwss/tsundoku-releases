@@ -2,6 +2,15 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.19 — 2026-06-17
+
+**Browse**
+- Added a refresh button next to the search bar — reloads the browse list from the start if it ever gets stuck.
+- Made scrollbars clearly visible in both browse layouts.
+
+**Library**
+- Replaced the description in the library preview panel with tag chips.
+
 ## 1.0.18 — 2026-06-17
 
 **Performance**
