@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.14 — 2026-06-17
+
+- Removed controller scroll support.
+
 ## 1.0.13 — 2026-06-17
 
 **Controller**
