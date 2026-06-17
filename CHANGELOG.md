@@ -2,6 +2,14 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.18 — 2026-06-17
+
+**Performance**
+- Detail modal now opens instantly using the data already on hand (cover, title, rating, tags, length). Description, links, characters and Steam screenshots fill in as they load instead of blocking the whole modal on a "Loading…" screen.
+
+**Browse**
+- Sidebar-layout scrollbar moved closer to the filter rail.
+
 ## 1.0.17 — 2026-06-17
 
 **Performance & reliability**

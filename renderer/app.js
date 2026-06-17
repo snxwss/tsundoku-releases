@@ -2875,18 +2875,17 @@ async function openModal(item) {
   const left    = document.getElementById('modal-left');
   const right   = document.getElementById('modal-right');
 
-  left.innerHTML  = `<div style="text-align:center;padding:40px 0;color:var(--mut);font-family:'Space Mono',monospace;font-size:12px">Loading…</div>`;
-  right.innerHTML = '';
   overlay.classList.remove('hidden');
 
-  let full = item;
-  try {
-    const data = await window.api.vndbGet(item.id);
-    if (data.results && data.results.length) full = { ...item, ...data.results[0] };
-  } catch (_) {}
-  if (token !== modalToken) return;
+  // Render instantly with the data we already have (browse/library entries carry
+  // title, cover, rating, year, tags, length, usually description). Enrich with the
+  // full VNDB detail — mainly external links — in the background, so the modal no
+  // longer sits on a blank "Loading…" while a serialized request resolves.
+  let charsData = null, steamData = null;
 
-  const entry      = entryById(full.id) || {};
+  function paint(full) {
+    if (token !== modalToken) return;
+    const entry      = entryById(full.id) || {};
   const inLib      = !!entry.library;
   const inWish     = !!entry.wishlist;
   const inWishPriv = !!entry.wishlistPrivate;
@@ -3053,63 +3052,8 @@ async function openModal(item) {
   right.querySelectorAll('.modal-link[data-url]').forEach(el =>
     el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
 
-  // ── Characters: main/primary cast strip (lazy, cached in main) ──
-  window.api.vndbCharacters(full.id).then(chars => {
-    if (token !== modalToken) return;
-    const box = document.getElementById('m-characters');
-    if (!box || !chars || !chars.length) return;
-    const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
-    box.innerHTML = `
-      <div class="mk">CHARACTERS</div>
-      <div class="modal-chars-strip">
-        <button class="char-arrow char-arrow-l" title="Scroll left" hidden>‹</button>
-        <div class="modal-chars-row">
-          ${chars.map(c => `
-            <div class="modal-char char-link" data-url="https://vndb.org/${escHtml(c.id)}" title="Open on VNDB">
-              <div class="modal-char-img${(blur && c.sexual >= 1) ? ' nsfw-blur' : ''}">${c.image ? `<img src="${escHtml(c.image)}" loading="lazy" alt="" />` : ''}</div>
-              <div class="modal-char-name">${escHtml(c.name)}</div>
-            </div>`).join('')}
-        </div>
-        <button class="char-arrow char-arrow-r" title="Scroll right" hidden>›</button>
-      </div>`;
-    box.querySelectorAll('.char-link[data-url]').forEach(el =>
-      el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
-    // Arrow controls: scroll the strip and show/hide arrows at the edges.
-    const row    = box.querySelector('.modal-chars-row');
-    const arrowL = box.querySelector('.char-arrow-l');
-    const arrowR = box.querySelector('.char-arrow-r');
-    const syncArrows = () => {
-      const overflow = row.scrollWidth - row.clientWidth > 4;
-      arrowL.hidden = !overflow || row.scrollLeft <= 2;
-      arrowR.hidden = !overflow || row.scrollLeft >= row.scrollWidth - row.clientWidth - 2;
-    };
-    const step = () => Math.max(row.clientWidth * 0.8, 160);
-    arrowL.addEventListener('click', () => row.scrollBy({ left: -step(), behavior: 'smooth' }));
-    arrowR.addEventListener('click', () => row.scrollBy({ left:  step(), behavior: 'smooth' }));
-    row.addEventListener('scroll', syncArrows);
-    requestAnimationFrame(syncArrows);
-  }).catch(() => {});
-
-  // ── Steam: store link + screenshot gallery (lazy, cached in main) ──
-  window.api.steamAppDetails(full.id).then(steam => {
-    if (token !== modalToken) return;                 // modal changed/closed
-    const box = document.getElementById('m-steam');
-    if (!box || !steam) return;                       // not on Steam → render nothing
-    const shots = steam.screenshots || [];
-    box.innerHTML = `
-      <div class="modal-steam-head">
-        <span class="mk">STEAM</span>
-        <span class="modal-link modal-steam-link" data-url="${escHtml(steam.storeUrl)}">${icon('browse', 11)} View on Steam</span>
-      </div>
-      ${shots.length ? `<div class="modal-steam-shots">${shots.map(s =>
-        `<img class="modal-steam-shot" src="${escHtml(s.thumb)}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
-      ).join('')}</div>` : ''}`;
-    box.querySelector('.modal-steam-link')?.addEventListener('click', () =>
-      window.api.openExternal(steam.storeUrl));
-    const fullUrls = shots.map(s => s.full);
-    box.querySelectorAll('.modal-steam-shot').forEach((img, i) =>
-      img.addEventListener('click', () => openLightbox(fullUrls, i)));
-  }).catch(() => {});
+  renderChars();
+  renderSteam();
   document.getElementById('m-launch')?.addEventListener('click', async () => {
     if (isRunning) {
       if (confirm('Save your game first! Force-stop the process?')) {
@@ -3150,6 +3094,78 @@ async function openModal(item) {
     await loadEntries();
     if (activeView === 'library') renderLibrary();
   });
+  } // end paint
+
+  // ── Characters: main/primary cast strip (lazy, cached in main) ──
+  function renderChars() {
+    if (token !== modalToken || !charsData || !charsData.length) return;
+    const box = document.getElementById('m-characters');
+    if (!box) return;
+    const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
+    box.innerHTML = `
+      <div class="mk">CHARACTERS</div>
+      <div class="modal-chars-strip">
+        <button class="char-arrow char-arrow-l" title="Scroll left" hidden>‹</button>
+        <div class="modal-chars-row">
+          ${charsData.map(c => `
+            <div class="modal-char char-link" data-url="https://vndb.org/${escHtml(c.id)}" title="Open on VNDB">
+              <div class="modal-char-img${(blur && c.sexual >= 1) ? ' nsfw-blur' : ''}">${c.image ? `<img src="${escHtml(c.image)}" loading="lazy" alt="" />` : ''}</div>
+              <div class="modal-char-name">${escHtml(c.name)}</div>
+            </div>`).join('')}
+        </div>
+        <button class="char-arrow char-arrow-r" title="Scroll right" hidden>›</button>
+      </div>`;
+    box.querySelectorAll('.char-link[data-url]').forEach(el =>
+      el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
+    // Arrow controls: scroll the strip and show/hide arrows at the edges.
+    const row    = box.querySelector('.modal-chars-row');
+    const arrowL = box.querySelector('.char-arrow-l');
+    const arrowR = box.querySelector('.char-arrow-r');
+    const syncArrows = () => {
+      const overflow = row.scrollWidth - row.clientWidth > 4;
+      arrowL.hidden = !overflow || row.scrollLeft <= 2;
+      arrowR.hidden = !overflow || row.scrollLeft >= row.scrollWidth - row.clientWidth - 2;
+    };
+    const step = () => Math.max(row.clientWidth * 0.8, 160);
+    arrowL.addEventListener('click', () => row.scrollBy({ left: -step(), behavior: 'smooth' }));
+    arrowR.addEventListener('click', () => row.scrollBy({ left:  step(), behavior: 'smooth' }));
+    row.addEventListener('scroll', syncArrows);
+    requestAnimationFrame(syncArrows);
+  }
+
+  // ── Steam: store link + screenshot gallery (lazy, cached in main) ──
+  function renderSteam() {
+    if (token !== modalToken || !steamData) return;  // not on Steam → render nothing
+    const box = document.getElementById('m-steam');
+    if (!box) return;
+    const shots = steamData.screenshots || [];
+    box.innerHTML = `
+      <div class="modal-steam-head">
+        <span class="mk">STEAM</span>
+        <span class="modal-link modal-steam-link" data-url="${escHtml(steamData.storeUrl)}">${icon('browse', 11)} View on Steam</span>
+      </div>
+      ${shots.length ? `<div class="modal-steam-shots">${shots.map(s =>
+        `<img class="modal-steam-shot" src="${escHtml(s.thumb)}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
+      ).join('')}</div>` : ''}`;
+    box.querySelector('.modal-steam-link')?.addEventListener('click', () =>
+      window.api.openExternal(steamData.storeUrl));
+    const fullUrls = shots.map(s => s.full);
+    box.querySelectorAll('.modal-steam-shot').forEach((img, i) =>
+      img.addEventListener('click', () => openLightbox(fullUrls, i)));
+  }
+
+  paint(item); // instant render with the data already on hand
+
+  // Lazy extras (cached in main): fetch once, re-apply on every paint.
+  window.api.vndbCharacters(item.id).then(c => { charsData = c; renderChars(); }).catch(() => {});
+  window.api.steamAppDetails(item.id).then(s => { steamData = s; renderSteam(); }).catch(() => {});
+
+  // Background enrich: full VNDB detail (external links, plus description/meta for
+  // library entries that lack them). Repaints in place when it arrives.
+  window.api.vndbGet(item.id).then(data => {
+    if (token !== modalToken) return;
+    if (data.results && data.results.length) paint({ ...item, ...data.results[0] });
+  }).catch(() => {});
 }
 
 function closeModal() {

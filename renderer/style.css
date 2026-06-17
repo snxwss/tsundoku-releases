@@ -517,8 +517,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .browse-side { display: flex; flex-direction: column; gap: 14px; }
 .browse-results { min-width: 0; }
 .browse-wrap.browse-side-mode { overflow-y: hidden; }
-.browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: stretch; gap: 20px; flex: 1; min-height: 0; }
-.browse-wrap.browse-side-mode .browse-results { overflow-y: auto; min-height: 0; }
+.browse-wrap.browse-side-mode .browse-body { flex-direction: row-reverse; align-items: stretch; gap: 10px; flex: 1; min-height: 0; }
+.browse-wrap.browse-side-mode .browse-results { overflow-y: auto; min-height: 0; padding-right: 8px; }
 /* In the rail, the search field matches the filter fields (STUDIO/TAG) exactly — same
    Space Mono font, height, border and radius — and drops the oversized Search button
    (Enter runs the search, like the tag field). */
