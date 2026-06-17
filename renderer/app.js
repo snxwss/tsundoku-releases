@@ -102,6 +102,9 @@ let libCollFilter  = null;   // null = no collection filter; string id when acti
 let wishSearch     = '';
 let wishView       = 'public'; // 'public' = wishlist, 'private' = wishlistPrivate
 let wishlistAlerts = [];     // [{ vnId, vnTitle, releases: [] }]
+let modalNav    = null;      // { list, idx } — active navigation context for the detail modal
+let libVisible  = [];        // entries currently rendered in the library grid (for modal nav)
+let wishVisible = [];        // entries currently rendered in the wishlist grid (for modal nav)
 
 // Browse pagination state
 let browsePage     = 1;
@@ -1086,6 +1089,7 @@ function renderLibrary() {
   const emptySub   = document.getElementById('lib-empty-sub');
 
   if (filtered.length === 0) {
+    libVisible = [];
     sections.innerHTML = '';
     emptyEl.classList.remove('hidden');
     if (emptyTitle) {
@@ -1094,7 +1098,7 @@ function renderLibrary() {
         : activeColl
           ? 'This collection is empty'
           : libSearch.trim()
-            ? `No results for "${libSearch}"`
+            ? `No results for “${libSearch}”`
             : 'No visual novels match this filter';
     }
     if (emptySub) {
@@ -1117,6 +1121,8 @@ function renderLibrary() {
   document.querySelectorAll('#lib-view-toggle .lvt-btn').forEach(b =>
     b.classList.toggle('on', b.dataset.libview === (isList ? 'list' : 'grid')));
 
+  libVisible = [...onDevice, ...offDevice];
+
   const makeSection = isList ? makeListSection : makeSGSection;
   sections.innerHTML = [
     onDevice.length  && makeSection(icon('folder', 13), 'On this PC',   onDevice.length,  onDevice),
@@ -1129,7 +1135,10 @@ function renderLibrary() {
       // instead of selecting into a panel the user can't see.
       if (window.matchMedia('(max-width: 900px)').matches) {
         const entry = entryById(el.dataset.id);
-        if (entry) openModal(entry);
+        if (entry) {
+          const idx = libVisible.findIndex(e => e.id === entry.id);
+          openModal(entry, idx >= 0 ? { list: libVisible, idx } : null);
+        }
         return;
       }
       libSelId = el.dataset.id;
@@ -1387,7 +1396,10 @@ function renderLibPreview(entry) {
     }
   });
 
-  document.getElementById('pv-details')?.addEventListener('click', () => openModal(entry));
+  document.getElementById('pv-details')?.addEventListener('click', () => {
+    const idx = libVisible.findIndex(e => e.id === entry.id);
+    openModal(entry, idx >= 0 ? { list: libVisible, idx } : null);
+  });
 }
 
 // ── COLLECTIONS SIDEBAR ───────────────────────────────────────────────────────
@@ -1580,12 +1592,12 @@ function openCollectionPicker(collId) {
   searchEl.focus();
 }
 
-// Bulk library manager: multi-select titles, then Hide (exclude from the library
-// view, keeps history) or Remove (drop from library) all at once.
+// Bulk library manager: multi-select titles, then Hide/Unhide (exclude from the
+// library view, keeps history) or Remove (drop from library) all at once.
 function openBatchManager() {
   if (document.getElementById('batch-backdrop')) return;
+  // Always include hidden (excluded) entries so users can unhide them from here.
   let lib = entries.filter(e => e.library);
-  if (!settings.showExcluded) lib = lib.filter(e => !e.excluded);
   if (settings.nsfwHideLibrary) lib = lib.filter(e => !isNsfw(e));
   lib.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
 
@@ -1603,6 +1615,7 @@ function openBatchManager() {
       <div class="batch-footer">
         <span class="batch-count" id="batch-count">0 selected</span>
         <div class="app-dialog-btn" id="batch-hide">Hide selected</div>
+        <div class="app-dialog-btn" id="batch-unhide">Unhide selected</div>
         <div class="app-dialog-btn danger" id="batch-remove">Remove selected</div>
       </div>
     </div>`;
@@ -1615,12 +1628,16 @@ function openBatchManager() {
   const searchEl  = document.getElementById('batch-search');
   const countEl   = document.getElementById('batch-count');
   const hideBtn   = document.getElementById('batch-hide');
+  const unhideBtn = document.getElementById('batch-unhide');
   const removeBtn = document.getElementById('batch-remove');
 
   const updateFooter = () => {
     countEl.textContent = `${selected.size} selected`;
     const none = selected.size === 0;
-    hideBtn.classList.toggle('disabled', none);
+    const hasVisible = [...selected].some(id => !lib.find(e => e.id === id)?.excluded);
+    const hasHidden  = [...selected].some(id =>  lib.find(e => e.id === id)?.excluded);
+    hideBtn.classList.toggle('disabled', none || !hasVisible);
+    unhideBtn.classList.toggle('disabled', none || !hasHidden);
     removeBtn.classList.toggle('disabled', none);
   };
   const renderRows = () => {
@@ -1632,7 +1649,10 @@ function openBatchManager() {
       return `<div class="coll-picker-row${on ? ' on' : ''}" data-id="${escHtml(e.id)}">
         <div class="coll-picker-check">✓</div>
         <div class="coll-picker-thumb">${url ? `<img src="${escHtml(url)}" loading="lazy" />` : ''}</div>
-        <div class="coll-picker-name">${escHtml(e.title)}</div>
+        <div class="coll-picker-name-wrap">
+          <span class="coll-picker-name">${escHtml(e.title)}</span>
+          ${e.excluded ? `<span class="coll-picker-hidden-badge">hidden</span>` : ''}
+        </div>
       </div>`;
     }).join('');
     listEl.querySelectorAll('.coll-picker-row').forEach(row =>
@@ -1654,7 +1674,19 @@ function openBatchManager() {
 
   hideBtn.addEventListener('click', async () => {
     if (!selected.size) return;
-    for (const id of selected) await window.api.libraryExclude(id);
+    for (const id of selected) {
+      if (!lib.find(e => e.id === id)?.excluded) await window.api.libraryExclude(id);
+    }
+    close();
+    libSelId = null;
+    await loadEntries();
+    renderLibrary();
+  });
+  unhideBtn.addEventListener('click', async () => {
+    if (!selected.size) return;
+    for (const id of selected) {
+      if (lib.find(e => e.id === id)?.excluded) await window.api.libraryUnexclude(id);
+    }
     close();
     libSelId = null;
     await loadEntries();
@@ -2088,8 +2120,9 @@ function renderBrowseGrid(vns) {
   // click card → open modal (overlay is pointer-events:none; buttons stopPropagation)
   grid.querySelectorAll('.browse-item').forEach(el => {
     el.addEventListener('click', () => {
-      const vn = vns.find(v => v.id === el.dataset.id);
-      if (vn) openModal({ ...metaOf(vn), ...(entryById(vn.id) || {}) });
+      const idx = vns.findIndex(v => v.id === el.dataset.id);
+      const vn  = vns[idx];
+      if (vn) openModal({ ...metaOf(vn), ...(entryById(vn.id) || {}) }, { list: vns, idx });
     });
   });
 
@@ -2128,6 +2161,7 @@ function renderWishlist() {
     const q = wishSearch.toLowerCase();
     items = items.filter(e => (e.title || '').toLowerCase().includes(q));
   }
+  wishVisible = items;
 
   const countEl   = document.getElementById('wish-count');
   const grid      = document.getElementById('wishlist-grid');
@@ -2226,7 +2260,10 @@ function renderWishlist() {
   grid.querySelectorAll('.wish-item').forEach(el => {
     el.addEventListener('click', () => {
       const entry = entryById(el.dataset.id);
-      if (entry) openModal(entry);
+      if (entry) {
+        const idx = wishVisible.findIndex(e => e.id === entry.id);
+        openModal(entry, idx >= 0 ? { list: wishVisible, idx } : null);
+      }
     });
   });
 
@@ -2886,13 +2923,19 @@ function paintUpdateStatus() {
 }
 
 // ── DETAIL MODAL ──────────────────────────────────────────────────────────────
-async function openModal(item) {
+async function openModal(item, nav = null) {
+  modalNav = nav;
   const token   = ++modalToken;
   const overlay = document.getElementById('modal-overlay');
   const left    = document.getElementById('modal-left');
   const right   = document.getElementById('modal-right');
 
   overlay.classList.remove('hidden');
+
+  const prevBtn = document.getElementById('modal-prev');
+  const nextBtn = document.getElementById('modal-next');
+  if (prevBtn) prevBtn.classList.toggle('hidden', !nav || nav.idx <= 0);
+  if (nextBtn) nextBtn.classList.toggle('hidden', !nav || nav.idx >= nav.list.length - 1);
 
   // Render instantly with the data we already have (browse/library entries carry
   // title, cover, rating, year, tags, length, usually description). Enrich with the
@@ -2954,7 +2997,7 @@ async function openModal(item) {
 
   const reopen = async () => {
     await loadEntries();
-    if (token === modalToken) openModal(full);
+    if (token === modalToken) openModal(full, nav);
   };
 
   // ── Left panel ──
@@ -3185,9 +3228,22 @@ async function openModal(item) {
   }).catch(() => {});
 }
 
+function navModal(dir) {
+  if (!modalNav) return;
+  const newIdx = modalNav.idx + dir;
+  if (newIdx < 0 || newIdx >= modalNav.list.length) return;
+  const raw = modalNav.list[newIdx];
+  openModal({ ...metaOf(raw), ...(entryById(raw.id) || {}) }, { list: modalNav.list, idx: newIdx });
+}
+
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   modalToken++;
+  modalNav = null;
+  const prevBtn = document.getElementById('modal-prev');
+  const nextBtn = document.getElementById('modal-next');
+  if (prevBtn) prevBtn.classList.add('hidden');
+  if (nextBtn) nextBtn.classList.add('hidden');
 }
 
 // Gallery lightbox: openLightbox(urlArray, startIndex).
@@ -3409,7 +3465,7 @@ function renderScanList() {
         <div class="scan-folder">📁 ${escHtml(row.folderName)}${selected && selected.inLibrary ? ` <span class="scan-known">↩ in your library</span>` : ''}</div>
         <select class="scan-match">
           ${row.candidates.map(c =>
-            `<option value="${escHtml(c.id)}" ${c.id === row.selectedId ? 'selected' : ''}>${escHtml(c.title)}${c.rating ? ` (★${ratingStr(c.rating)})` : ''}${c.inLibrary ? ' ✓ in library' : ''}</option>`
+            `<option value="${escHtml(c.id)}" ${c.id === row.selectedId ? 'selected' : ''}>${escHtml(displayTitle(c))}${c.rating ? ` (★${ratingStr(c.rating)})` : ''}${c.inLibrary ? ' ✓ in library' : ''}</option>`
           ).join('')}
           <option value="" ${row.selectedId === '' ? 'selected' : ''}>— skip this folder —</option>
         </select>
@@ -3699,13 +3755,15 @@ async function init() {
     });
   });
 
-  // Detail modal close
+  // Detail modal close + nav arrows
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   document.getElementById('modal-overlay')?.addEventListener('click', e => {
     if (e.target === document.getElementById('modal-overlay')) closeModal();
   });
+  document.getElementById('modal-prev')?.addEventListener('click', () => navModal(-1));
+  document.getElementById('modal-next')?.addEventListener('click', () => navModal(1));
 
-  // Keyboard: lightbox navigation + modal dismiss
+  // Keyboard: lightbox navigation + modal dismiss + modal prev/next
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const lb = document.getElementById('img-lightbox');
@@ -3714,9 +3772,12 @@ async function init() {
       if (e.key === 'Escape')     { closeLightbox(); e.preventDefault(); }
       if (e.key === 'ArrowLeft')  { lbNav(-1); e.preventDefault(); }
       if (e.key === 'ArrowRight') { lbNav(1); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
+    } else {
       const overlay = document.getElementById('modal-overlay');
-      if (overlay && !overlay.classList.contains('hidden')) { closeModal(); e.preventDefault(); }
+      const modalOpen = overlay && !overlay.classList.contains('hidden');
+      if (e.key === 'Escape' && modalOpen) { closeModal(); e.preventDefault(); }
+      if (e.key === 'ArrowLeft'  && modalOpen && modalNav) { navModal(-1); e.preventDefault(); }
+      if (e.key === 'ArrowRight' && modalOpen && modalNav) { navModal(1);  e.preventDefault(); }
     }
   });
 

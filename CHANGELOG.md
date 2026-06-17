@@ -2,6 +2,40 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.1.0 — 2026-06-17
+
+**Navigation**
+- Left/right arrow buttons now appear in the detail modal when browsing results or your library/wishlist — click to jump to the previous or next title. Arrow keys work too.
+
+**Browse**
+- Tag filter search reverted to straightforward matching — short queries like "lesbian" now resolve correctly again.
+- Refresh button now reliably reloads when browse is stuck.
+- Scrollbar visible in all browse layouts.
+
+**Library**
+- Manage library now shows hidden titles with a "hidden" badge. Selecting only hidden titles shows an "Unhide selected" button; selecting visible titles shows "Hide selected"; both appear when the selection is mixed.
+- Preview panel shows tag chips instead of the description.
+
+**Settings / Scan**
+- Folder scan candidate dropdown respects your title language setting (English/Romaji/Japanese) instead of always showing romaji.
+
+**Performance — major fix**
+- Rewrote VNDB request handling to run several requests at once (was single-file). A single slow request no longer blocks browse, characters, or Steam screenshots behind it.
+- Background enrichment capped to one slot so it can't starve interactive requests.
+- Detail modal opens instantly with available data; description, characters, and Steam screenshots load in the background.
+- Added 10s timeouts and single retry to all VNDB and Steam requests.
+
+**Appearance**
+- Scrollbars now match the active color palette in dark mode.
+- Scrollbars visible and draggable throughout the app.
+
+## 1.0.21 — 2026-06-17
+
+**Performance — major fix**
+- Rewrote the VNDB request handling to run several requests at once instead of one at a time. Previously a single slow request blocked everything behind it, which is what made browse take forever to load, characters and Steam screenshots never appear, and infinite scroll seem broken.
+- Background library enrichment is now capped to one slot so it can never starve browsing, opening a game, or scrolling.
+- Faster request pacing and quicker failure recovery (10s timeout, single retry).
+
 ## 1.0.20 — 2026-06-17
 
 **Browse**

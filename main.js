@@ -868,12 +868,20 @@ ipcMain.handle('wishlist-get-releases', async (_e, vnIds) => {
 // background work (backfill, release checks).
 // Adaptive spacing: run fast normally, automatically slow down if VNDB starts
 // throttling (429), then recover. This keeps things snappy without bursting.
-const VNDB_GAP_MIN = 550;
-const VNDB_GAP_MAX = 2200;
+// A few requests run concurrently so a single slow one can't block the rest — the
+// old single-flight design meant one stalled call froze browse, characters AND
+// steam at once. Background work (backfill) is capped to one slot so it never
+// starves what the user is actively looking at. A small launch gap (which grows on
+// 429 and recovers when healthy) keeps us from bursting past VNDB's rate limit.
+const VNDB_GAP_MIN = 160;
+const VNDB_GAP_MAX = 1500;
 let vndbGap = VNDB_GAP_MIN;
 const PRI = { HIGH: 2, NORMAL: 1, LOW: 0 };
+const VNDB_MAX_CONCURRENT = 3;
+const VNDB_MAX_LOW = 1;          // at most one background request in flight
 const vndbQueue = [];
-let vndbBusy = false;
+let vndbActive = 0;
+let vndbActiveLow = 0;
 let vndbLastAt = 0;
 
 function vndbEnqueue(run, priority = PRI.NORMAL) {
@@ -887,18 +895,32 @@ function vndbEnqueue(run, priority = PRI.NORMAL) {
   });
 }
 async function vndbPump() {
-  if (vndbBusy) return;
-  const item = vndbQueue.shift();
-  if (!item) return;
-  vndbBusy = true;
+  if (vndbActive >= VNDB_MAX_CONCURRENT) return;
+  // Queue is priority-sorted; take the first item we're allowed to run. LOW items
+  // are skipped while a background slot is already busy (leaves room for HIGH).
+  let idx = -1;
+  for (let i = 0; i < vndbQueue.length; i++) {
+    if (vndbQueue[i].priority === PRI.LOW && vndbActiveLow >= VNDB_MAX_LOW) continue;
+    idx = i; break;
+  }
+  if (idx === -1) return;
+  const item = vndbQueue.splice(idx, 1)[0];
+  vndbActive++;
+  if (item.priority === PRI.LOW) vndbActiveLow++;
   // If we've been idle a while, any prior 429 burst has passed — drop the accrued
   // backoff so the next user action (e.g. opening a modal) is snappy again.
   if (Date.now() - vndbLastAt > 5000) vndbGap = VNDB_GAP_MIN;
   const wait = Math.max(0, vndbGap - (Date.now() - vndbLastAt));
   if (wait) await new Promise(r => setTimeout(r, wait));
+  vndbLastAt = Date.now();
+  vndbPump(); // fill any remaining free slots
   try { item.resolve(await item.run()); }
   catch (e) { item.reject(e); }
-  finally { vndbLastAt = Date.now(); vndbBusy = false; vndbPump(); }
+  finally {
+    vndbActive--;
+    if (item.priority === PRI.LOW) vndbActiveLow--;
+    vndbPump();
+  }
 }
 
 // One POST to a VNDB endpoint, enqueued so spacing is enforced. Retries 429/5xx
@@ -907,7 +929,7 @@ async function vndbPump() {
 // Fetch with a hard timeout. Without this, a single stalled socket would block the
 // entire serialized queue forever (every later request — modal, characters, steam,
 // next browse page — hangs behind it). AbortController guarantees the slot frees up.
-async function fetchWithTimeout(url, opts = {}, timeoutMs = 15000) {
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
@@ -923,15 +945,15 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {} } = {})
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify(body),
-        }, 15000);
+        }, 10000);
       } catch (e) {
-        // Timeout / network drop. Retry a couple of times, then give up so the
-        // queue keeps moving instead of wedging on one dead request.
-        if (attempt < 3) { await new Promise(r => setTimeout(r, 800 * (attempt + 1))); continue; }
+        // Timeout / network drop. One quick retry, then give up so the slot frees
+        // up instead of wedging on a dead request.
+        if (attempt < 1) { await new Promise(r => setTimeout(r, 700)); continue; }
         throw new Error('VNDB timeout');
       }
       if ((res.status === 429 || res.status >= 500) && attempt < 5) {
-        vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 450); // back off globally
+        vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 250); // back off globally
         const ra = parseInt(res.headers.get('retry-after'), 10);
         const ms = Number.isFinite(ra) ? ra * 1000 : Math.min(8000, 1000 * 2 ** attempt);
         await new Promise(r => setTimeout(r, ms));
@@ -1132,9 +1154,6 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
       if (words.every(w => n.includes(w))) return 1;
       return 0;
     };
-    // Ero tags always require query to cover ≥70% of the tag name
-    // ("lesbian" = 63% of "Lesbian Sex" → blocked; "lesbian s" = 82% → passes)
-    results = results.filter(t => t.category !== 'ero' || (score(t) > 0 && q.length / t.name.length >= 0.7));
     // With NSFW off, block all remaining ero tags
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;

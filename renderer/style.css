@@ -216,6 +216,9 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .app2 *::-webkit-scrollbar-thumb       { background: var(--mut); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
 .app2 *::-webkit-scrollbar-thumb:hover { background: var(--ink); background-clip: padding-box; border: 2px solid transparent; }
 .app2 *                                 { scrollbar-width: thin; scrollbar-color: var(--mut) transparent; }
+.app2.t-dark *::-webkit-scrollbar-thumb       { background: var(--line-2); }
+.app2.t-dark *::-webkit-scrollbar-thumb:hover { background: var(--mut); }
+.app2.t-dark *                                 { scrollbar-color: var(--line-2) transparent; }
 
 /* ─── utilities ─── */
 .hidden { display: none !important; }
@@ -644,6 +647,10 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-right { flex: 1; min-width: 0; padding: 32px 28px 28px; display: flex; flex-direction: column; overflow-y: auto; }
 .modal-close { position: absolute; top: 16px; right: 16px; z-index: 10; width: 36px; height: 36px; border-radius: 10px; background: var(--card); border: 2px solid var(--border); box-shadow: 0 2px 0 var(--edge); display: grid; place-items: center; color: var(--mut); font-size: 18px; cursor: default; user-select: none; transition: background .12s, color .12s; }
 .modal-close:hover { background: var(--panel); color: var(--ink); }
+.modal-nav { position: absolute; top: 50%; transform: translateY(-50%); background: none; border: none; color: oklch(0.95 0.01 120 / 0.75); font-size: 56px; line-height: 1; cursor: pointer; padding: 8px 16px; transition: color .15s; user-select: none; -webkit-app-region: no-drag; z-index: 101; }
+.modal-nav:hover { color: oklch(1 0 0 / 0.95); }
+.modal-prev { left: 4px; }
+.modal-next { right: 4px; }
 .modal-cover-wrap .pv2 { border-radius: 14px; border: 2px solid var(--border); box-shadow: 0 4px 0 var(--edge); }
 .modal-kicker { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: var(--faint); text-transform: uppercase; }
 .modal-title  { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 24px; letter-spacing: -0.7px; line-height: 1.05; margin-top: 8px; }
@@ -1247,6 +1254,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .lib-manage-btn:hover { color: var(--ink); border-color: var(--line); }
 
 /* Batch manager footer */
-.batch-footer { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.batch-footer { display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
 .batch-count { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--mut); margin-right: auto; }
 .app-dialog-btn.disabled { opacity: 0.4; pointer-events: none; }
+.coll-picker-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.coll-picker-hidden-badge { font-size: 10px; color: var(--mut); background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
