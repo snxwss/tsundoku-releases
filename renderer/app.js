@@ -894,9 +894,10 @@ function renderHome() {
   lib.sort(byNewest);
   homeVisible = lib;
 
-  const reading  = lib.filter(e => (e.status || 'unplayed') === 'reading');
-  const pile     = lib.filter(e => (e.status || 'unplayed') === 'unplayed').slice(0, 6);
-  const finished = lib.filter(e => e.status === 'finished').slice(0, 6);
+  const reading    = lib.filter(e => (e.status || 'unplayed') === 'reading');
+  const allPile    = lib.filter(e => (e.status || 'unplayed') === 'unplayed');
+  const pile       = allPile.slice(0, 6);
+  const finished   = lib.filter(e => e.status === 'finished').slice(0, 6);
   const cur = getBestHeroEntry(lib);
 
   // hero
@@ -987,7 +988,7 @@ function renderHome() {
   // so the count matches what's shown (no off-by-one vs. the hero spotlight).
   const nowPlaying = reading.filter(e => e.id !== (cur && cur.id));
   const shelvesHtml = [
-    pile.length > 0       && makeShelf('The pile',          `${pile.length} unplayed`,    pile,              'var(--blue-deep)'),
+    allPile.length > 0    && makeShelf('The pile',          `${allPile.length} unplayed`, pile,              'var(--blue-deep)'),
     nowPlaying.length > 0 && makeShelf('Now playing',       `${nowPlaying.length} more`,  nowPlaying,        'var(--read-deep)'),
     finished.length > 0   && makeShelf('Recently finished', `${finished.length} done`,    finished,          'oklch(0.58 0.17 305)'),
   ].filter(Boolean).join('');
@@ -2517,7 +2518,7 @@ async function renderSettingsSection(section) {
     ]);
     const { connected, gistId, lastSyncAt } = info;
     const lastSyncStr = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : null;
-    const opts = { library: true, collections: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+    const opts = { library: true, hidden: true, preferences: true, history: true, ...(s.syncOptions || {}) };
 
     const syncOptsHtml = `
       <div class="settings-row" style="margin-top:18px">
@@ -2526,8 +2527,8 @@ async function renderSettingsSection(section) {
           <div class="settings-sub">Controls what gets pushed from and applied to this PC.</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;flex-shrink:0">
-          <label class="sync-opt-row"><div class="toggle-switch ${opts.library     ? 'on' : ''}" data-syncopt="library"></div><span>Library &amp; wishlist</span></label>
-          <label class="sync-opt-row"><div class="toggle-switch ${opts.collections ? 'on' : ''}" data-syncopt="collections"></div><span>Collections &amp; hidden tags</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.library     ? 'on' : ''}" data-syncopt="library"></div><span>Library, wishlist &amp; collections</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.hidden      ? 'on' : ''}" data-syncopt="hidden"></div><span>Hidden tags &amp; titles</span></label>
           <label class="sync-opt-row"><div class="toggle-switch ${opts.preferences ? 'on' : ''}" data-syncopt="preferences"></div><span>Preferences</span></label>
           <label class="sync-opt-row"><div class="toggle-switch ${opts.history     ? 'on' : ''}" data-syncopt="history"></div><span>Stats &amp; achievements</span></label>
         </div>
@@ -2583,7 +2584,7 @@ async function renderSettingsSection(section) {
         tog.classList.toggle('on');
         const newOpts = {
           library:     content.querySelector('[data-syncopt="library"]')?.classList.contains('on')     ?? true,
-          collections: content.querySelector('[data-syncopt="collections"]')?.classList.contains('on') ?? true,
+          hidden:      content.querySelector('[data-syncopt="hidden"]')?.classList.contains('on')      ?? true,
           preferences: content.querySelector('[data-syncopt="preferences"]')?.classList.contains('on') ?? true,
           history:     content.querySelector('[data-syncopt="history"]')?.classList.contains('on')     ?? true,
         };

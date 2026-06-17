@@ -2,6 +2,15 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.2 — 2026-06-18
+
+**Home**
+- "see all →" links now show a pointer cursor.
+- "The pile" section header now shows the correct total count instead of the number of visible cards.
+
+**Sync**
+- Sync option toggles reorganised: "Library, wishlist & collections" (one toggle), "Hidden tags & titles" (hidden tag blocklist + excluded titles), Preferences, Stats & achievements.
+
 ## 1.2.1 — 2026-06-18
 
 **Sync**

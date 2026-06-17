@@ -305,7 +305,7 @@ const SETTINGS_DEFAULTS = {
   syncGistId:       null,    // GitHub Gist ID used for cross-device sync
   syncGithubPat:    null,    // GitHub PAT (excluded from backups)
   lastSyncAt:       null,    // timestamp of last successful sync
-  syncOptions: { library: true, collections: true, preferences: true, history: true },
+  syncOptions: { library: true, hidden: true, preferences: true, history: true },
 };
 
 function readSettings() {
@@ -410,7 +410,7 @@ const SYNC_PREF_KEYS = [
 ];
 
 function getSyncOpts(s) {
-  return { library: true, collections: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+  return { library: true, hidden: true, preferences: true, history: true, ...(s.syncOptions || {}) };
 }
 
 function buildSyncPayload() {
@@ -421,9 +421,11 @@ function buildSyncPayload() {
   if (opts.preferences) {
     for (const k of SYNC_PREF_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
   }
-  if (opts.collections) {
-    if (s.hiddenTags  !== undefined) syncSettings.hiddenTags  = s.hiddenTags;
+  if (opts.library) {
     if (s.collections !== undefined) syncSettings.collections = s.collections;
+  }
+  if (opts.hidden) {
+    if (s.hiddenTags !== undefined) syncSettings.hiddenTags = s.hiddenTags;
   }
   if (opts.history) {
     if (s.sessions     !== undefined) syncSettings.sessions     = s.sessions;
@@ -443,7 +445,9 @@ function mergeFromPayload(payload) {
       if (!imp || !imp.id) continue;
       const local = store[imp.id];
       if (!local) {
-        store[imp.id] = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
+        const entry = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
+        if (!opts.hidden) delete entry.excluded;
+        store[imp.id] = entry;
         added++;
       } else {
         local.library  = local.library  || !!imp.library;
@@ -456,7 +460,7 @@ function mergeFromPayload(payload) {
         const starts = [local.started_at, imp.started_at].filter(v => v != null);
         if (starts.length) local.started_at = Math.min(...starts);
         if (local.finished_at == null && imp.finished_at != null) local.finished_at = imp.finished_at;
-        if (imp.excluded) local.excluded = true;
+        if (imp.excluded && opts.hidden) local.excluded = true;
         if (imp.rating != null && local.rating == null) local.rating = imp.rating;
         for (const k of ['title', 'alttitle', 'image', 'description', 'released', 'developer', 'length_minutes', 'nsfw']) {
           if ((local[k] == null || local[k] === '') && imp[k] != null) local[k] = imp[k];
@@ -499,7 +503,7 @@ function mergeFromPayload(payload) {
         settingsApplied = true;
       }
     }
-    if (opts.collections) {
+    if (opts.hidden) {
       if (Array.isArray(imp.hiddenTags) && imp.hiddenTags.length) {
         const merged = Array.isArray(local.hiddenTags) ? local.hiddenTags.slice() : [];
         const seen = new Set(merged.map(t => t && t.id));
@@ -507,6 +511,8 @@ function mergeFromPayload(payload) {
         local.hiddenTags = merged;
         settingsApplied = true;
       }
+    }
+    if (opts.library) {
       if (Array.isArray(imp.collections) && imp.collections.length) {
         const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
         const byId = new Map(merged.map(c => [c.id, c]));

@@ -402,7 +402,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .shelf-head .sq  { width: 12px; height: 12px; border-radius: 4px; background: var(--acc); border: 2px solid var(--border); flex: 0 0 auto; }
 .shelf-head .lbl { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); white-space: nowrap; flex: 0 0 auto; }
 .shelf-head .cnt { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--faint); }
-.shelf-head .more { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 11.5px; font-weight: 700; color: var(--acc); cursor: default; }
+.shelf-head .more { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 11.5px; font-weight: 700; color: var(--acc); cursor: pointer; }
 .shelf-row { display: flex; gap: 20px; padding: 2px 36px 14px; overflow: hidden; }
 .bk { width: 158px; flex: 0 0 158px; cursor: pointer; }
 .bk .pv2 { border-radius: 12px; border: 2px solid var(--border); box-shadow: 0 4px 0 var(--edge); transition: transform .14s; }
