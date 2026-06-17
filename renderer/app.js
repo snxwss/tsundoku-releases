@@ -107,6 +107,7 @@ let browsePage     = 1;
 let browseMore     = true;  // whether more pages exist
 let browseLoading  = false;
 let browseVns      = [];    // current result set
+let browseRatedPool = [];   // weighted-ranked pool for "Top Rated" (18+ shown only)
 let browseIsSearch = false;
 let browseNsfwOn   = false; // local filter toggle (from settings)
 let browseYearFrom = null;
@@ -1879,7 +1880,9 @@ function initBrowse() {
     browseNsfwOn = !browseNsfwOn;
     await setSetting('browseNsfwFilter', browseNsfwOn);
     syncAllowNsfwChip();
-    renderBrowseGrid(browseVns); // re-filter the already-loaded results instantly
+    // Top Rated switches between pool (18+ shown) and pagination (18+ hidden) — must reload.
+    if (browseSort === 'rating' && !browseIsSearch) { resetBrowse(); loadBrowse(); }
+    else renderBrowseGrid(browseVns);
   });
 
   // Collapsible filter drawer — keeps Browse uncluttered; filters live behind it.
@@ -1915,7 +1918,7 @@ function initBrowse() {
 }
 
 function resetBrowse() {
-  browsePage = 1; browseMore = true; browseVns = [];
+  browsePage = 1; browseMore = true; browseVns = []; browseRatedPool = [];
   document.getElementById('browse-grid').innerHTML = '';
   document.getElementById('browse-status').classList.add('hidden');
 }
@@ -1964,6 +1967,26 @@ async function loadBrowse(append = false) {
   browseLoading = true;
   if (!append) showBrowseStatus('Loading…');
   try {
+    // "Top Rated" uses IMDb-style weighted ranking when 18+ is shown — the pool is
+    // pre-fetched once and paginated locally. When 18+ is hidden, the top-rated pool
+    // is almost entirely adult titles so the pool exhausts after client filtering;
+    // fall back to regular VNDB pagination which never runs out of pages.
+    if (browseSort === 'rating' && !browseNsfwOn) {
+      if (!append) {
+        const data = await window.api.vndbTopRated(currentFilterOpts());
+        browseRatedPool = data.results || [];
+        browseVns = [];
+      }
+      document.getElementById('browse-status').classList.add('hidden');
+      const chunk = browseRatedPool.slice(browseVns.length, browseVns.length + 30);
+      browseVns = [...browseVns, ...chunk];
+      browseMore = browseVns.length < browseRatedPool.length;
+      renderBrowseGrid(browseVns);
+      if (!browseRatedPool.length && !append) showBrowseStatus('Nothing to show.');
+      setTimeout(requestBrowseFill, 0);
+      return;
+    }
+
     const opts = { page: browsePage, ...currentFilterOpts() };
     const data = await window.api.vndbBrowse(browseSort, opts);
     document.getElementById('browse-status').classList.add('hidden');

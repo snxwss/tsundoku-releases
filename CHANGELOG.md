@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.13 — 2026-06-17
+
+**Browse**
+- Top Rated restores IMDb-style weighted ranking when 18+ content is shown.
+- When 18+ filter is on, Top Rated uses regular pagination instead (avoids the pool exhausting after filtering out adult titles).
+
 ## 1.0.12 — 2026-06-17
 
 **Browse**
