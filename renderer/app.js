@@ -2637,8 +2637,13 @@ async function renderSettingsSection(section) {
         btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6';
         const r = await window.api.syncConnect(joinId, pat).catch(e => ({ ok: false, error: e.message }));
         btn.style.pointerEvents = ''; btn.style.opacity = '';
-        if (r?.ok) { await loadEntries(); renderSettingsSection('Sync'); }
-        else st.textContent = '✕ ' + (r?.error || 'Failed to connect');
+        if (r?.ok) {
+          const total = (r.added || 0) + (r.updated || 0);
+          st.textContent = `✓ Connected — ${total > 0 ? `${r.added} added, ${r.updated} updated` : 'up to date'}`;
+          await loadEntries();
+          await new Promise(res => setTimeout(res, 1000));
+          renderSettingsSection('Sync');
+        } else st.textContent = '✕ ' + (r?.error || 'Failed to connect');
       });
       document.getElementById('sync-join-id')?.addEventListener('keydown', e => {
         if (e.key === 'Enter') document.getElementById('btn-sync-join')?.click();

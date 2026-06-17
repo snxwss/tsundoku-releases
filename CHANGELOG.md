@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.3 — 2026-06-18
+
+**Sync**
+- Connecting on a second PC now reloads your library immediately without needing an app restart.
+- Connect button shows how many titles were added or updated after a successful connect.
+
 ## 1.2.2 — 2026-06-18
 
 **Home**

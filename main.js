@@ -1971,6 +1971,8 @@ ipcMain.handle('sync-connect', async (_e, gistId, pat) => {
     s.syncGithubPat = pat.trim();
     s.lastSyncAt = Date.now();
     writeSettings(s);
+    // Notify renderer to reload entries so all views update without a restart.
+    if (win && !win.isDestroyed()) win.webContents.send('entries-changed');
     return { ok: true, ...result };
   } catch (err) {
     return { ok: false, error: err.message };
