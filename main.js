@@ -305,6 +305,7 @@ const SETTINGS_DEFAULTS = {
   syncGistId:       null,    // GitHub Gist ID used for cross-device sync
   syncGithubPat:    null,    // GitHub PAT (excluded from backups)
   lastSyncAt:       null,    // timestamp of last successful sync
+  syncOptions: { library: true, collections: true, preferences: true, history: true },
 };
 
 function readSettings() {
@@ -406,97 +407,118 @@ const SYNC_PREF_KEYS = [
   'themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
   'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername',
-  'sessions', 'achievements', 'hiddenTags', 'collections',
 ];
 
+function getSyncOpts(s) {
+  return { library: true, collections: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+}
+
 function buildSyncPayload() {
-  const entries = Object.values(readStore());
   const s = readSettings();
+  const opts = getSyncOpts(s);
+  const entries = opts.library ? Object.values(readStore()) : [];
   const syncSettings = {};
-  for (const k of SYNC_PREF_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
+  if (opts.preferences) {
+    for (const k of SYNC_PREF_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
+  }
+  if (opts.collections) {
+    if (s.hiddenTags  !== undefined) syncSettings.hiddenTags  = s.hiddenTags;
+    if (s.collections !== undefined) syncSettings.collections = s.collections;
+  }
+  if (opts.history) {
+    if (s.sessions     !== undefined) syncSettings.sessions     = s.sessions;
+    if (s.achievements !== undefined) syncSettings.achievements = s.achievements;
+  }
   return { version: 1, updatedAt: Date.now(), entries, settings: syncSettings };
 }
 
 function mergeFromPayload(payload) {
-  if (!payload || !Array.isArray(payload.entries)) throw new Error('Invalid sync payload');
-  const store = readStore();
+  if (!payload) throw new Error('Invalid sync payload');
+  const opts = getSyncOpts(readSettings());
   let added = 0, updated = 0;
-  for (const imp of payload.entries) {
-    if (!imp || !imp.id) continue;
-    const local = store[imp.id];
-    if (!local) {
-      store[imp.id] = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
-      added++;
-    } else {
-      local.library  = local.library  || !!imp.library;
-      local.wishlist = local.wishlist || !!imp.wishlist;
-      local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
-      if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
-      local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
-      const plays = [local.last_played, imp.last_played].filter(v => v != null);
-      local.last_played = plays.length ? plays.reduce((a, b) => (a > b ? a : b)) : null;
-      const starts = [local.started_at, imp.started_at].filter(v => v != null);
-      if (starts.length) local.started_at = Math.min(...starts);
-      if (local.finished_at == null && imp.finished_at != null) local.finished_at = imp.finished_at;
-      if (imp.excluded) local.excluded = true;
-      if (imp.rating != null && local.rating == null) local.rating = imp.rating;
-      for (const k of ['title', 'alttitle', 'image', 'description', 'released', 'developer', 'length_minutes', 'nsfw']) {
-        if ((local[k] == null || local[k] === '') && imp[k] != null) local[k] = imp[k];
+
+  if (opts.library && Array.isArray(payload.entries)) {
+    const store = readStore();
+    for (const imp of payload.entries) {
+      if (!imp || !imp.id) continue;
+      const local = store[imp.id];
+      if (!local) {
+        store[imp.id] = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
+        added++;
+      } else {
+        local.library  = local.library  || !!imp.library;
+        local.wishlist = local.wishlist || !!imp.wishlist;
+        local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
+        if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
+        local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
+        const plays = [local.last_played, imp.last_played].filter(v => v != null);
+        local.last_played = plays.length ? plays.reduce((a, b) => (a > b ? a : b)) : null;
+        const starts = [local.started_at, imp.started_at].filter(v => v != null);
+        if (starts.length) local.started_at = Math.min(...starts);
+        if (local.finished_at == null && imp.finished_at != null) local.finished_at = imp.finished_at;
+        if (imp.excluded) local.excluded = true;
+        if (imp.rating != null && local.rating == null) local.rating = imp.rating;
+        for (const k of ['title', 'alttitle', 'image', 'description', 'released', 'developer', 'length_minutes', 'nsfw']) {
+          if ((local[k] == null || local[k] === '') && imp[k] != null) local[k] = imp[k];
+        }
+        updated++;
       }
-      updated++;
     }
+    writeStore(store);
   }
-  writeStore(store);
 
   let settingsApplied = false;
   if (payload.settings && typeof payload.settings === 'object') {
     const imp = payload.settings;
     const local = readSettings();
-    const SCALAR_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
-      'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
-      'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
-    for (const k of SCALAR_KEYS) {
-      if (imp[k] !== undefined) { local[k] = imp[k]; settingsApplied = true; }
-    }
-    if (Array.isArray(imp.sessions) && imp.sessions.length) {
-      const merged = Array.isArray(local.sessions) ? local.sessions.slice() : [];
-      const seen = new Set(merged.map(s => `${s.vnId}|${s.endedAt}`));
-      for (const s of imp.sessions) {
-        const key = `${s.vnId}|${s.endedAt}`;
-        if (!seen.has(key)) { merged.push(s); seen.add(key); }
+    if (opts.preferences) {
+      for (const k of SYNC_PREF_KEYS) {
+        if (imp[k] !== undefined) { local[k] = imp[k]; settingsApplied = true; }
       }
-      merged.sort((a, b) => (a.endedAt || 0) - (b.endedAt || 0));
-      local.sessions = merged;
-      settingsApplied = true;
     }
-    if (imp.achievements && typeof imp.achievements === 'object') {
-      const merged = { ...(local.achievements || {}) };
-      for (const [id, v] of Object.entries(imp.achievements)) {
-        if (!merged[id]) merged[id] = v;
-        else if (v?.unlockedAt && merged[id]?.unlockedAt)
-          merged[id] = { ...merged[id], unlockedAt: Math.min(merged[id].unlockedAt, v.unlockedAt) };
+    if (opts.history) {
+      if (Array.isArray(imp.sessions) && imp.sessions.length) {
+        const merged = Array.isArray(local.sessions) ? local.sessions.slice() : [];
+        const seen = new Set(merged.map(s => `${s.vnId}|${s.endedAt}`));
+        for (const s of imp.sessions) {
+          const key = `${s.vnId}|${s.endedAt}`;
+          if (!seen.has(key)) { merged.push(s); seen.add(key); }
+        }
+        merged.sort((a, b) => (a.endedAt || 0) - (b.endedAt || 0));
+        local.sessions = merged;
+        settingsApplied = true;
       }
-      local.achievements = merged;
-      settingsApplied = true;
-    }
-    if (Array.isArray(imp.hiddenTags) && imp.hiddenTags.length) {
-      const merged = Array.isArray(local.hiddenTags) ? local.hiddenTags.slice() : [];
-      const seen = new Set(merged.map(t => t && t.id));
-      for (const t of imp.hiddenTags) if (t && t.id && !seen.has(t.id)) { merged.push(t); seen.add(t.id); }
-      local.hiddenTags = merged;
-      settingsApplied = true;
-    }
-    if (Array.isArray(imp.collections) && imp.collections.length) {
-      const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
-      const byId = new Map(merged.map(c => [c.id, c]));
-      for (const c of imp.collections) {
-        if (!c || !c.id) continue;
-        const ex = byId.get(c.id);
-        if (!ex) { merged.push(c); byId.set(c.id, c); }
-        else ex.vnIds = [...new Set([...(ex.vnIds || []), ...(c.vnIds || [])])];
+      if (imp.achievements && typeof imp.achievements === 'object') {
+        const merged = { ...(local.achievements || {}) };
+        for (const [id, v] of Object.entries(imp.achievements)) {
+          if (!merged[id]) merged[id] = v;
+          else if (v?.unlockedAt && merged[id]?.unlockedAt)
+            merged[id] = { ...merged[id], unlockedAt: Math.min(merged[id].unlockedAt, v.unlockedAt) };
+        }
+        local.achievements = merged;
+        settingsApplied = true;
       }
-      local.collections = merged;
-      settingsApplied = true;
+    }
+    if (opts.collections) {
+      if (Array.isArray(imp.hiddenTags) && imp.hiddenTags.length) {
+        const merged = Array.isArray(local.hiddenTags) ? local.hiddenTags.slice() : [];
+        const seen = new Set(merged.map(t => t && t.id));
+        for (const t of imp.hiddenTags) if (t && t.id && !seen.has(t.id)) { merged.push(t); seen.add(t.id); }
+        local.hiddenTags = merged;
+        settingsApplied = true;
+      }
+      if (Array.isArray(imp.collections) && imp.collections.length) {
+        const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
+        const byId = new Map(merged.map(c => [c.id, c]));
+        for (const c of imp.collections) {
+          if (!c || !c.id) continue;
+          const ex = byId.get(c.id);
+          if (!ex) { merged.push(c); byId.set(c.id, c); }
+          else ex.vnIds = [...new Set([...(ex.vnIds || []), ...(c.vnIds || [])])];
+        }
+        local.collections = merged;
+        settingsApplied = true;
+      }
     }
     if (settingsApplied) writeSettings(local);
   }

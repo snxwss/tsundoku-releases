@@ -2511,9 +2511,27 @@ async function renderSettingsSection(section) {
     document.getElementById('settings-scan-btn').addEventListener('click', runScan);
 
   } else if (section === 'Sync') {
-    const info = await window.api.syncGetInfo().catch(() => ({ connected: false, gistId: null, lastSyncAt: null }));
+    const [info, s] = await Promise.all([
+      window.api.syncGetInfo().catch(() => ({ connected: false, gistId: null, lastSyncAt: null })),
+      window.api.getSettings().catch(() => ({})),
+    ]);
     const { connected, gistId, lastSyncAt } = info;
     const lastSyncStr = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : null;
+    const opts = { library: true, collections: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+
+    const syncOptsHtml = `
+      <div class="settings-row" style="margin-top:18px">
+        <div>
+          <div class="settings-label">What to sync</div>
+          <div class="settings-sub">Controls what gets pushed from and applied to this PC.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;flex-shrink:0">
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.library     ? 'on' : ''}" data-syncopt="library"></div><span>Library &amp; wishlist</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.collections ? 'on' : ''}" data-syncopt="collections"></div><span>Collections &amp; hidden tags</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.preferences ? 'on' : ''}" data-syncopt="preferences"></div><span>Preferences</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.history     ? 'on' : ''}" data-syncopt="history"></div><span>Stats &amp; achievements</span></label>
+        </div>
+      </div>`;
 
     content.innerHTML = `
       <div class="settings-section">
@@ -2527,11 +2545,12 @@ async function renderSettingsSection(section) {
             <div class="settings-sub">Share this on your other PC to connect to the same sync.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-            <span class="sync-token-display" id="sync-token-display">${escHtml(gistId || '')}</span>
+            <span class="sync-token-display">${escHtml(gistId || '')}</span>
             <div class="btn-sm sec" id="btn-sync-copy">Copy</div>
           </div>
         </div>
         ${lastSyncStr ? `<div class="settings-sub" style="margin-top:4px">Last synced: ${escHtml(lastSyncStr)}</div>` : ''}
+        ${syncOptsHtml}
         <div style="display:flex;gap:8px;margin-top:16px">
           <div class="btn-sm pri" id="btn-sync-now">Sync now</div>
           <div class="btn-sm sec" id="btn-sync-disconnect">Disconnect</div>
@@ -2553,9 +2572,24 @@ async function renderSettingsSection(section) {
             style="height:28px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:11px;padding:0 10px;outline:none;flex:1;min-width:0" />
           <div class="btn-sm sec" id="btn-sync-join">Connect</div>
         </div>
+        ${syncOptsHtml}
         <div class="settings-sub" id="sync-status-msg" style="margin-top:8px;min-height:14px"></div>
         `}
       </div>`;
+
+    // Sync option toggles (shared between connected/disconnected state)
+    content.querySelectorAll('[data-syncopt]').forEach(tog => {
+      tog.addEventListener('click', async () => {
+        tog.classList.toggle('on');
+        const newOpts = {
+          library:     content.querySelector('[data-syncopt="library"]')?.classList.contains('on')     ?? true,
+          collections: content.querySelector('[data-syncopt="collections"]')?.classList.contains('on') ?? true,
+          preferences: content.querySelector('[data-syncopt="preferences"]')?.classList.contains('on') ?? true,
+          history:     content.querySelector('[data-syncopt="history"]')?.classList.contains('on')     ?? true,
+        };
+        await setSetting('syncOptions', newOpts);
+      });
+    });
 
     if (connected) {
       document.getElementById('btn-sync-copy')?.addEventListener('click', () => {

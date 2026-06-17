@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.1 — 2026-06-18
+
+**Sync**
+- Added "What to sync" toggles in Settings → Sync: choose independently whether to sync Library & wishlist, Collections & hidden tags, Preferences, and Stats & achievements. Each toggle controls what gets pushed from and applied to that PC.
+
 ## 1.2.0 — 2026-06-18
 
 **Device Sync**
