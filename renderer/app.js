@@ -107,7 +107,6 @@ let browsePage     = 1;
 let browseMore     = true;  // whether more pages exist
 let browseLoading  = false;
 let browseVns      = [];    // current result set
-let browseRatedPool = [];   // full weighted-sorted pool for "Top Rated"
 let browseIsSearch = false;
 let browseNsfwOn   = false; // local filter toggle (from settings)
 let browseYearFrom = null;
@@ -1916,7 +1915,7 @@ function initBrowse() {
 }
 
 function resetBrowse() {
-  browsePage = 1; browseMore = true; browseVns = []; browseRatedPool = [];
+  browsePage = 1; browseMore = true; browseVns = [];
   document.getElementById('browse-grid').innerHTML = '';
   document.getElementById('browse-status').classList.add('hidden');
 }
@@ -1965,24 +1964,6 @@ async function loadBrowse(append = false) {
   browseLoading = true;
   if (!append) showBrowseStatus('Loading…');
   try {
-    // "Top Rated" = IMDb-style weighted ranking. Fetch the re-ranked pool once,
-    // then paginate locally (30 at a time) as the user scrolls.
-    if (browseSort === 'rating') {
-      if (!append) {
-        const data = await window.api.vndbTopRated(currentFilterOpts());
-        browseRatedPool = data.results || [];
-        browseVns = [];
-      }
-      document.getElementById('browse-status').classList.add('hidden');
-      const chunk = browseRatedPool.slice(browseVns.length, browseVns.length + 30);
-      browseVns = [...browseVns, ...chunk];
-      browseMore = browseVns.length < browseRatedPool.length;
-      renderBrowseGrid(browseVns);
-      if (!browseRatedPool.length && !append) showBrowseStatus('Nothing to show.');
-      setTimeout(requestBrowseFill, 0); // top up if the page didn't fill the view
-      return;
-    }
-
     const opts = { page: browsePage, ...currentFilterOpts() };
     const data = await window.api.vndbBrowse(browseSort, opts);
     document.getElementById('browse-status').classList.add('hidden');
