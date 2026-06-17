@@ -891,6 +891,9 @@ async function vndbPump() {
   const item = vndbQueue.shift();
   if (!item) return;
   vndbBusy = true;
+  // If we've been idle a while, any prior 429 burst has passed — drop the accrued
+  // backoff so the next user action (e.g. opening a modal) is snappy again.
+  if (Date.now() - vndbLastAt > 5000) vndbGap = VNDB_GAP_MIN;
   const wait = Math.max(0, vndbGap - (Date.now() - vndbLastAt));
   if (wait) await new Promise(r => setTimeout(r, wait));
   try { item.resolve(await item.run()); }
@@ -901,14 +904,32 @@ async function vndbPump() {
 // One POST to a VNDB endpoint, enqueued so spacing is enforced. Retries 429/5xx
 // with exponential backoff (honouring Retry-After) — the backoff sleeps inside the
 // queue slot, so it also delays the following request.
+// Fetch with a hard timeout. Without this, a single stalled socket would block the
+// entire serialized queue forever (every later request — modal, characters, steam,
+// next browse page — hangs behind it). AbortController guarantees the slot frees up.
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
+
 function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {} } = {}) {
   return vndbEnqueue(async () => {
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`https://api.vndb.org/kana/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify(body),
-      });
+      let res;
+      try {
+        res = await fetchWithTimeout(`https://api.vndb.org/kana/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify(body),
+        }, 15000);
+      } catch (e) {
+        // Timeout / network drop. Retry a couple of times, then give up so the
+        // queue keeps moving instead of wedging on one dead request.
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 800 * (attempt + 1))); continue; }
+        throw new Error('VNDB timeout');
+      }
       if ((res.status === 429 || res.status >= 500) && attempt < 5) {
         vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 450); // back off globally
         const ra = parseInt(res.headers.get('retry-after'), 10);
@@ -1202,7 +1223,7 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
   try {
     const appId = await steamAppIdForVn(vnId);
     if (appId) {
-      const r = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`);
+      const r = await fetchWithTimeout(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`, {}, 12000);
       if (r.ok) {
         const j = await r.json();
         const entry = j && j[appId];

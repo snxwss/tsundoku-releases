@@ -2,6 +2,15 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.17 — 2026-06-17
+
+**Performance & reliability**
+- Added timeouts to all VNDB and Steam requests. Previously a single stalled request could freeze the whole app — modals stuck on "Loading…", characters and Steam screenshots never appearing, browse pages not loading. The queue now recovers instead of hanging.
+- Rate-limit backoff now resets after a short idle period, so returning to the app after a pause is fast again instead of crawling.
+
+**Browse**
+- Scrollbar in sidebar layout now appears between the title grid and the filter rail.
+
 ## 1.0.16 — 2026-06-17
 
 - Fixed browse scroll broken by 1.0.15 (reverted sidebar scroll position change).

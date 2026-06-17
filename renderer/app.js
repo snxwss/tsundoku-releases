@@ -1898,17 +1898,17 @@ function initBrowse() {
   // layout changes while the sentinel is already visible, which may not emit a new
   // IntersectionObserver transition.
   const sentinel = document.getElementById('browse-sentinel');
-  const scroller = document.querySelector('.browse-wrap');
   if (sentinel) {
     const obs = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) requestBrowseFill();
-    }, { root: scroller || null, threshold: 0 });
+    }, { root: null, threshold: 0 });
     obs.observe(sentinel);
   }
-  if (scroller) {
-    scroller.addEventListener('scroll', () => {
+  for (const sel of ['.browse-wrap', '.browse-results']) {
+    const el = document.querySelector(sel);
+    if (el) el.addEventListener('scroll', () => {
       if (!browseMore || browseIsSearch || browseLoading) return;
-      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
       if (remaining < 700) requestBrowseFill();
     }, { passive: true });
   }
@@ -1948,8 +1948,10 @@ async function browseFill() {
   browseFilling = true;
   try {
     const sentinel = document.getElementById('browse-sentinel');
-    const scroller = document.querySelector('.browse-wrap');
     if (!sentinel) return;
+    const wrap = document.querySelector('.browse-wrap');
+    const scroller = (wrap?.classList.contains('browse-side-mode')
+      ? document.querySelector('.browse-results') : wrap) || wrap;
     while (browseMore && !browseIsSearch && !browseLoading) {
       const top    = sentinel.getBoundingClientRect().top;
       const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight;
