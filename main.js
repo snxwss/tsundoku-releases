@@ -317,6 +317,17 @@ function readSettings() {
     if ((!Array.isArray(loaded.scanDirs) || !loaded.scanDirs.length) && loaded.scanDir) {
       loaded.scanDirs = [loaded.scanDir];
     }
+    // Rename sand palette → coffee.
+    if (loaded.palette === 'sand') loaded.palette = 'coffee';
+    // Remove blocked tags from the user's hidden-tags list.
+    if (Array.isArray(loaded.hiddenTags)) {
+      const before = loaded.hiddenTags.length;
+      loaded.hiddenTags = loaded.hiddenTags.filter(t => {
+        const name = (t.name || '').toLowerCase();
+        return !BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
+      });
+      if (loaded.hiddenTags.length !== before) writeJsonAtomic(SETTINGS_PATH, loaded);
+    }
     return { ...SETTINGS_DEFAULTS, ...loaded };
   } catch { return { ...SETTINGS_DEFAULTS }; }
 }
@@ -348,6 +359,13 @@ function readStore() {
     if (e.library === undefined) e.library = !!(e.owned || e.readlist);
     delete e.owned; delete e.readlist;
   }
+  // Purge any titles carrying completely unacceptable tags.
+  let purged = false;
+  for (const id of Object.keys(store)) {
+    if (hasBlockedTag(store[id])) { delete store[id]; purged = true; }
+  }
+  if (purged) writeJsonAtomic(DB_PATH, store);
+
   // Overlay THIS machine's launch paths from the local-only file. The synced
   // entries.json carries no exe paths, so this is always the source of truth for
   // where a game lives on this PC (regardless of what another PC synced over).
@@ -391,6 +409,7 @@ function ensureEntry(store, meta) {
       released:         meta.released ?? null,
       developer:        meta.developer ?? null,
       length_minutes:   meta.length_minutes ?? null,
+      length:           meta.length         ?? null,
       library:          false,
       exe_path:         null,
       status:           'unplayed',
@@ -910,9 +929,20 @@ const vndbVN = (body, opts = {}) => vndbFetch('vn', body, opts);
 // Fields we always request for list/search results.
 // tags.{name,category,rating} drive accurate 18+ detection (cover rating alone
 // misses adult titles with tame covers).
-const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.name, length_minutes, tags.name, tags.category, tags.rating';
+const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.name, length, length_minutes, tags.name, tags.category, tags.rating';
 // Full detail fields for single-VN fetch
-const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.name, tags.name, tags.category, tags.rating, length_minutes, extlinks.url, extlinks.label, extlinks.name';
+const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name';
+
+// Tags whose presence makes a title completely unacceptable — never stored, never shown.
+// Matched as lowercase substrings so all variants (e.g. "Lesbian Lolicon") are caught.
+const BLOCKED_TAG_FRAGMENTS = ['lolicon', 'shotacon', 'sex involving children'];
+function hasBlockedTag(vn) {
+  const tags = vn.tags || [];
+  return tags.some(t => {
+    const name = (t.name || t || '').toLowerCase();
+    return BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
+  });
+}
 
 // Minimum vote count for a VN to appear in browse lists AND search. Filters out
 // the long tail of obscure/doujin titles nobody has heard of. (The folder
@@ -1026,12 +1056,38 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
 
 // Search: 1000-vote floor + active browse sort + year filters. Pass
 // opts.minVotes = 0 to bypass the floor (used by the folder-scan matcher).
-ipcMain.handle('vndb-search', (_e, query, sort = 'rating', opts = {}) =>
-  vndbVN(buildVnQuery(sort, {
+function filterBlockedFromResults(data) {
+  if (!data || !data.results) return data;
+  return { ...data, results: data.results.filter(vn => !hasBlockedTag(vn)) };
+}
+
+async function fetchFilteredBrowse_UNUSED(sort, opts = {}) {
+  let page = opts.page || 1;
+  const results = [];
+  let last = null;
+  let more = true;
+
+  // Fill one visible page even when blocked titles thin out individual VNDB pages.
+  for (let fetched = 0; results.length < 30 && more && fetched < 8; fetched++, page++) {
+    const data = await vndbVN(buildVnQuery(sort, {
+      page,
+      yearFrom: opts.yearFrom, yearTo: opts.yearTo,
+      ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
+    }), { priority: PRI.HIGH });
+    last = data;
+    more = !!data.more;
+    results.push(...((data.results || []).filter(vn => !hasBlockedTag(vn))));
+  }
+
+  return { ...(last || {}), results, more, nextPage: page };
+}
+
+ipcMain.handle('vndb-search', async (_e, query, sort = 'rating', opts = {}) =>
+  filterBlockedFromResults(await vndbVN(buildVnQuery(sort, {
     query, minVotes: opts.minVotes, simpleFloor: opts.simpleFloor,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  }), { priority: PRI.HIGH }));
+  }), { priority: PRI.HIGH })));
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
@@ -1039,11 +1095,12 @@ const tagSearchCache = new Map();
 ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   const { nsfw = true } = opts || {};
   if (!name || !name.trim()) return null;
+  if (BLOCKED_TAG_FRAGMENTS.some(f => name.trim().toLowerCase().includes(f))) return null;
   const cacheKey = `${name.trim().toLowerCase()}|${nsfw}`;
   if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);
   try {
     const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
-    let results = d.results || [];
+    let results = (d.results || []).filter(t => !BLOCKED_TAG_FRAGMENTS.some(f => t.name.toLowerCase().includes(f)));
     if (!results.length) return null;
     const q = name.trim().toLowerCase();
     const words = q.split(/\s+/);
@@ -1151,7 +1208,6 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
         const entry = j && j[appId];
         if (entry && entry.success && entry.data) {
           const shots = (entry.data.screenshots || [])
-            .slice(0, 8)
             .map(s => ({ thumb: s.path_thumbnail, full: s.path_full }))
             .filter(s => s.full);
           data = {
@@ -1185,16 +1241,18 @@ ipcMain.handle('vndb-get', async (_e, id, { background = false } = {}) => {
     fields: DETAIL_FIELDS,
     results: 1,
   }, { priority: background ? PRI.LOW : PRI.HIGH });
+  const vn = data?.results?.[0];
+  if (vn && hasBlockedTag(vn)) return null;
   vnDetailCache.set(id, { data, ts: Date.now() });
   return data;
 });
 
-ipcMain.handle('vndb-browse', (_e, sort, opts = {}) =>
-  vndbVN(buildVnQuery(sort, {
+ipcMain.handle('vndb-browse', async (_e, sort, opts = {}) =>
+  filterBlockedFromResults(await vndbVN(buildVnQuery(sort, {
     page: opts.page || 1,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  }), { priority: PRI.HIGH }));
+  }), { priority: PRI.HIGH })));
 
 // "Top Rated" uses an IMDb-style weighted ranking instead of raw average, so a
 // 9.0 with 16k votes outranks a 9.0 with 141 votes. We fetch a pool of the
@@ -1214,9 +1272,9 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
   if (hit && Date.now() - hit.ts < TOP_RATED_TTL) return { results: hit.results };
 
   const pool = [];
-  // 2 pages (200) is plenty for a weighted top list, and skipping the dev-bypass
+  // Up to 8 pages keeps Top Rated usable after mandatory content filtering.
   // OR (simpleFloor) keeps each query cheap — together this avoids the throttling.
-  for (let page = 1; page <= 2; page++) {
+  for (let page = 1; page <= 8 && pool.length < 240; page++) {
     const body = buildVnQuery('rating', { page, yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor: true });
     body.results = 100;
     let data;
@@ -1225,9 +1283,10 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
     // some results, a later page failing just ends pagination.
     try { data = await vndbVN(body, { priority: PRI.HIGH }); }
     catch (e) { if (page === 1) throw e; break; }
-    const r = data.results || [];
+    const raw = data.results || [];
+    const r = raw.filter(vn => !hasBlockedTag(vn));
     pool.push(...r);
-    if (r.length < 100 || !data.more) break;
+    if (raw.length < 100 || !data.more) break;
   }
   for (const v of pool) {
     const R = v.rating || 0, vc = v.votecount || 0;
@@ -1275,6 +1334,7 @@ ipcMain.handle('entry-enrich', (_e, meta) => {
   if (meta.released       != null && e.released       !== meta.released)       { e.released = meta.released; changed = true; }
   if (meta.developer      != null && e.developer      !== meta.developer)      { e.developer = meta.developer; changed = true; }
   if (meta.length_minutes != null && e.length_minutes !== meta.length_minutes) { e.length_minutes = meta.length_minutes; changed = true; }
+  if (meta.length        != null && e.length        !== meta.length)        { e.length        = meta.length;        changed = true; }
   if (meta.description    != null && !e.description)                           { e.description = meta.description; changed = true; }
   if (meta.nsfw           != null && e.nsfw !== meta.nsfw)                     { e.nsfw = meta.nsfw; changed = true; }
   // Track which detection-rule version computed the flag, so a rule change
@@ -1697,6 +1757,7 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
   const counts = { reading: 0, finished: 0, paused: 0, dropped: 0, unplayed: 0, wishlist: 0 };
   for (const it of batch) {
     if (!it || !it.meta || !it.meta.id) continue;
+    if (hasBlockedTag(it.meta)) continue;
     const existed = !!store[it.meta.id];
     const e = ensureEntry(store, it.meta);
     if (it.list === 'blacklist') {

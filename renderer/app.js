@@ -42,7 +42,7 @@ const STATUS_DOT = {
   dropped:  'oklch(0.55 0.19 18)',
 };
 const STATUS_LIST = ['unplayed', 'reading', 'paused', 'finished', 'dropped'];
-const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', sand: 'pal-sand', stone: 'pal-stone' };
+const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone' };
 const PALETTES = [
   { k: 'banana',   color: 'oklch(0.905 0.105 97)' },
   { k: 'mint',     color: 'oklch(0.800 0.130 152)' },
@@ -50,7 +50,7 @@ const PALETTES = [
   { k: 'cherry',   color: 'oklch(0.760 0.175 25)' },
   { k: 'sky',      color: 'oklch(0.870 0.130 218)' },
   { k: 'lavender', color: 'oklch(0.875 0.095 290)' },
-  { k: 'sand',     color: 'oklch(0.895 0.135 62)' },
+  { k: 'coffee',   color: 'oklch(0.895 0.135 62)' },
   { k: 'stone',    color: 'oklch(0.700 0 0)' },
 ];
 const ZOOM_LEVELS = [75, 90, 100, 110, 125];
@@ -298,6 +298,7 @@ function metaOf(vn) {
     released:       vn.released || null,
     developer:      devName(vn),
     length_minutes: vn.length_minutes || null,
+    length:         vn.length         || null,
   };
 }
 
@@ -331,7 +332,7 @@ function formatPlaytime(seconds) {
 function formatLength(o) {
   const m = o.length_minutes;
   if (m && m > 0) { const h = Math.round(m / 60); return h >= 1 ? `${h}h` : `${m}m`; }
-  const cats = { 1: 'V.short', 2: 'Short', 3: 'Medium', 4: 'Long', 5: 'V.long' };
+  const cats = { 1: '~<2h', 2: '~2–10h', 3: '~10–30h', 4: '~30–50h', 5: '~50h+' };
   return cats[o.length] || null;
 }
 
@@ -1894,15 +1895,23 @@ function initBrowse() {
   browseSearchBtn.addEventListener('click', runBrowseSearch);
   browseSearch.addEventListener('keydown', e => { if (e.key === 'Enter') runBrowseSearch(); });
 
-  // Infinite scroll: the observer kicks off browseFill(), which then loads pages
-  // until the sentinel is pushed out of view (handles both tall and short content).
+  // Infinite scroll: observer + direct scroll fallback. The fallback matters when
+  // layout changes while the sentinel is already visible, which may not emit a new
+  // IntersectionObserver transition.
   const sentinel = document.getElementById('browse-sentinel');
+  const scroller = document.querySelector('.browse-wrap');
   if (sentinel) {
-    const scroller = document.querySelector('.browse-wrap');
     const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) browseFill();
+      if (entries[0].isIntersecting) requestBrowseFill();
     }, { root: scroller || null, threshold: 0 });
     obs.observe(sentinel);
+  }
+  if (scroller) {
+    scroller.addEventListener('scroll', () => {
+      if (!browseMore || browseIsSearch || browseLoading) return;
+      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      if (remaining < 700) requestBrowseFill();
+    }, { passive: true });
   }
 }
 
@@ -1924,6 +1933,16 @@ function showBrowseStatus(text) {
 // Needed because IntersectionObserver only fires on in/out-of-view CHANGES: with
 // small cards (many per row) the first page is short, the sentinel stays in view,
 // and the observer never re-fires — so nothing more loads on scroll.
+let browseFillQueued = false;
+function requestBrowseFill() {
+  if (browseFillQueued) return;
+  browseFillQueued = true;
+  requestAnimationFrame(() => {
+    browseFillQueued = false;
+    browseFill();
+  });
+}
+
 let browseFilling = false;
 async function browseFill() {
   if (browseFilling) return;
@@ -1960,7 +1979,7 @@ async function loadBrowse(append = false) {
       browseMore = browseVns.length < browseRatedPool.length;
       renderBrowseGrid(browseVns);
       if (!browseRatedPool.length && !append) showBrowseStatus('Nothing to show.');
-      if (!append) setTimeout(browseFill, 0); // top up if the page didn't fill the view
+      setTimeout(requestBrowseFill, 0); // top up if the page didn't fill the view
       return;
     }
 
@@ -1968,12 +1987,12 @@ async function loadBrowse(append = false) {
     const data = await window.api.vndbBrowse(browseSort, opts);
     document.getElementById('browse-status').classList.add('hidden');
     const results = data.results || [];
-    if (results.length < 30) browseMore = false;
+    if (!data.more && results.length < 30) browseMore = false;
     browseVns = append ? [...browseVns, ...results] : results;
-    browsePage++;
+    browsePage = browsePage + 1;
     renderBrowseGrid(browseVns);
     if (!results.length && !append) showBrowseStatus('Nothing to show.');
-    if (!append) setTimeout(browseFill, 0); // top up if the page didn't fill the view
+    setTimeout(requestBrowseFill, 0); // top up if the page didn't fill the view
   } catch (err) {
     showBrowseStatus('Error: ' + err.message);
   } finally {
@@ -2003,6 +2022,15 @@ async function runBrowseSearch() {
   }
 }
 
+// Tags that are never acceptable — titles carrying these are removed entirely.
+const BLOCKED_TAG_FRAGMENTS = ['lolicon', 'shotacon', 'sex involving children'];
+function hasBlockedTag(vn) {
+  return (vn.tags || []).some(t => {
+    const name = (t.name || t || '').toLowerCase();
+    return BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
+  });
+}
+
 // Lowercased set of tag names the user has chosen to auto-hide from discovery.
 function hiddenTagSet() {
   return new Set((settings.hiddenTags || []).map(t => (t.name || '').toLowerCase()));
@@ -2018,7 +2046,7 @@ function renderBrowseGrid(vns) {
   // and search results. Also drop anything the user explicitly hid, plus anything
   // carrying a user-blocked tag.
   const tagSet = hiddenTagSet();
-  let display = vns.filter(vn => !entryById(vn.id)?.hidden && !hasHiddenTag(vn, tagSet));
+  let display = vns.filter(vn => !hasBlockedTag(vn) && !entryById(vn.id)?.hidden && !hasHiddenTag(vn, tagSet));
   if (browseNsfwOn) display = display.filter(vn => !isNsfw(vn));
 
   const grid = document.getElementById('browse-grid');
@@ -2699,6 +2727,7 @@ async function renderSettingsSection(section) {
       const isWish   = ids.includes(5);
       const isBlack  = ids.includes(6);
       if (!statusId && !isWish && !isBlack) return null;           // only Voted/custom → skip
+      if (hasBlockedTag(it.vn)) return null;
       const meta = metaOf({ ...it.vn, id: it.id });
       const dates = { started_at: it.started || null, finished_at: it.finished || null };
       if (statusId) return { meta, list: 'library', status: VNDB_LABEL_STATUS[statusId], ...dates };
@@ -2885,7 +2914,7 @@ async function openModal(item) {
   const url      = imgUrl(full.image);
   const rating   = ratingStr(full.rating);
   const released = full.released ? full.released.slice(0, 4) : '—';
-  const lengthH  = full.length_minutes ? `${Math.round(full.length_minutes / 60)}h avg` : '—';
+  const lengthH  = full.length_minutes ? `${Math.round(full.length_minutes / 60)}h avg` : (formatLength(full) || '—');
   const dev      = devName(full);
   // In kanji mode show the romaji/English reference below; in English/romaji mode no subtitle.
   const alttitle = (settings.titleLang === 'kanji') ? (full.title || null) : null;
