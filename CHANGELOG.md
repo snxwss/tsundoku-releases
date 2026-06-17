@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.0.16 — 2026-06-17
+
+- Fixed browse scroll broken by 1.0.15 (reverted sidebar scroll position change).
+
 ## 1.0.15 — 2026-06-17
 
 **Browse**
