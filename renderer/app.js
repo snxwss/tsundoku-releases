@@ -107,7 +107,6 @@ let browsePage     = 1;
 let browseMore     = true;  // whether more pages exist
 let browseLoading  = false;
 let browseVns      = [];    // current result set
-let browseRatedPool = [];   // weighted-ranked pool for "Top Rated" (18+ shown only)
 let browseIsSearch = false;
 let browseNsfwOn   = false; // local filter toggle (from settings)
 let browseYearFrom = null;
@@ -1880,9 +1879,7 @@ function initBrowse() {
     browseNsfwOn = !browseNsfwOn;
     await setSetting('browseNsfwFilter', browseNsfwOn);
     syncAllowNsfwChip();
-    // Top Rated switches between pool (18+ shown) and pagination (18+ hidden) — must reload.
-    if (browseSort === 'rating' && !browseIsSearch) { resetBrowse(); loadBrowse(); }
-    else renderBrowseGrid(browseVns);
+    renderBrowseGrid(browseVns);
   });
 
   // Collapsible filter drawer — keeps Browse uncluttered; filters live behind it.
@@ -1918,7 +1915,7 @@ function initBrowse() {
 }
 
 function resetBrowse() {
-  browsePage = 1; browseMore = true; browseVns = []; browseRatedPool = [];
+  browsePage = 1; browseMore = true; browseVns = [];
   document.getElementById('browse-grid').innerHTML = '';
   document.getElementById('browse-status').classList.add('hidden');
 }
@@ -1967,26 +1964,6 @@ async function loadBrowse(append = false) {
   browseLoading = true;
   if (!append) showBrowseStatus('Loading…');
   try {
-    // "Top Rated" uses IMDb-style weighted ranking when 18+ is shown — the pool is
-    // pre-fetched once and paginated locally. When 18+ is hidden, the top-rated pool
-    // is almost entirely adult titles so the pool exhausts after client filtering;
-    // fall back to regular VNDB pagination which never runs out of pages.
-    if (browseSort === 'rating' && !browseNsfwOn) {
-      if (!append) {
-        const data = await window.api.vndbTopRated(currentFilterOpts());
-        browseRatedPool = data.results || [];
-        browseVns = [];
-      }
-      document.getElementById('browse-status').classList.add('hidden');
-      const chunk = browseRatedPool.slice(browseVns.length, browseVns.length + 30);
-      browseVns = [...browseVns, ...chunk];
-      browseMore = browseVns.length < browseRatedPool.length;
-      renderBrowseGrid(browseVns);
-      if (!browseRatedPool.length && !append) showBrowseStatus('Nothing to show.');
-      setTimeout(requestBrowseFill, 0);
-      return;
-    }
-
     const opts = { page: browsePage, ...currentFilterOpts() };
     const data = await window.api.vndbBrowse(browseSort, opts);
     document.getElementById('browse-status').classList.add('hidden');
@@ -3781,3 +3758,70 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ── Gamepad scroll ────────────────────────────────────────────────────────────
+// Left stick Y / right stick Y / D-pad up-down scrolls the active panel.
+// Only activates on first gamepad connect; stops when all pads disconnect.
+(function () {
+  const DEADZONE    = 0.18;
+  const SPEED       = 16;   // px per frame at full stick deflection
+  const DPAD_FIRST  = 18;   // frames before d-pad repeat kicks in (~300 ms @ 60 fps)
+  const DPAD_STEP   = 80;   // px per d-pad repeat tick
+
+  // Selectors for the scrollable region in each view.
+  const SCROLLERS = {
+    'view-browse':   '.browse-wrap',
+    'view-settings': '.settings-content',
+    'view-wishlist': '.wishlist-wrap',
+    'view-library':  '.shelfgrid',
+    'view-home':     '.home2 .scrollarea',
+  };
+
+  function activeScroller() {
+    for (const [id, sel] of Object.entries(SCROLLERS)) {
+      const view = document.getElementById(id);
+      if (view && !view.classList.contains('hidden'))
+        return view.querySelector(sel);
+    }
+    return null;
+  }
+
+  let rafId = null;
+  let upHeld = 0, downHeld = 0;
+
+  function poll() {
+    rafId = requestAnimationFrame(poll);
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (const p of pads) { if (p) { pad = p; break; } }
+    if (!pad) return;
+
+    const el = activeScroller();
+    if (!el) return;
+
+    // Analog sticks (left = axes 0/1, right = axes 2/3)
+    const ly = Math.abs(pad.axes[1] ?? 0) > DEADZONE ? (pad.axes[1] ?? 0) : 0;
+    const ry = Math.abs(pad.axes[3] ?? 0) > DEADZONE ? (pad.axes[3] ?? 0) : 0;
+    const stick = ly || ry;
+    if (stick) el.scrollTop += stick * SPEED;
+
+    // D-pad (button 12 = up, 13 = down) with initial-delay repeat
+    const upNow   = pad.buttons[12]?.pressed ?? false;
+    const downNow = pad.buttons[13]?.pressed ?? false;
+    if (upNow) {
+      if (upHeld === 0 || upHeld > DPAD_FIRST) el.scrollTop -= DPAD_STEP;
+      upHeld++;
+    } else { upHeld = 0; }
+    if (downNow) {
+      if (downHeld === 0 || downHeld > DPAD_FIRST) el.scrollTop += DPAD_STEP;
+      downHeld++;
+    } else { downHeld = 0; }
+  }
+
+  window.addEventListener('gamepadconnected',    () => { if (!rafId) rafId = requestAnimationFrame(poll); });
+  window.addEventListener('gamepaddisconnected', () => {
+    if (Array.from(navigator.getGamepads()).every(p => !p)) {
+      cancelAnimationFrame(rafId); rafId = null;
+    }
+  });
+}());
