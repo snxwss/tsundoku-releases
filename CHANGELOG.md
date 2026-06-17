@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.1.1 — 2026-06-17
+
+- Tag filter now uses VNDB's own ranking to pick the best match (reverts custom scoring added in a prior release).
+- Modal navigation arrows also work from the Home screen.
+- "Remove selected" button moved to the right edge of the Manage library footer.
+
 ## 1.1.0 — 2026-06-17
 
 **Navigation**

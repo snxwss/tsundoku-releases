@@ -105,6 +105,7 @@ let wishlistAlerts = [];     // [{ vnId, vnTitle, releases: [] }]
 let modalNav    = null;      // { list, idx } — active navigation context for the detail modal
 let libVisible  = [];        // entries currently rendered in the library grid (for modal nav)
 let wishVisible = [];        // entries currently rendered in the wishlist grid (for modal nav)
+let homeVisible = [];        // entries visible on the home screen (for modal nav)
 
 // Browse pagination state
 let browsePage     = 1;
@@ -891,6 +892,7 @@ function renderHome() {
   if (!settings.showExcluded) lib = lib.filter(e => !e.excluded);
   if (settings.nsfwHideLibrary) lib = lib.filter(e => !isNsfw(e));
   lib.sort(byNewest);
+  homeVisible = lib;
 
   const reading  = lib.filter(e => (e.status || 'unplayed') === 'reading');
   const pile     = lib.filter(e => (e.status || 'unplayed') === 'unplayed').slice(0, 6);
@@ -1017,12 +1019,19 @@ function renderHome() {
       if (p) { await window.api.libraryUpdateExe(cur.id, p); await loadEntries(); }
     }
   });
-  document.getElementById('hero-details')?.addEventListener('click', () => cur && openModal(cur));
+  document.getElementById('hero-details')?.addEventListener('click', () => {
+    if (!cur) return;
+    const idx = homeVisible.findIndex(e => e.id === cur.id);
+    openModal(cur, idx >= 0 ? { list: homeVisible, idx } : null);
+  });
 
   document.querySelectorAll('.bk[data-id]').forEach(el =>
     el.addEventListener('click', () => {
       const e = entryById(el.dataset.id);
-      if (e) openModal(e);
+      if (e) {
+        const idx = homeVisible.findIndex(h => h.id === e.id);
+        openModal(e, idx >= 0 ? { list: homeVisible, idx } : null);
+      }
     }));
   document.querySelectorAll('.more[data-goto]').forEach(el =>
     el.addEventListener('click', () => switchView(el.dataset.goto)));
@@ -1616,7 +1625,7 @@ function openBatchManager() {
         <span class="batch-count" id="batch-count">0 selected</span>
         <div class="app-dialog-btn" id="batch-hide">Hide selected</div>
         <div class="app-dialog-btn" id="batch-unhide">Unhide selected</div>
-        <div class="app-dialog-btn danger" id="batch-remove">Remove selected</div>
+        <div class="app-dialog-btn danger" id="batch-remove" style="margin-left:auto">Remove selected</div>
       </div>
     </div>`;
   // Append inside .app2 (the themed root) so the dialog inherits the theme CSS

@@ -1144,21 +1144,8 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   try {
     const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
     let results = (d.results || []).filter(t => !BLOCKED_TAG_FRAGMENTS.some(f => t.name.toLowerCase().includes(f)));
-    if (!results.length) return null;
-    const q = name.trim().toLowerCase();
-    const words = q.split(/\s+/);
-    const score = t => {
-      const n = t.name.toLowerCase();
-      if (n === q) return 3;
-      if (n.startsWith(q)) return 2;
-      if (words.every(w => n.includes(w))) return 1;
-      return 0;
-    };
-    // With NSFW off, block all remaining ero tags
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
-    // Higher score wins; within same score, prefer shorter names ("Yuri" over "Yuri Game Jam")
-    results.sort((a, b) => score(b) - score(a) || a.name.length - b.name.length);
     const result = { id: results[0].id, name: results[0].name };
     tagSearchCache.set(cacheKey, result);
     return result;
