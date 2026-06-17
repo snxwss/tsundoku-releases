@@ -5,6 +5,7 @@ All notable changes to Tsundoku are listed here. Newest first.
 ## 1.0.14 — 2026-06-17
 
 - Removed controller scroll support.
+- Scrollbars are now visible and draggable throughout the app.
 
 ## 1.0.13 — 2026-06-17
 

@@ -210,9 +210,12 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --accent: oklch(0.845 0.145 152); --accent-deep: oklch(0.825 0.145 152); --accent-edge: oklch(0.595 0.125 152); --on-accent: oklch(0.205 0.052 152);
 }
 
-/* ─── scrollbars hidden ─── */
-.app2 *::-webkit-scrollbar { display: none; }
-.app2 * { scrollbar-width: none; }
+/* ─── scrollbars ─── */
+.app2 *::-webkit-scrollbar             { width: 6px; height: 6px; }
+.app2 *::-webkit-scrollbar-track       { background: transparent; }
+.app2 *::-webkit-scrollbar-thumb       { background: var(--line); border-radius: 99px; }
+.app2 *::-webkit-scrollbar-thumb:hover { background: var(--mut); }
+.app2 *                                 { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 
 /* ─── utilities ─── */
 .hidden { display: none !important; }
