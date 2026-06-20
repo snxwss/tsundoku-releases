@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.9 — 2026-06-20
+
+- Auto schedule inputs now accept 3-digit shorthand (e.g. 800 → 8:00) and reject invalid hours (e.g. 80 reverts).
+
 ## 1.2.8 — 2026-06-20
 
 - Fixed dropped/finished/paused status not overwriting "reading" on the other PC when syncing entries that predate the 1.2.5 status timestamp fix.

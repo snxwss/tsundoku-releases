@@ -2374,20 +2374,29 @@ async function renderSettingsSection(section) {
     document.getElementById('stog-light').addEventListener('click', () => setThemeMode('light'));
     document.getElementById('stog-dark').addEventListener('click', () => setThemeMode('dark'));
     document.getElementById('stog-auto').addEventListener('click', () => setThemeMode('auto'));
-    const isValidTime = v => /^\d{2}:\d{2}$/.test(v) && +v.slice(0,2) < 24 && +v.slice(3) < 60;
+    const isValidTime = v => { const m = v.match(/^(\d{1,2}):(\d{2})$/); return m && +m[1] < 24 && +m[2] < 60; };
     const fmtTimeInput = e => {
       const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
-      e.target.value = digits.length > 2 ? digits.slice(0,2) + ':' + digits.slice(2) : digits;
+      if (digits.length === 4)      e.target.value = digits.slice(0,2) + ':' + digits.slice(2);
+      else if (digits.length === 3) e.target.value = digits[0] + ':' + digits.slice(1);
+      else                          e.target.value = digits;
     };
     const saveTime = (e, light) => {
-      const v = e.target.value;
-      if (isValidTime(v)) { if (light) setAutoTimes(v, null); else setAutoTimes(null, v); }
+      const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+      let v;
+      if      (digits.length === 4) v = digits.slice(0,2) + ':' + digits.slice(2);
+      else if (digits.length === 3) v = digits[0] + ':' + digits.slice(1);
+      else if (digits.length >= 1)  v = digits.padStart(2,'0') + ':00';
+      else                          v = e.target.value;
+      if (isValidTime(v)) { e.target.value = v; if (light) setAutoTimes(v, null); else setAutoTimes(null, v); }
       else e.target.value = light ? autoLight : autoDark;
     };
     document.getElementById('auto-light')?.addEventListener('input', fmtTimeInput);
     document.getElementById('auto-dark')?.addEventListener('input', fmtTimeInput);
     document.getElementById('auto-light')?.addEventListener('blur', e => saveTime(e, true));
     document.getElementById('auto-dark')?.addEventListener('blur', e => saveTime(e, false));
+    document.getElementById('auto-light')?.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+    document.getElementById('auto-dark')?.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
     content.querySelectorAll('.accent-swatch').forEach(el =>
       el.addEventListener('click', () => setPalette(el.dataset.palette)));
     document.getElementById('tlang-en')?.addEventListener('click', () => setTitleLang('en'));
