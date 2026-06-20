@@ -616,13 +616,12 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .settings-note { font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.6; color: var(--faint); margin-top: 18px; padding: 12px 14px; background: var(--panel); border: 1.5px solid var(--line-2); border-radius: 10px; }
 .auto-time-row { display: flex; gap: 12px; flex-shrink: 0; }
 .auto-time { display: flex; flex-direction: column; gap: 5px; font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px; color: var(--faint); }
-.auto-time input[type="time"] {
+.auto-time input[type="text"] {
   font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
   background: var(--panel); border: 2px solid var(--border); border-radius: 9px;
   box-shadow: 0 2px 0 var(--edge); color: var(--ink); padding: 7px 10px; outline: none;
+  width: 70px;
 }
-.auto-time input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
-.app2.t-dark .auto-time input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
 .scan-dir-item { display: flex; gap: 10px; align-items: center; }
 .scan-dir-item .settings-path { flex: 1; min-width: 0; }
 .scan-dir-remove { flex-shrink: 0; color: var(--coral-deep) !important; border-color: var(--coral-deep) !important; }
