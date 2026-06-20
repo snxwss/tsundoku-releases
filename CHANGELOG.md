@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.6 — 2026-06-20
+
+- Auto schedule time fields are now plain text inputs (type HH:MM) instead of the browser time picker.
+
 ## 1.2.5 — 2026-06-20
 
 **Sync fixes**

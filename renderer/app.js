@@ -2326,8 +2326,8 @@ async function renderSettingsSection(section) {
         <div class="settings-row">
           <div><div class="settings-label">Auto schedule</div><div class="settings-sub">Light mode between these times — dark the rest of the day</div></div>
           <div class="auto-time-row">
-            <label class="auto-time">Light from<input type="time" id="auto-light" value="${autoLight}"></label>
-            <label class="auto-time">Dark from<input type="time" id="auto-dark" value="${autoDark}"></label>
+            <label class="auto-time">Light from<input type="text" id="auto-light" value="${autoLight}" placeholder="HH:MM" maxlength="5"></label>
+            <label class="auto-time">Dark from<input type="text" id="auto-dark" value="${autoDark}" placeholder="HH:MM" maxlength="5"></label>
           </div>
         </div>` : ''}
 
@@ -2374,8 +2374,9 @@ async function renderSettingsSection(section) {
     document.getElementById('stog-light').addEventListener('click', () => setThemeMode('light'));
     document.getElementById('stog-dark').addEventListener('click', () => setThemeMode('dark'));
     document.getElementById('stog-auto').addEventListener('click', () => setThemeMode('auto'));
-    document.getElementById('auto-light')?.addEventListener('change', e => setAutoTimes(e.target.value, null));
-    document.getElementById('auto-dark')?.addEventListener('change', e => setAutoTimes(null, e.target.value));
+    const isValidTime = v => /^\d{1,2}:\d{2}$/.test(v.trim()) && +v.split(':')[0] < 24 && +v.split(':')[1] < 60;
+    document.getElementById('auto-light')?.addEventListener('change', e => { if (isValidTime(e.target.value)) setAutoTimes(e.target.value.trim(), null); });
+    document.getElementById('auto-dark')?.addEventListener('change', e => { if (isValidTime(e.target.value)) setAutoTimes(null, e.target.value.trim()); });
     content.querySelectorAll('.accent-swatch').forEach(el =>
       el.addEventListener('click', () => setPalette(el.dataset.palette)));
     document.getElementById('tlang-en')?.addEventListener('click', () => setTitleLang('en'));
