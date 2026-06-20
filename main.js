@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const zlib = require('zlib');
@@ -267,6 +267,13 @@ const OLD_DATA_DIR  = path.join(app.getPath('appData'), 'Tsundoku', 'vn-launcher
 const DATA_DIR      = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Tsundoku');
 const DB_PATH       = path.join(DATA_DIR, 'entries.json');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+const COVERS_DIR    = path.join(DATA_DIR, 'covers');
+const CHARS_DIR     = path.join(DATA_DIR, 'chars');
+
+// cover:// scheme must be registered before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'cover', privileges: { bypassCSP: true, supportFetchAPI: true } },
+]);
 
 // Per-machine launch paths (exe_path) live HERE, in a local-only file under
 // %LOCALAPPDATA% — deliberately OUTSIDE the synced DATA_DIR. A game can be installed
@@ -913,6 +920,26 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    // cover:// — serve cached cover images from disk; fetch + cache on first view.
+    fs.mkdirSync(COVERS_DIR, { recursive: true });
+    protocol.handle('cover', async (request) => {
+      const u   = new URL(request.url);
+      const id  = u.hostname;
+      const src = u.searchParams.get('src');
+      const cached = path.join(COVERS_DIR, id);
+      if (fs.existsSync(cached)) {
+        return new Response(fs.readFileSync(cached), { headers: { 'Content-Type': 'image/jpeg' } });
+      }
+      if (!src) return new Response(null, { status: 404 });
+      try {
+        const res = await net.fetch(decodeURIComponent(src));
+        if (!res.ok) return new Response(null, { status: res.status });
+        const buf = Buffer.from(await res.arrayBuffer());
+        try { fs.writeFileSync(cached, buf); } catch {}
+        return new Response(buf, { headers: { 'Content-Type': res.headers.get('content-type') || 'image/jpeg' } });
+      } catch { return new Response(null, { status: 502 }); }
+    });
+
     // Distinct AppUserModelID so Windows shows OUR icon, not electron.exe's, in dev.
     try { app.setAppUserModelId('com.tsundoku.launcher'); } catch {}
     migrateToFixedDataDir();
@@ -1611,6 +1638,7 @@ ipcMain.handle('entry-enrich', (_e, meta) => {
   if (Array.isArray(meta.tags) && JSON.stringify(meta.tags) !== JSON.stringify(e.tags || [])) {
     e.tags = meta.tags; changed = true;
   }
+  if (Array.isArray(meta.extlinks)) { e.extlinks = meta.extlinks; changed = true; }
   if (changed) writeStore(store);
   return changed;
 });
@@ -1634,6 +1662,9 @@ ipcMain.handle('entry-remove-from-list', (_e, id, list) => {
     store[id][list] = false;
     if (list === 'library') { store[id].exe_path = null; store[id].excluded = false; store[id].library_at = Date.now(); }
     if (list === 'wishlist' || list === 'wishlistPrivate') store[id].wishlist_at = Date.now();
+    // If no longer in any list, delete offline cache to reclaim storage.
+    const e = store[id];
+    if (!e.library && !e.wishlist && !e.wishlistPrivate) deleteEntryCache(id);
     pruneIfOrphan(store, id);
     writeStore(store);
   }
@@ -1984,6 +2015,37 @@ ipcMain.handle('sync-clear-folder', () => {
   delete s.lastSyncAt;
   writeSettings(s);
   return { ok: true };
+});
+
+ipcMain.handle('sync-now', () => { writeSyncFile(); return { ok: true }; });
+
+// ── Offline cache (characters + covers) ───────────────────────────────────────
+ipcMain.handle('get-cached-chars', (_e, id) => {
+  try {
+    const p = path.join(CHARS_DIR, `${id}.json`);
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {}
+  return null;
+});
+
+ipcMain.handle('cache-chars', (_e, id, chars) => {
+  try {
+    fs.mkdirSync(CHARS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(CHARS_DIR, `${id}.json`), JSON.stringify(chars));
+  } catch {}
+});
+
+function deleteEntryCache(id) {
+  try { fs.unlinkSync(path.join(COVERS_DIR, id)); } catch {}
+  try { fs.unlinkSync(path.join(CHARS_DIR, `${id}.json`)); } catch {}
+}
+
+ipcMain.handle('clear-offline-cache', (_e, id) => { deleteEntryCache(id); });
+
+ipcMain.handle('clear-all-offline-cache', () => {
+  for (const dir of [COVERS_DIR, CHARS_DIR]) {
+    try { for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f)); } catch {}
+  }
 });
 
 // ── VNDB list import ──────────────────────────────────────────────────────────

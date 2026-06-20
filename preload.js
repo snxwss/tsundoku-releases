@@ -81,7 +81,14 @@ contextBridge.exposeInMainWorld('api', {
   syncGetInfo:    ()       => ipcRenderer.invoke('sync-get-info'),
   syncSetFolder:  ()       => ipcRenderer.invoke('sync-set-folder'),
   syncClearFolder: ()      => ipcRenderer.invoke('sync-clear-folder'),
+  syncNow:        ()       => ipcRenderer.invoke('sync-now'),
   onSyncStatus:   (cb)     => ipcRenderer.on('sync-status', (_e, s) => cb(s)),
+
+  // Offline cache
+  getCachedChars:      (id)        => ipcRenderer.invoke('get-cached-chars', id),
+  cacheChars:          (id, chars) => ipcRenderer.invoke('cache-chars', id, chars),
+  clearOfflineCache:   (id)        => ipcRenderer.invoke('clear-offline-cache', id),
+  clearAllOfflineCache: ()         => ipcRenderer.invoke('clear-all-offline-cache'),
 
   // Window controls
   winMinimize: ()   => ipcRenderer.send('win-minimize'),

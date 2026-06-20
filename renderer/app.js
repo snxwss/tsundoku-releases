@@ -193,7 +193,12 @@ function renderLibTagChips() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const imgUrl = img => (img && img.url) || (typeof img === 'string' ? img : null);
+const imgUrl = (img, id) => {
+  const url = (img && img.url) || (typeof img === 'string' ? img : null);
+  if (!url) return null;
+  if (id) return `cover://${id}?src=${encodeURIComponent(url)}`;
+  return url;
+};
 const entryById   = id => entries.find(e => e.id === id);
 const capitalize  = s  => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 const stripBBCode = s  => String(s || '').replace(/\[\/?[a-z]+(=[^\]]+)?\]/gi, '').trim();
@@ -707,7 +712,7 @@ function renderSessionsLog() {
     <div class="sessions-list">
       ${sessions.map(s => {
         const e = entryById(s.vnId);
-        const url = e ? imgUrl(e.image) : null;
+        const url = e ? imgUrl(e.image, e.id) : null;
         const title = s.vnTitle || (e && e.title) || s.vnId;
         const when  = formatLastPlayed(s.endedAt);
         const dur   = formatPlaytime(s.durationSeconds);
@@ -871,6 +876,7 @@ async function backfillMeta() {
             tags:           (full.tags || []).filter(t => t && t.category !== 'tech')
                               .sort((a, b) => (b.rating || 0) - (a.rating || 0))
                               .slice(0, 20).map(t => t.name),
+            extlinks: Array.isArray(full.extlinks) ? full.extlinks : undefined,
           });
           if (changed) anyChanged = true;
         }
@@ -903,7 +909,7 @@ function renderHome() {
   // hero
   let heroHtml = '';
   if (cur) {
-    const url      = imgUrl(cur.image);
+    const url      = imgUrl(cur.image, cur.id);
     const onDev    = !!cur.exe_path;
     const pt       = formatPlaytime(cur.playtime_seconds);
     const lp       = formatLastPlayed(cur.last_played);
@@ -958,7 +964,7 @@ function renderHome() {
     </div>` : '';
 
   const makeShelfCard = e => {
-    const url    = imgUrl(e.image);
+    const url    = imgUrl(e.image, e.id);
     const rating = ratingStr(e.rating);
     const pt     = formatPlaytime(e.playtime_seconds);
     return `<div class="bk" data-id="${escHtml(e.id)}">
@@ -1182,7 +1188,7 @@ function renderLibrary() {
 // playtime · launch). Same data-id contract as the grid cards.
 function makeListSection(iconHtml, label, count, items) {
   const rows = items.map(e => {
-    const url    = imgUrl(e.image);
+    const url    = imgUrl(e.image, e.id);
     const nsfw   = isNsfw(e);
     const rating = ratingStr(e.rating);
     const yr     = e.released ? e.released.slice(0, 4) : null;
@@ -1228,7 +1234,7 @@ async function setLibView(v) {
 
 function makeSGSection(iconHtml, label, count, items) {
   const cards = items.map(e => {
-    const url    = imgUrl(e.image);
+    const url    = imgUrl(e.image, e.id);
     const nsfw   = isNsfw(e);
     const yr     = e.released ? e.released.slice(0, 4) : null;
     const dev    = e.developer || null;
@@ -1269,7 +1275,7 @@ function renderLibPreview(entry) {
   if (!entry) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
 
-  const url      = imgUrl(entry.image);
+  const url      = imgUrl(entry.image, entry.id);
   const onDev    = !!entry.exe_path;
   const status   = entry.status || 'unplayed';
   const rating   = ratingStr(entry.rating);
@@ -1573,7 +1579,7 @@ function openCollectionPicker(collId) {
     if (!rows.length) { listEl.innerHTML = `<div class="coll-picker-empty">No titles match.</div>`; return; }
     listEl.innerHTML = rows.map(e => {
       const on  = coll.vnIds.includes(e.id);
-      const url = imgUrl(e.image);
+      const url = imgUrl(e.image, e.id);
       return `<div class="coll-picker-row${on ? ' on' : ''}" data-id="${escHtml(e.id)}">
         <div class="coll-picker-check">✓</div>
         <div class="coll-picker-thumb">${url ? `<img src="${escHtml(url)}" loading="lazy" />` : ''}</div>
@@ -1655,7 +1661,7 @@ function openBatchManager() {
     if (!rows.length) { listEl.innerHTML = `<div class="coll-picker-empty">No titles match.</div>`; return; }
     listEl.innerHTML = rows.map(e => {
       const on  = selected.has(e.id);
-      const url = imgUrl(e.image);
+      const url = imgUrl(e.image, e.id);
       return `<div class="coll-picker-row${on ? ' on' : ''}" data-id="${escHtml(e.id)}">
         <div class="coll-picker-check">✓</div>
         <div class="coll-picker-thumb">${url ? `<img src="${escHtml(url)}" loading="lazy" />` : ''}</div>
@@ -2093,7 +2099,7 @@ function renderBrowseGrid(vns) {
 
   const grid = document.getElementById('browse-grid');
   grid.innerHTML = display.map(vn => {
-    const url    = imgUrl(vn.image);
+    const url    = imgUrl(vn.image, vn.id);
     const rating = ratingStr(vn.rating);
     const entry  = entryById(vn.id);
     const inLib  = !!(entry?.library && !entry?.excluded);
@@ -2238,7 +2244,7 @@ function renderWishlist() {
   empty.classList.add('hidden');
 
   grid.innerHTML = items.map(e => {
-    const url    = imgUrl(e.image);
+    const url    = imgUrl(e.image, e.id);
     const rating = ratingStr(e.rating);
     const inLib  = !!(e.library && !e.excluded);
     const nsfw   = isNsfw(e);
@@ -2550,9 +2556,10 @@ async function renderSettingsSection(section) {
             <div class="btn-sm sec" id="btn-sync-remove">Remove</div>
           </div>
         </div>
-        <div class="settings-sub" style="margin-top:6px">${lastSyncStr ? `Last synced: ${escHtml(lastSyncStr)}` : 'Not yet synced'} · Syncs automatically when the file changes</div>
+        <div class="settings-sub" style="margin-top:6px" id="sync-last-line">${lastSyncStr ? `Last synced: ${escHtml(lastSyncStr)}` : 'Not yet synced'} · Syncs automatically when the file changes</div>
         ${syncOptsHtml}
-        <div class="settings-sub" id="sync-status-msg" style="margin-top:12px;min-height:14px"></div>
+        <div style="margin-top:14px"><div class="btn-sm pri" id="btn-sync-now">Sync now</div></div>
+        <div class="settings-sub" id="sync-status-msg" style="margin-top:8px;min-height:14px"></div>
         ` : `
         <div class="settings-row" style="align-items:flex-start">
           <div>
@@ -2599,6 +2606,14 @@ async function renderSettingsSection(section) {
     document.getElementById('btn-sync-remove')?.addEventListener('click', async () => {
       await window.api.syncClearFolder();
       renderSettingsSection('Sync');
+    });
+    document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-sync-now');
+      const st  = document.getElementById('sync-status-msg');
+      if (btn) { btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6'; }
+      await window.api.syncNow().catch(() => {});
+      if (btn) { btn.style.pointerEvents = ''; btn.style.opacity = ''; }
+      if (st) { st.textContent = '✓ Synced'; setTimeout(() => { if (st) st.textContent = ''; }, 2000); }
     });
 
   } else if (section === 'About') {
@@ -2678,7 +2693,7 @@ async function renderSettingsSection(section) {
         ${hiddenItems.length
           ? `<div class="hidden-list">${hiddenItems.map(e => `
               <div class="hidden-item">
-                <img class="hidden-thumb" src="${escHtml(imgUrl(e.image) || '')}" alt="" />
+                <img class="hidden-thumb" src="${escHtml(imgUrl(e.image, e.id) || '')}" alt="" />
                 <div class="hidden-meta">
                   <div class="hidden-title">${escHtml(e.title)}</div>
                   <div class="settings-sub">${escHtml([e.developer, e.released ? e.released.slice(0, 4) : null].filter(Boolean).join(' · '))}</div>
@@ -2795,6 +2810,10 @@ async function renderSettingsSection(section) {
         <div class="settings-row">
           <div><div class="settings-label">Restore default settings</div><div class="settings-sub">Reset appearance and preferences to their defaults. Your library and stats are kept.</div></div>
           <div id="dz-restore-ctrl"><div class="btn-sm sec dz-btn" id="dz-restore">Restore defaults</div></div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Clear offline cache</div><div class="settings-sub">Delete locally cached cover images and character data. Re-cached automatically when you open a title online.</div></div>
+          <div id="dz-cache-ctrl"><div class="btn-sm sec dz-btn" id="dz-cache">Clear cache</div></div>
         </div>
         <div class="settings-row">
           <div><div class="settings-label">Wipe data</div><div class="settings-sub">Erase your library and reading stats from this PC. Backup files aren't touched, so you can re-import one afterwards.</div></div>
@@ -2920,6 +2939,12 @@ async function renderSettingsSection(section) {
         ctrl.querySelector('[data-dz=yes]').addEventListener('click', onYes);
       });
     };
+
+    dzConfirm('dz-cache-ctrl', 'dz-cache', 'Yes, clear', async () => {
+      await window.api.clearAllOfflineCache();
+      dzFlash = { id: 'dz-cache-ctrl', msg: 'Cache cleared!' };
+      renderSettingsSection('System');
+    });
 
     dzConfirm('dz-restore-ctrl', 'dz-restore', 'Yes, restore', async () => {
       await window.api.restoreDefaultSettings();
@@ -3053,7 +3078,7 @@ async function openModal(item, nav = null) {
   const isExcluded = !!entry.excluded;
   const isHidden   = !!entry.hidden;
   const isRunning  = runningVNIds.has(full.id);
-  const url      = imgUrl(full.image);
+  const url      = imgUrl(full.image, full.id);
   const rating   = ratingStr(full.rating);
   const released = full.released ? full.released.slice(0, 4) : '—';
   const lengthH  = full.length_minutes ? `${Math.round(full.length_minutes / 60)}h avg` : (formatLength(full) || '—');
@@ -3317,14 +3342,34 @@ async function openModal(item, nav = null) {
   paint(item); // instant render with the data already on hand
 
   // Lazy extras (cached in main): fetch once, re-apply on every paint.
-  window.api.vndbCharacters(item.id).then(c => { charsData = c; renderChars(); }).catch(() => {});
+  // Characters — fetch live, cache for library/wishlist, fall back to cache when offline.
+  window.api.vndbCharacters(item.id)
+    .then(c => {
+      if (token !== modalToken) return;
+      charsData = c; renderChars();
+      const e = entryById(item.id);
+      if (e && (e.library || e.wishlist || e.wishlistPrivate)) {
+        window.api.cacheChars(item.id, c).catch(() => {});
+      }
+    })
+    .catch(async () => {
+      const cached = await window.api.getCachedChars(item.id).catch(() => null);
+      if (cached && token === modalToken) { charsData = cached; renderChars(); }
+    });
+
   window.api.steamAppDetails(item.id).then(s => { steamData = s; renderSteam(); }).catch(() => {});
 
-  // Background enrich: full VNDB detail (external links, plus description/meta for
-  // library entries that lack them). Repaints in place when it arrives.
+  // Background enrich: full VNDB detail (external links + meta). Store extlinks in the
+  // entry so the modal can show them offline next time.
   window.api.vndbGet(item.id).then(data => {
     if (token !== modalToken) return;
-    if (data.results && data.results.length) paint({ ...item, ...data.results[0] });
+    if (!data.results?.length) return;
+    const full = data.results[0];
+    paint({ ...item, ...full });
+    const e = entryById(item.id);
+    if (e && (e.library || e.wishlist || e.wishlistPrivate) && Array.isArray(full.extlinks)) {
+      window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});
+    }
   }).catch(() => {});
 }
 
@@ -3552,7 +3597,7 @@ function renderScanList() {
   scanList.innerHTML = '';
   scanState.forEach((row, i) => {
     const selected = row.candidates.find(c => c.id === row.selectedId);
-    const cover    = selected ? imgUrl(selected.image) : null;
+    const cover    = selected ? imgUrl(selected.image, selected.id) : null;
 
     const el = document.createElement('div');
     el.className = 'scan-row' + (row.include && row.selectedId ? '' : ' skipped');
@@ -3653,7 +3698,7 @@ function renderVndbImportList() {
   const listEl = document.getElementById('vndb-import-list');
   listEl.innerHTML = '';
   vndbImportState.forEach((row, i) => {
-    const cover = imgUrl(row.meta.image);
+    const cover = imgUrl(row.meta.image, row.meta.id);
     const blur  = row.meta.nsfw && settings.nsfwBlurLibrary; // match the library blur setting
     const badge = row.list === 'wishlist'  ? 'Wishlist'
                 : row.list === 'blacklist' ? 'Blacklist → hidden'

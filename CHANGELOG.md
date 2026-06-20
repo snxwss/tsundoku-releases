@@ -2,6 +2,18 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.2 — 2026-06-20
+
+**Offline mode**
+- Detail panel now works fully offline for library and wishlist titles — cover image, description, tags, rating, external links, and characters are all cached locally after the first online view.
+- Cover images are cached on first view via a local `cover://` protocol — instant loads and zero re-downloads.
+- Characters and external links (Wikipedia, HowLongToBeat) are stored per-title after first open.
+- Cache is automatically cleared when a title is removed from both library and wishlist.
+- Settings → System → Danger zone: "Clear offline cache" button to free up storage manually.
+
+**Sync**
+- Added "Sync now" button in Settings → Sync for manual on-demand sync.
+
 ## 1.2.0 — 2026-06-20
 
 **Device Sync**
