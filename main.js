@@ -432,8 +432,13 @@ function mergeFromPayload(payload, { triggerSync = true } = {}) {
         }
         const impStatAt = imp.status_at || 0;
         const locStatAt = local.status_at || 0;
+        const deliberate = ['finished', 'dropped', 'paused'];
         if (imp.status && impStatAt > locStatAt) { local.status = imp.status; local.status_at = impStatAt; }
-        else if (imp.status && !impStatAt && (!local.status || local.status === 'unplayed')) local.status = imp.status;
+        else if (imp.status && !impStatAt) {
+          if (!local.status || local.status === 'unplayed' ||
+              (deliberate.includes(imp.status) && !deliberate.includes(local.status || '')))
+            local.status = imp.status;
+        }
         local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
         const plays = [local.last_played, imp.last_played].filter(v => v != null);
         local.last_played = plays.length ? plays.reduce((a, b) => (a > b ? a : b)) : null;

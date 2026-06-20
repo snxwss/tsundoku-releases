@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.8 — 2026-06-20
+
+- Fixed dropped/finished/paused status not overwriting "reading" on the other PC when syncing entries that predate the 1.2.5 status timestamp fix.
+
 ## 1.2.7 — 2026-06-20
 
 - Fixed auto schedule time inputs losing their styling after the 1.2.6 change.

@@ -2374,9 +2374,20 @@ async function renderSettingsSection(section) {
     document.getElementById('stog-light').addEventListener('click', () => setThemeMode('light'));
     document.getElementById('stog-dark').addEventListener('click', () => setThemeMode('dark'));
     document.getElementById('stog-auto').addEventListener('click', () => setThemeMode('auto'));
-    const isValidTime = v => /^\d{1,2}:\d{2}$/.test(v.trim()) && +v.split(':')[0] < 24 && +v.split(':')[1] < 60;
-    document.getElementById('auto-light')?.addEventListener('change', e => { if (isValidTime(e.target.value)) setAutoTimes(e.target.value.trim(), null); });
-    document.getElementById('auto-dark')?.addEventListener('change', e => { if (isValidTime(e.target.value)) setAutoTimes(null, e.target.value.trim()); });
+    const isValidTime = v => /^\d{2}:\d{2}$/.test(v) && +v.slice(0,2) < 24 && +v.slice(3) < 60;
+    const fmtTimeInput = e => {
+      const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+      e.target.value = digits.length > 2 ? digits.slice(0,2) + ':' + digits.slice(2) : digits;
+    };
+    const saveTime = (e, light) => {
+      const v = e.target.value;
+      if (isValidTime(v)) { if (light) setAutoTimes(v, null); else setAutoTimes(null, v); }
+      else e.target.value = light ? autoLight : autoDark;
+    };
+    document.getElementById('auto-light')?.addEventListener('input', fmtTimeInput);
+    document.getElementById('auto-dark')?.addEventListener('input', fmtTimeInput);
+    document.getElementById('auto-light')?.addEventListener('blur', e => saveTime(e, true));
+    document.getElementById('auto-dark')?.addEventListener('blur', e => saveTime(e, false));
     content.querySelectorAll('.accent-swatch').forEach(el =>
       el.addEventListener('click', () => setPalette(el.dataset.palette)));
     document.getElementById('tlang-en')?.addEventListener('click', () => setTitleLang('en'));
