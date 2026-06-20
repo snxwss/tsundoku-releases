@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.5 — 2026-06-20
+
+**Sync fixes**
+- Color palette sync option now also covers light/dark mode and auto schedule.
+- Reading status now syncs correctly using last-write-wins — dropped, finished, etc. propagate to the other PC instead of being overwritten by the local status.
+
 ## 1.2.4 — 2026-06-20
 
 **Sync fixes**

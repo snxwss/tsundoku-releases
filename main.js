@@ -359,11 +359,11 @@ function writeSettings(s) {
 const SYNC_FILENAME = 'tsundoku-sync.json';
 
 const SYNC_PREF_KEYS = [
-  'themeMode', 'autoLight', 'autoDark', 'cardSize', 'zoom',
+  'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
   'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
-const SYNC_APPEARANCE_KEYS = ['palette'];
+const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
 
 function getSyncOpts(s) {
   return { library: true, hidden: true, preferences: true, appearance: true, history: true, ...(s.syncOptions || {}) };
@@ -430,7 +430,10 @@ function mergeFromPayload(payload, { triggerSync = true } = {}) {
           local.wishlist = local.wishlist || !!imp.wishlist;
           local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
         }
-        if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
+        const impStatAt = imp.status_at || 0;
+        const locStatAt = local.status_at || 0;
+        if (imp.status && impStatAt > locStatAt) { local.status = imp.status; local.status_at = impStatAt; }
+        else if (imp.status && !impStatAt && (!local.status || local.status === 'unplayed')) local.status = imp.status;
         local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
         const plays = [local.last_played, imp.last_played].filter(v => v != null);
         local.last_played = plays.length ? plays.reduce((a, b) => (a > b ? a : b)) : null;
@@ -1749,7 +1752,8 @@ ipcMain.handle('library-update-status', (_e, id, status) => {
   if (e) {
     const prev = e.status;
     e.status = status;
-    const now = Date.now();
+    e.status_at = Date.now();
+    const now = e.status_at;
     // Track when a title was started / finished.
     if ((status === 'reading' || status === 'finished') && !e.started_at) e.started_at = now;
     if (status === 'finished') e.finished_at = now;
