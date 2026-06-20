@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.3 — 2026-06-20
+
+- Moved Sync above System in the Settings sidebar.
+
 ## 1.2.2 — 2026-06-20
 
 **Offline mode**
