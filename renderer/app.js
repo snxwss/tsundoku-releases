@@ -2524,7 +2524,7 @@ async function renderSettingsSection(section) {
     ]);
     const { connected, folder, lastSyncAt } = info;
     const lastSyncStr = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : null;
-    const opts = { library: true, hidden: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+    const opts = { library: true, hidden: true, preferences: true, appearance: true, history: true, ...(s.syncOptions || {}) };
 
     const syncOptsHtml = `
       <div class="settings-row" style="margin-top:18px">
@@ -2536,6 +2536,7 @@ async function renderSettingsSection(section) {
           <label class="sync-opt-row"><div class="toggle-switch ${opts.library     ? 'on' : ''}" data-syncopt="library"></div><span>Library, wishlist &amp; collections</span></label>
           <label class="sync-opt-row"><div class="toggle-switch ${opts.hidden      ? 'on' : ''}" data-syncopt="hidden"></div><span>Hidden tags &amp; titles</span></label>
           <label class="sync-opt-row"><div class="toggle-switch ${opts.preferences ? 'on' : ''}" data-syncopt="preferences"></div><span>Preferences</span></label>
+          <label class="sync-opt-row"><div class="toggle-switch ${opts.appearance  ? 'on' : ''}" data-syncopt="appearance"></div><span>Color palette</span></label>
           <label class="sync-opt-row"><div class="toggle-switch ${opts.history     ? 'on' : ''}" data-syncopt="history"></div><span>Stats &amp; achievements</span></label>
         </div>
       </div>`;
@@ -2581,6 +2582,7 @@ async function renderSettingsSection(section) {
           library:     content.querySelector('[data-syncopt="library"]')?.classList.contains('on')     ?? true,
           hidden:      content.querySelector('[data-syncopt="hidden"]')?.classList.contains('on')      ?? true,
           preferences: content.querySelector('[data-syncopt="preferences"]')?.classList.contains('on') ?? true,
+          appearance:  content.querySelector('[data-syncopt="appearance"]')?.classList.contains('on')  ?? true,
           history:     content.querySelector('[data-syncopt="history"]')?.classList.contains('on')     ?? true,
         };
         await setSetting('syncOptions', newOpts);

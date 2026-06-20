@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.4 — 2026-06-20
+
+**Sync fixes**
+- Preferences now sync correctly using last-write-wins — whichever device changed a preference most recently wins, instead of blindly overwriting on every sync.
+- VNDB username now syncs with the Library toggle instead of Preferences.
+
 ## 1.2.3 — 2026-06-20
 
 - Moved Sync above System in the Settings sidebar.

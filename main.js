@@ -311,7 +311,7 @@ const SETTINGS_DEFAULTS = {
   startWithWindows: false,   // launch hidden in the tray at Windows login
   syncFolder:   null, // path to shared sync folder (Google Drive / Dropbox / etc.)
   lastSyncAt:   null, // timestamp of last successful sync (UI display)
-  syncOptions: { library: true, hidden: true, preferences: true, history: true },
+  syncOptions: { library: true, hidden: true, preferences: true, appearance: true, history: true },
 };
 
 function readSettings() {
@@ -359,13 +359,14 @@ function writeSettings(s) {
 const SYNC_FILENAME = 'tsundoku-sync.json';
 
 const SYNC_PREF_KEYS = [
-  'themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
+  'themeMode', 'autoLight', 'autoDark', 'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
-  'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername',
+  'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
+const SYNC_APPEARANCE_KEYS = ['palette'];
 
 function getSyncOpts(s) {
-  return { library: true, hidden: true, preferences: true, history: true, ...(s.syncOptions || {}) };
+  return { library: true, hidden: true, preferences: true, appearance: true, history: true, ...(s.syncOptions || {}) };
 }
 
 function buildSyncPayload() {
@@ -375,9 +376,15 @@ function buildSyncPayload() {
   const syncSettings = {};
   if (opts.preferences) {
     for (const k of SYNC_PREF_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
+    if (s.preferencesAt !== undefined) syncSettings.preferencesAt = s.preferencesAt;
+  }
+  if (opts.appearance) {
+    for (const k of SYNC_APPEARANCE_KEYS) if (s[k] !== undefined) syncSettings[k] = s[k];
+    if (s.paletteAt !== undefined) syncSettings.paletteAt = s.paletteAt;
   }
   if (opts.library) {
-    if (s.collections !== undefined) syncSettings.collections = s.collections;
+    if (s.collections   !== undefined) syncSettings.collections   = s.collections;
+    if (s.vndbUsername  !== undefined) syncSettings.vndbUsername  = s.vndbUsername;
   }
   if (opts.hidden) {
     if (s.hiddenTags !== undefined) syncSettings.hiddenTags = s.hiddenTags;
@@ -446,8 +453,25 @@ function mergeFromPayload(payload, { triggerSync = true } = {}) {
     const imp = payload.settings;
     const local = readSettings();
     if (opts.preferences) {
-      for (const k of SYNC_PREF_KEYS) {
-        if (imp[k] !== undefined) { local[k] = imp[k]; settingsApplied = true; }
+      const impPrefAt = imp.preferencesAt || 0;
+      const locPrefAt = local.preferencesAt || 0;
+      if (impPrefAt > locPrefAt) {
+        for (const k of SYNC_PREF_KEYS) {
+          if (imp[k] !== undefined) local[k] = imp[k];
+        }
+        local.preferencesAt = impPrefAt;
+        settingsApplied = true;
+      }
+    }
+    if (opts.appearance) {
+      const impPalAt = imp.paletteAt || 0;
+      const locPalAt = local.paletteAt || 0;
+      if (impPalAt > locPalAt) {
+        for (const k of SYNC_APPEARANCE_KEYS) {
+          if (imp[k] !== undefined) local[k] = imp[k];
+        }
+        local.paletteAt = impPalAt;
+        settingsApplied = true;
       }
     }
     if (opts.history) {
@@ -483,6 +507,9 @@ function mergeFromPayload(payload, { triggerSync = true } = {}) {
       }
     }
     if (opts.library) {
+      if (imp.vndbUsername !== undefined && local.vndbUsername == null) {
+        local.vndbUsername = imp.vndbUsername; settingsApplied = true;
+      }
       if (Array.isArray(imp.collections) && imp.collections.length) {
         const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
         const byId = new Map(merged.map(c => [c.id, c]));
@@ -1794,6 +1821,8 @@ ipcMain.handle('get-settings', () => readSettings());
 ipcMain.handle('write-setting', (_e, key, value) => {
   const s = readSettings();
   s[key] = value;
+  if (SYNC_PREF_KEYS.includes(key)) s.preferencesAt = Date.now();
+  if (SYNC_APPEARANCE_KEYS.includes(key)) s.paletteAt = Date.now();
   writeSettings(s);
   return true;
 });
