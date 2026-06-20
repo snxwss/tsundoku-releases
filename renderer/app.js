@@ -2513,10 +2513,10 @@ async function renderSettingsSection(section) {
 
   } else if (section === 'Sync') {
     const [info, s] = await Promise.all([
-      window.api.syncGetInfo().catch(() => ({ connected: false, gistId: null, lastSyncAt: null })),
+      window.api.syncGetInfo().catch(() => ({ connected: false, folder: null, lastSyncAt: null })),
       window.api.getSettings().catch(() => ({})),
     ]);
-    const { connected, gistId, lastSyncAt } = info;
+    const { connected, folder, lastSyncAt } = info;
     const lastSyncStr = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : null;
     const opts = { library: true, hidden: true, preferences: true, history: true, ...(s.syncOptions || {}) };
 
@@ -2524,7 +2524,7 @@ async function renderSettingsSection(section) {
       <div class="settings-row" style="margin-top:18px">
         <div>
           <div class="settings-label">What to sync</div>
-          <div class="settings-sub">Controls what gets pushed from and applied to this PC.</div>
+          <div class="settings-sub">Controls what gets merged from and written by this PC.</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;flex-shrink:0">
           <label class="sync-opt-row"><div class="toggle-switch ${opts.library     ? 'on' : ''}" data-syncopt="library"></div><span>Library, wishlist &amp; collections</span></label>
@@ -2537,44 +2537,32 @@ async function renderSettingsSection(section) {
     content.innerHTML = `
       <div class="settings-section">
         <div class="settings-h">Device Sync</div>
-        <div class="settings-sub" style="margin-bottom:20px">Keep your library in sync across multiple PCs. Data is stored in a private GitHub Gist — only you can access it with your token.</div>
+        <div class="settings-sub" style="margin-bottom:20px">Keep your library in sync across PCs via a shared cloud folder (Google Drive, Dropbox, OneDrive, etc.). Point all your PCs at the same folder and changes sync automatically.</div>
 
         ${connected ? `
         <div class="settings-row">
           <div>
-            <div class="settings-label">Sync token</div>
-            <div class="settings-sub">Share this on your other PC to connect to the same sync.</div>
+            <div class="settings-label">Sync folder</div>
+            <div class="settings-sub" style="word-break:break-all">${escHtml(folder || '')}</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-            <span class="sync-token-display">${escHtml(gistId || '')}</span>
-            <div class="btn-sm sec" id="btn-sync-copy">Copy</div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <div class="btn-sm sec" id="btn-sync-change">Change</div>
+            <div class="btn-sm sec" id="btn-sync-remove">Remove</div>
           </div>
         </div>
-        ${lastSyncStr ? `<div class="settings-sub" style="margin-top:4px">Last synced: ${escHtml(lastSyncStr)}</div>` : ''}
+        <div class="settings-sub" style="margin-top:6px">${lastSyncStr ? `Last synced: ${escHtml(lastSyncStr)}` : 'Not yet synced'} · Syncs automatically when the file changes</div>
         ${syncOptsHtml}
-        <div style="display:flex;gap:8px;margin-top:16px">
-          <div class="btn-sm pri" id="btn-sync-now">Sync now</div>
-          <div class="btn-sm sec" id="btn-sync-disconnect">Disconnect</div>
-        </div>
-        <div class="settings-sub" id="sync-status-msg" style="margin-top:8px;min-height:14px"></div>
+        <div class="settings-sub" id="sync-status-msg" style="margin-top:12px;min-height:14px"></div>
         ` : `
         <div class="settings-row" style="align-items:flex-start">
           <div>
-            <div class="settings-label">GitHub Personal Access Token</div>
-            <div class="settings-sub">Needs "Gist" scope only. Create one at GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic).</div>
+            <div class="settings-label">Pick a sync folder</div>
+            <div class="settings-sub">Select a folder that all your PCs can access — your Google Drive, Dropbox or OneDrive folder works perfectly. Tsundoku writes a single small file there.</div>
           </div>
-          <input type="password" id="sync-pat" placeholder="ghp_…" autocomplete="off"
-            style="height:30px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;padding:0 10px;outline:none;flex-shrink:0;width:210px" />
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
-          <div class="btn-sm pri" id="btn-sync-create">New sync</div>
-          <span style="font-size:12px;color:var(--mut)">or join existing:</span>
-          <input type="text" id="sync-join-id" placeholder="Sync token from other PC" autocomplete="off"
-            style="height:28px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:11px;padding:0 10px;outline:none;flex:1;min-width:0" />
-          <div class="btn-sm sec" id="btn-sync-join">Connect</div>
+          <div class="btn-sm pri" id="btn-sync-pick" style="flex-shrink:0">Pick folder</div>
         </div>
         ${syncOptsHtml}
-        <div class="settings-sub" id="sync-status-msg" style="margin-top:8px;min-height:14px"></div>
+        <div class="settings-sub" id="sync-status-msg" style="margin-top:12px;min-height:14px"></div>
         `}
       </div>`;
 
@@ -2592,63 +2580,26 @@ async function renderSettingsSection(section) {
       });
     });
 
-    if (connected) {
-      document.getElementById('btn-sync-copy')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(gistId || '').then(() => {
-          const el = document.getElementById('sync-status-msg');
-          if (el) { el.textContent = '✓ Copied to clipboard'; setTimeout(() => { if (el) el.textContent = ''; }, 2000); }
-        }).catch(() => {});
-      });
-      document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
-        const st = document.getElementById('sync-status-msg');
-        const btn = document.getElementById('btn-sync-now');
-        st.textContent = 'Syncing…';
-        btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6';
-        const r = await window.api.syncPush().catch(e => ({ ok: false, error: e.message }));
-        btn.style.pointerEvents = ''; btn.style.opacity = '';
-        if (r?.ok) { await loadEntries(); renderSettingsSection('Sync'); }
-        else st.textContent = '✕ ' + (r?.error || 'Sync failed');
-      });
-      document.getElementById('btn-sync-disconnect')?.addEventListener('click', async () => {
-        await window.api.syncDisconnect();
+    const pickFolder = async () => {
+      const btn = document.getElementById('btn-sync-pick') || document.getElementById('btn-sync-change');
+      if (btn) { btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6'; }
+      const r = await window.api.syncSetFolder().catch(e => ({ ok: false, error: e.message }));
+      if (btn) { btn.style.pointerEvents = ''; btn.style.opacity = ''; }
+      if (r?.ok) {
+        await loadEntries();
         renderSettingsSection('Sync');
-      });
-    } else {
-      document.getElementById('btn-sync-create')?.addEventListener('click', async () => {
-        const pat = document.getElementById('sync-pat')?.value.trim();
+      } else if (r?.error) {
         const st = document.getElementById('sync-status-msg');
-        if (!pat) { st.textContent = 'Enter your GitHub PAT first.'; return; }
-        st.textContent = 'Creating sync…';
-        const btn = document.getElementById('btn-sync-create');
-        btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6';
-        const r = await window.api.syncCreate(pat).catch(e => ({ ok: false, error: e.message }));
-        btn.style.pointerEvents = ''; btn.style.opacity = '';
-        if (r?.ok) renderSettingsSection('Sync');
-        else st.textContent = '✕ ' + (r?.error || 'Failed to create sync');
-      });
-      document.getElementById('btn-sync-join')?.addEventListener('click', async () => {
-        const pat    = document.getElementById('sync-pat')?.value.trim();
-        const joinId = document.getElementById('sync-join-id')?.value.trim();
-        const st = document.getElementById('sync-status-msg');
-        if (!pat) { st.textContent = 'Enter your GitHub PAT first.'; return; }
-        if (!joinId) { st.textContent = 'Paste the sync token from your other PC.'; return; }
-        st.textContent = 'Connecting…';
-        const btn = document.getElementById('btn-sync-join');
-        btn.style.pointerEvents = 'none'; btn.style.opacity = '0.6';
-        const r = await window.api.syncConnect(joinId, pat).catch(e => ({ ok: false, error: e.message }));
-        btn.style.pointerEvents = ''; btn.style.opacity = '';
-        if (r?.ok) {
-          const total = (r.added || 0) + (r.updated || 0);
-          st.textContent = `✓ Connected — ${total > 0 ? `${r.added} added, ${r.updated} updated` : 'up to date'}`;
-          await loadEntries();
-          await new Promise(res => setTimeout(res, 1000));
-          renderSettingsSection('Sync');
-        } else st.textContent = '✕ ' + (r?.error || 'Failed to connect');
-      });
-      document.getElementById('sync-join-id')?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('btn-sync-join')?.click();
-      });
-    }
+        if (st) st.textContent = '✕ ' + r.error;
+      }
+    };
+
+    document.getElementById('btn-sync-pick')?.addEventListener('click', pickFolder);
+    document.getElementById('btn-sync-change')?.addEventListener('click', pickFolder);
+    document.getElementById('btn-sync-remove')?.addEventListener('click', async () => {
+      await window.api.syncClearFolder();
+      renderSettingsSection('Sync');
+    });
 
   } else if (section === 'About') {
     const [version, installPath, dataPath] = await Promise.all([
@@ -3887,10 +3838,17 @@ async function init() {
   // entries.json changed on disk externally (e.g. Syncthing) → live reload.
   window.api.onEntriesChanged(() => { loadEntries(); });
 
-  // Background Gist sync completed → refresh Sync section if it's on screen.
-  window.api.onSyncStatus(() => {
-    loadEntries();
-    if (activeView === 'settings' && settingsSection === 'Sync') renderSettingsSection('Sync');
+  // Sync file changed (merged from another device) or we wrote to it → refresh if on screen.
+  window.api.onSyncStatus((s) => {
+    if (s?.ok) loadEntries();
+    if (activeView === 'settings' && settingsSection === 'Sync') {
+      if (s?.ok) {
+        renderSettingsSection('Sync');
+      } else if (s?.error) {
+        const el = document.getElementById('sync-status-msg');
+        if (el) el.textContent = '✕ ' + s.error;
+      }
+    }
   });
 
   // Auto-update status — register once, repaint About line if it's on screen.

@@ -2,35 +2,25 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
-## 1.2.3 — 2026-06-18
+## 1.2.0 — 2026-06-20
 
-**Sync**
-- Connecting on a second PC now reloads your library immediately without needing an app restart.
-- Connect button shows how many titles were added or updated after a successful connect.
+**Device Sync**
+- New Sync section in Settings: keep your library in sync across PCs by pointing all devices at the same cloud folder (Google Drive, Dropbox, OneDrive, etc.).
+- Pick any folder that all your PCs can see — Tsundoku writes a single `tsundoku-sync.json` file there.
+- Syncs automatically: on launch, on every library or status change (debounced 3s), and instantly when the cloud provider downloads a change from another device.
+- Library removals propagate correctly — a title removed on PC B disappears on PC A, not re-added.
+- "What to sync" toggles let you control what each PC contributes and receives.
+- Last synced time shown in the Sync section. Remove the folder at any time without losing local data.
 
-## 1.2.2 — 2026-06-18
+**Browse / Performance**
+- Fixed VNDB rate-limit backoff accumulating across tab switches — switching sorts no longer causes a multi-second delay. Max gap capped at 600ms, recovery doubled, idle reset triggers after 2s.
+
+**Settings / Scan**
+- Folder scan is now ~3-10× faster — all VNDB lookups run in parallel instead of one at a time.
 
 **Home**
 - "see all →" links now show a pointer cursor.
-- "The pile" section header now shows the correct total count instead of the number of visible cards.
-
-**Sync**
-- Sync option toggles reorganised: "Library, wishlist & collections" (one toggle), "Hidden tags & titles" (hidden tag blocklist + excluded titles), Preferences, Stats & achievements.
-
-## 1.2.1 — 2026-06-18
-
-**Sync**
-- Added "What to sync" toggles in Settings → Sync: choose independently whether to sync Library & wishlist, Collections & hidden tags, Preferences, and Stats & achievements. Each toggle controls what gets pushed from and applied to that PC.
-
-## 1.2.0 — 2026-06-18
-
-**Device Sync**
-- New Sync section in Settings: keep your library in sync across multiple PCs using a private GitHub Gist.
-- Create a sync with your GitHub PAT (Gist scope only) — you get a shareable sync token.
-- On your other PC, paste the same PAT and the sync token to connect and pull everything across.
-- Syncs automatically in the background: on launch (pull), on every status or library change (push, debounced 3s), and when closing to tray or quitting.
-- Last synced time shown in the Sync section. Disconnect any time without losing local data.
-- GitHub PAT is never included in backup exports.
+- "The pile" section header now shows the correct total count.
 
 ## 1.1.1 — 2026-06-17
 

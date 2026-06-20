@@ -302,9 +302,8 @@ const SETTINGS_DEFAULTS = {
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
   startWithWindows: false,   // launch hidden in the tray at Windows login
-  syncGistId:       null,    // GitHub Gist ID used for cross-device sync
-  syncGithubPat:    null,    // GitHub PAT (excluded from backups)
-  lastSyncAt:       null,    // timestamp of last successful sync
+  syncFolder:   null, // path to shared sync folder (Google Drive / Dropbox / etc.)
+  lastSyncAt:   null, // timestamp of last successful sync (UI display)
   syncOptions: { library: true, hidden: true, preferences: true, history: true },
 };
 
@@ -349,59 +348,8 @@ function writeSettings(s) {
   writeJsonAtomic(SETTINGS_PATH, s);
 }
 
-// ── GitHub Gist sync ──────────────────────────────────────────────────────────
-const GIST_FILENAME = 'tsundoku-sync.json';
-const GIST_API      = 'https://api.github.com/gists';
-
-function gistHeaders(pat) {
-  return {
-    Authorization: `token ${pat}`,
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'Tsundoku',
-    'Content-Type': 'application/json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-}
-
-async function gistCreate(pat) {
-  const payload = buildSyncPayload();
-  const res = await fetchWithTimeout(GIST_API, {
-    method: 'POST',
-    headers: gistHeaders(pat),
-    body: JSON.stringify({
-      description: 'Tsundoku sync data',
-      public: false,
-      files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } },
-    }),
-  }, 15000);
-  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-  const data = await res.json();
-  return data.id;
-}
-
-async function gistPushData(gistId, pat) {
-  const payload = buildSyncPayload();
-  const res = await fetchWithTimeout(`${GIST_API}/${gistId}`, {
-    method: 'PATCH',
-    headers: gistHeaders(pat),
-    body: JSON.stringify({
-      files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } },
-    }),
-  }, 15000);
-  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-}
-
-async function gistPullData(gistId, pat) {
-  const res = await fetchWithTimeout(`${GIST_API}/${gistId}`, {
-    method: 'GET',
-    headers: gistHeaders(pat),
-  }, 15000);
-  if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
-  const data = await res.json();
-  const file = data.files && data.files[GIST_FILENAME];
-  if (!file) throw new Error('Sync file not found in Gist');
-  return JSON.parse(file.content);
-}
+// ── Shared-folder sync (Google Drive / Dropbox / etc.) ────────────────────────
+const SYNC_FILENAME = 'tsundoku-sync.json';
 
 const SYNC_PREF_KEYS = [
   'themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
@@ -434,7 +382,8 @@ function buildSyncPayload() {
   return { version: 1, updatedAt: Date.now(), entries, settings: syncSettings };
 }
 
-function mergeFromPayload(payload) {
+// triggerSync: false when called after reading the sync file (avoids writing back what we just read)
+function mergeFromPayload(payload, { triggerSync = true } = {}) {
   if (!payload) throw new Error('Invalid sync payload');
   const opts = getSyncOpts(readSettings());
   let added = 0, updated = 0;
@@ -445,14 +394,28 @@ function mergeFromPayload(payload) {
       if (!imp || !imp.id) continue;
       const local = store[imp.id];
       if (!local) {
+        // Skip entries that were removed on the remote and never existed locally.
+        if (!imp.library && !imp.wishlist && !imp.wishlistPrivate) continue;
         const entry = { ...imp, exe_path: null, added_at: imp.added_at || Date.now() };
         if (!opts.hidden) delete entry.excluded;
         store[imp.id] = entry;
         added++;
       } else {
-        local.library  = local.library  || !!imp.library;
-        local.wishlist = local.wishlist || !!imp.wishlist;
-        local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
+        // Last-write-wins for library/wishlist using timestamps so removals propagate.
+        const impLibAt  = imp.library_at  || 0;
+        const impWishAt = imp.wishlist_at || 0;
+        const locLibAt  = local.library_at  || 0;
+        const locWishAt = local.wishlist_at || 0;
+        if (impLibAt > locLibAt) { local.library = !!imp.library; local.library_at = impLibAt; }
+        else if (!impLibAt)      { local.library = local.library || !!imp.library; }
+        if (impWishAt > locWishAt) {
+          local.wishlist = !!imp.wishlist;
+          local.wishlistPrivate = !!imp.wishlistPrivate;
+          local.wishlist_at = impWishAt;
+        } else if (!impWishAt) {
+          local.wishlist = local.wishlist || !!imp.wishlist;
+          local.wishlistPrivate = local.wishlistPrivate || !!imp.wishlistPrivate;
+        }
         if (imp.status && (!local.status || local.status === 'unplayed')) local.status = imp.status;
         local.playtime_seconds = Math.max(local.playtime_seconds || 0, imp.playtime_seconds || 0);
         const plays = [local.last_played, imp.last_played].filter(v => v != null);
@@ -468,7 +431,7 @@ function mergeFromPayload(payload) {
         updated++;
       }
     }
-    writeStore(store);
+    writeStore(store, { sync: triggerSync });
   }
 
   let settingsApplied = false;
@@ -531,29 +494,88 @@ function mergeFromPayload(payload) {
   return { added, updated, settingsApplied };
 }
 
-let _gistPushDebounce = null;
-function scheduleGistPush() {
+// ms since our last sync-file write — used to ignore the watcher echo from our own writes
+let _lastSyncWriteAt = 0;
+const SYNC_WRITE_ECHO_GUARD_MS = 3000;
+
+function writeSyncFile() {
   const s = readSettings();
-  if (!s.syncGistId || !s.syncGithubPat) return;
-  clearTimeout(_gistPushDebounce);
-  _gistPushDebounce = setTimeout(() => doGistPush(s.syncGistId, s.syncGithubPat), 3000);
+  if (!s.syncFolder) return;
+  const p = path.join(s.syncFolder, SYNC_FILENAME);
+  try {
+    const payload = buildSyncPayload();
+    fs.writeFileSync(p, JSON.stringify(payload));
+    _lastSyncWriteAt = Date.now();
+    const ns = readSettings();
+    ns.lastSyncAt = Date.now();
+    writeSettings(ns);
+    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
+  } catch (err) {
+    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: false, error: err.message });
+  }
 }
 
-async function doGistPush(gistId, pat) {
-  try {
-    await gistPushData(gistId, pat);
-    const s = readSettings();
-    s.lastSyncAt = Date.now();
-    writeSettings(s);
-    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: true, at: s.lastSyncAt });
-  } catch { /* fire-and-forget */ }
+let _syncWriteDebounce = null;
+function scheduleSyncWrite() {
+  const s = readSettings();
+  if (!s.syncFolder) return;
+  clearTimeout(_syncWriteDebounce);
+  _syncWriteDebounce = setTimeout(writeSyncFile, 3000);
 }
 
-function gistFireAndForgetPush() {
+let _syncReadDebounce = null;
+function onSyncFileChanged() {
+  clearTimeout(_syncReadDebounce);
+  _syncReadDebounce = setTimeout(mergeSyncFile, 1000);
+}
+
+function mergeSyncFile() {
+  // Ignore the file change if it was caused by our own write
+  if (Date.now() - _lastSyncWriteAt < SYNC_WRITE_ECHO_GUARD_MS) return;
+  const s = readSettings();
+  if (!s.syncFolder) return;
+  const p = path.join(s.syncFolder, SYNC_FILENAME);
   try {
-    const s = readSettings();
-    if (s.syncGistId && s.syncGithubPat) doGistPush(s.syncGistId, s.syncGithubPat).catch(() => {});
+    if (!fs.existsSync(p)) return;
+    const payload = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // triggerSync: false so writeStore doesn't schedule a write-back of what we just read
+    mergeFromPayload(payload, { triggerSync: false });
+    const ns = readSettings();
+    ns.lastSyncAt = Date.now();
+    writeSettings(ns);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('entries-changed');
+      win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
+    }
+  } catch (err) {
+    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: false, error: err.message });
+  }
+}
+
+let syncFolderWatcher = null;
+function watchSyncFolder(folder) {
+  if (syncFolderWatcher) { try { syncFolderWatcher.close(); } catch {} syncFolderWatcher = null; }
+  if (!folder) return;
+  try {
+    syncFolderWatcher = fs.watch(folder, { persistent: false }, (_event, filename) => {
+      if (filename === SYNC_FILENAME) onSyncFileChanged();
+    });
   } catch {}
+}
+
+function initSync() {
+  const s = readSettings();
+  if (!s.syncFolder) return;
+  const p = path.join(s.syncFolder, SYNC_FILENAME);
+  // Merge whatever is in the sync file (other device's data), then write our combined state
+  if (fs.existsSync(p)) {
+    try {
+      const payload = JSON.parse(fs.readFileSync(p, 'utf8'));
+      mergeFromPayload(payload, { triggerSync: false });
+    } catch {}
+  }
+  writeSyncFile(); // write combined state so other devices see our data
+  watchSyncFolder(s.syncFolder);
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -585,9 +607,9 @@ function readStore() {
   return store;
 }
 
-function writeStore(store) {
+function writeStore(store, { sync = true } = {}) {
   // Peel machine-specific launch paths off into the local-only file and keep them
-  // OUT of the synced entries.json, so Syncthing can never overwrite this PC's paths.
+  // OUT of the synced entries.json.
   const localPaths = readExePaths();
   let pathsChanged = false;
   const synced = {};
@@ -602,7 +624,7 @@ function writeStore(store) {
   }
   if (pathsChanged) writeExePaths(localPaths);
   writeJsonAtomic(DB_PATH, synced);
-  scheduleGistPush();
+  if (sync) scheduleSyncWrite();
 }
 
 function ensureEntry(store, meta) {
@@ -771,8 +793,9 @@ function writeRuntimeDebug() {
 
 function pruneIfOrphan(store, id) {
   const e = store[id];
-  // Keep entries that have playtime history, or are hidden from browse, so the flag persists.
-  if (e && !e.library && !e.wishlist && !e.wishlistPrivate && !e.hidden && !e.playtime_seconds && !e.last_played) {
+  // Keep entries that have playtime history, are hidden, or carry a sync timestamp
+  // (library_at/wishlist_at) so the removal propagates to other devices on next pull.
+  if (e && !e.library && !e.wishlist && !e.wishlistPrivate && !e.hidden && !e.playtime_seconds && !e.last_played && !e.library_at && !e.wishlist_at) {
     delete store[id];
   }
 }
@@ -875,7 +898,7 @@ function createWindow() {
     if (isQuitting) return;
     let minimize = true;
     try { minimize = readSettings().minimizeOnClose !== false; } catch {}
-    if (minimize) { e.preventDefault(); win.hide(); gistFireAndForgetPush(); }
+    if (minimize) { e.preventDefault(); win.hide(); }
   });
 }
 
@@ -901,30 +924,14 @@ if (!gotLock) {
     createWindow();
     createTray();
     watchDataDir();
-    // Pull from Gist on launch (background, non-blocking)
-    ;(async () => {
-      try {
-        const s = readSettings();
-        if (s.syncGistId && s.syncGithubPat) {
-          const payload = await gistPullData(s.syncGistId, s.syncGithubPat);
-          mergeFromPayload(payload);
-          const ns = readSettings();
-          ns.lastSyncAt = Date.now();
-          writeSettings(ns);
-          if (win && !win.isDestroyed()) {
-            win.webContents.send('entries-changed');
-            win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
-          }
-        }
-      } catch {}
-    })();
+    initSync();
     // Begin automatic playtime detection.
     pollRunningGames();
     pollTimer = setInterval(pollRunningGames, POLL_INTERVAL_MS);
     // Check for updates (installed build only).
     initAutoUpdate();
   });
-  app.on('before-quit', () => { isQuitting = true; gistFireAndForgetPush(); });
+  app.on('before-quit', () => { isQuitting = true; });
   app.on('activate', () => showWindow());
   // Fires only when the window is truly closed (not when hidden to tray), so the
   // "minimize on close" case never reaches here — it just quits as expected.
@@ -1031,7 +1038,8 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
 // stats and config (scan folders, collections, VNDB account, blocked tags).
 ipcMain.handle('restore-default-settings', () => {
   const KEEP = ['sessions', 'achievements', 'achSeenCount', 'collections',
-    'scanDirs', 'scanDir', 'hiddenTags', 'dismissedScans', 'vndbUsername', 'vndbToken'];
+    'scanDirs', 'scanDir', 'hiddenTags', 'dismissedScans', 'vndbUsername', 'vndbToken',
+    'syncFolder', 'syncOptions', 'lastSyncAt'];
   const cur = readSettings();
   const next = { ...SETTINGS_DEFAULTS };
   for (const k of KEEP) if (cur[k] !== undefined) next[k] = cur[k];
@@ -1103,7 +1111,7 @@ ipcMain.handle('wishlist-get-releases', async (_e, vnIds) => {
 // starves what the user is actively looking at. A small launch gap (which grows on
 // 429 and recovers when healthy) keeps us from bursting past VNDB's rate limit.
 const VNDB_GAP_MIN = 160;
-const VNDB_GAP_MAX = 1500;
+const VNDB_GAP_MAX = 600;
 let vndbGap = VNDB_GAP_MIN;
 const PRI = { HIGH: 2, NORMAL: 1, LOW: 0 };
 const VNDB_MAX_CONCURRENT = 3;
@@ -1138,7 +1146,7 @@ async function vndbPump() {
   if (item.priority === PRI.LOW) vndbActiveLow++;
   // If we've been idle a while, any prior 429 burst has passed — drop the accrued
   // backoff so the next user action (e.g. opening a modal) is snappy again.
-  if (Date.now() - vndbLastAt > 5000) vndbGap = VNDB_GAP_MIN;
+  if (Date.now() - vndbLastAt > 2000) vndbGap = VNDB_GAP_MIN;
   const wait = Math.max(0, vndbGap - (Date.now() - vndbLastAt));
   if (wait) await new Promise(r => setTimeout(r, wait));
   vndbLastAt = Date.now();
@@ -1189,7 +1197,7 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {} } = {})
         continue;
       }
       if (!res.ok) throw new Error(`VNDB ${res.status}`);
-      vndbGap = Math.max(VNDB_GAP_MIN, vndbGap - 60); // healthy — speed back up
+      vndbGap = Math.max(VNDB_GAP_MIN, vndbGap - 120); // healthy — speed back up
       return res.json();
     }
   }, priority);
@@ -1613,7 +1621,8 @@ ipcMain.handle('entry-add-to-list', (_e, meta, list) => {
   const store = readStore();
   const entry = ensureEntry(store, meta);
   entry[list] = true;
-  if (list === 'library') entry.excluded = false; // re-adding clears exclusion
+  if (list === 'library') { entry.excluded = false; entry.library_at = Date.now(); }
+  if (list === 'wishlist' || list === 'wishlistPrivate') entry.wishlist_at = Date.now();
   writeStore(store);
   return true;
 });
@@ -1623,7 +1632,8 @@ ipcMain.handle('entry-remove-from-list', (_e, id, list) => {
   const store = readStore();
   if (store[id]) {
     store[id][list] = false;
-    if (list === 'library') { store[id].exe_path = null; store[id].excluded = false; }
+    if (list === 'library') { store[id].exe_path = null; store[id].excluded = false; store[id].library_at = Date.now(); }
+    if (list === 'wishlist' || list === 'wishlistPrivate') store[id].wishlist_at = Date.now();
     pruneIfOrphan(store, id);
     writeStore(store);
   }
@@ -1810,8 +1820,7 @@ ipcMain.handle('export-data', async () => {
   if (r.canceled || !r.filePath) return { ok: false };
   const entries = Object.values(readStore());
   const exportSettings = { ...readSettings() };
-  delete exportSettings.vndbToken;    // never write the private API token into a backup file
-  delete exportSettings.syncGithubPat; // never write the GitHub PAT into a backup file
+  delete exportSettings.vndbToken; // never write the private API token into a backup file
   const payload = {
     type: 'tsundoku-backup', version: 2,
     exportedAt: Date.now(), appVersion: app.getVersion(),
@@ -1939,77 +1948,39 @@ ipcMain.handle('import-data', async () => {
   return { ok: true, added, updated, settingsApplied };
 });
 
-// ── Device sync (GitHub Gist) ─────────────────────────────────────────────────
+// ── Device sync (shared folder) ───────────────────────────────────────────────
 ipcMain.handle('sync-get-info', () => {
   const s = readSettings();
-  return { connected: !!(s.syncGistId && s.syncGithubPat), gistId: s.syncGistId || null, lastSyncAt: s.lastSyncAt || null };
+  return { connected: !!s.syncFolder, folder: s.syncFolder || null, lastSyncAt: s.lastSyncAt || null };
 });
 
-ipcMain.handle('sync-create', async (_e, pat) => {
-  if (!pat || !pat.trim()) return { ok: false, error: 'No PAT provided.' };
-  try {
-    const gistId = await gistCreate(pat.trim());
-    const s = readSettings();
-    s.syncGistId = gistId;
-    s.syncGithubPat = pat.trim();
-    s.lastSyncAt = Date.now();
-    writeSettings(s);
-    return { ok: true, gistId };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-
-ipcMain.handle('sync-connect', async (_e, gistId, pat) => {
-  if (!gistId || !gistId.trim()) return { ok: false, error: 'No sync token provided.' };
-  if (!pat || !pat.trim()) return { ok: false, error: 'No PAT provided.' };
-  try {
-    const payload = await gistPullData(gistId.trim(), pat.trim());
-    const result = mergeFromPayload(payload);
-    const s = readSettings();
-    s.syncGistId = gistId.trim();
-    s.syncGithubPat = pat.trim();
-    s.lastSyncAt = Date.now();
-    writeSettings(s);
-    // Notify renderer to reload entries so all views update without a restart.
-    if (win && !win.isDestroyed()) win.webContents.send('entries-changed');
-    return { ok: true, ...result };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-
-ipcMain.handle('sync-push', async () => {
+ipcMain.handle('sync-set-folder', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  if (canceled || !filePaths[0]) return { ok: false };
+  const folder = filePaths[0];
+  // Stop watching old folder
+  watchSyncFolder(null);
   const s = readSettings();
-  if (!s.syncGistId || !s.syncGithubPat) return { ok: false, error: 'Not connected.' };
-  try {
-    await doGistPush(s.syncGistId, s.syncGithubPat);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message };
+  s.syncFolder = folder;
+  writeSettings(s);
+  // Merge existing sync file then write our combined state
+  const p = path.join(folder, SYNC_FILENAME);
+  if (fs.existsSync(p)) {
+    try {
+      const payload = JSON.parse(fs.readFileSync(p, 'utf8'));
+      mergeFromPayload(payload, { triggerSync: false });
+      if (win && !win.isDestroyed()) win.webContents.send('entries-changed');
+    } catch {}
   }
+  writeSyncFile();
+  watchSyncFolder(folder);
+  return { ok: true, folder };
 });
 
-ipcMain.handle('sync-pull', async () => {
+ipcMain.handle('sync-clear-folder', () => {
+  watchSyncFolder(null);
   const s = readSettings();
-  if (!s.syncGistId || !s.syncGithubPat) return { ok: false, error: 'Not connected.' };
-  try {
-    const payload = await gistPullData(s.syncGistId, s.syncGithubPat);
-    const result = mergeFromPayload(payload);
-    const ns = readSettings();
-    ns.lastSyncAt = Date.now();
-    writeSettings(ns);
-    if (win && !win.isDestroyed()) win.webContents.send('sync-status', { ok: true, at: ns.lastSyncAt });
-    return { ok: true, ...result };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-
-ipcMain.handle('sync-disconnect', () => {
-  const s = readSettings();
-  delete s.syncGistId;
-  delete s.syncGithubPat;
+  delete s.syncFolder;
   delete s.lastSyncAt;
   writeSettings(s);
   return { ok: true };
@@ -2174,10 +2145,15 @@ async function scanDirectory(root) {
     ? subdirs.map(name => ({ name, folderPath: path.join(root, name) }))
     : [{ name: path.basename(root), folderPath: root }];
 
-  const matches = [], noExe = [];
+  // Find exes synchronously (fast, local disk), then fire all VNDB searches in parallel.
+  const withExe = [], noExe = [];
   for (const { name, folderPath } of targets) {
     const exe = pickMainExe(folderPath);
     if (!exe) { noExe.push(name); continue; }
+    withExe.push({ name, exe });
+  }
+
+  const matches = await Promise.all(withExe.map(async ({ name, exe }) => {
     const query = cleanName(name) || name;
     let candidates = [];
     try {
@@ -2188,8 +2164,9 @@ async function scanDirectory(root) {
       });
       candidates = data.results || [];
     } catch {}
-    matches.push({ folderName: name, exePath: exe, query, candidates });
-  }
+    return { folderName: name, exePath: exe, query, candidates };
+  }));
+
   return { root, matches, noExe };
 }
 

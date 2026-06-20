@@ -78,13 +78,10 @@ contextBridge.exposeInMainWorld('api', {
   wipeLibraryData: () => ipcRenderer.invoke('wipe-library-data'),
 
   // Device sync
-  syncGetInfo:    ()            => ipcRenderer.invoke('sync-get-info'),
-  syncCreate:     (pat)         => ipcRenderer.invoke('sync-create', pat),
-  syncConnect:    (gistId, pat) => ipcRenderer.invoke('sync-connect', gistId, pat),
-  syncPush:       ()            => ipcRenderer.invoke('sync-push'),
-  syncPull:       ()            => ipcRenderer.invoke('sync-pull'),
-  syncDisconnect: ()            => ipcRenderer.invoke('sync-disconnect'),
-  onSyncStatus:   (cb)          => ipcRenderer.on('sync-status', (_e, s) => cb(s)),
+  syncGetInfo:    ()       => ipcRenderer.invoke('sync-get-info'),
+  syncSetFolder:  ()       => ipcRenderer.invoke('sync-set-folder'),
+  syncClearFolder: ()      => ipcRenderer.invoke('sync-clear-folder'),
+  onSyncStatus:   (cb)     => ipcRenderer.on('sync-status', (_e, s) => cb(s)),
 
   // Window controls
   winMinimize: ()   => ipcRenderer.send('win-minimize'),
