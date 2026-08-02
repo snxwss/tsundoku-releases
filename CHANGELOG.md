@@ -2,6 +2,13 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.13 — 2026-06-20
+
+**Privacy**
+- Redesigned PIN entry as 4 individual digit slots with a bigger Unlock button, replacing the oversized single text field.
+- Changing or removing your PIN now requires entering the current PIN first.
+- Backups no longer include the PIN or lock settings (lock config is per-device); your library and Private wishlist entries still travel with backups as before.
+
 ## 1.2.12 — 2026-06-20
 
 **Fixes**

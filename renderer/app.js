@@ -103,10 +103,56 @@ let wishSearch     = '';
 let wishView       = 'public'; // 'public' = wishlist, 'private' = wishlistPrivate
 let wishlistAlerts = [];     // [{ vnId, vnTitle, releases: [] }]
 let privacyUnlockedUntil = null; // ms timestamp, or Infinity for "until Tsundoku closes"; null = locked
+let privacyPinStep = null; // null | 'confirmChange' | 'newPin' | 'confirmRemove' — Settings → Privacy PIN flow
 
 function isPrivateWishlistLocked() {
   if (!settings.privacyLockEnabled) return false;
   return !(privacyUnlockedUntil && (privacyUnlockedUntil === Infinity || Date.now() < privacyUnlockedUntil));
+}
+
+// ── Reusable 4-digit PIN entry (lock screen + Settings → Privacy flows) ──
+function pinSlotsHtml(idPrefix) {
+  return `<div class="pin-slots" data-pin-group="${idPrefix}">
+    ${[0, 1, 2, 3].map(i => `<input class="pin-slot" type="text" inputmode="numeric" maxlength="1" data-pin-idx="${i}" />`).join('')}
+  </div>`;
+}
+function getPinValue(idPrefix) {
+  const group = document.querySelector(`[data-pin-group="${idPrefix}"]`);
+  if (!group) return '';
+  return [...group.querySelectorAll('.pin-slot')].map(s => s.value).join('');
+}
+function clearPinSlots(idPrefix) {
+  const group = document.querySelector(`[data-pin-group="${idPrefix}"]`);
+  if (!group) return;
+  group.querySelectorAll('.pin-slot').forEach(s => { s.value = ''; });
+  group.querySelector('.pin-slot')?.focus();
+}
+// onComplete fires once all 4 slots are filled (typed or pasted) or on Enter with all 4 filled.
+function wirePinSlots(idPrefix, onComplete) {
+  const group = document.querySelector(`[data-pin-group="${idPrefix}"]`);
+  if (!group) return;
+  const slots = [...group.querySelectorAll('.pin-slot')];
+  const allFilled = () => slots.every(s => s.value);
+  slots.forEach((el, i) => {
+    el.addEventListener('input', () => {
+      el.value = el.value.replace(/\D/g, '').slice(0, 1);
+      if (el.value && i < slots.length - 1) slots[i + 1].focus();
+      if (allFilled()) onComplete(slots.map(s => s.value).join(''));
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !el.value && i > 0) slots[i - 1].focus();
+      if (e.key === 'Enter' && allFilled()) onComplete(slots.map(s => s.value).join(''));
+    });
+    el.addEventListener('paste', e => {
+      const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, slots.length);
+      if (!text) return;
+      e.preventDefault();
+      text.split('').forEach((ch, idx) => { if (slots[idx]) slots[idx].value = ch; });
+      const nextEmpty = slots.findIndex(s => !s.value);
+      (nextEmpty === -1 ? slots[slots.length - 1] : slots[nextEmpty]).focus();
+      if (allFilled()) onComplete(slots.map(s => s.value).join(''));
+    });
+  });
 }
 let modalNav    = null;      // { list, idx } — active navigation context for the detail modal
 let libVisible  = [];        // entries currently rendered in the library grid (for modal nav)
@@ -2191,9 +2237,9 @@ function renderWishlist() {
     searchEl?.classList.add('hidden');
     const countTop = document.getElementById('wish-count');
     if (countTop) countTop.textContent = '';
-    const pinInput = document.getElementById('wl-pin-input');
+    const pinGroup = document.querySelector('[data-pin-group="wl-pin"]');
     const pinSub   = document.getElementById('wl-pin-sub');
-    if (pinInput) pinInput.classList.toggle('hidden', !hasPin);
+    if (pinGroup) { pinGroup.classList.toggle('hidden', !hasPin); if (hasPin) clearPinSlots('wl-pin'); }
     if (pinSub) pinSub.textContent = hasPin ? 'Enter your PIN to unlock.' : 'Click to unlock.';
     const errEl = document.getElementById('wl-pin-error');
     if (errEl) errEl.textContent = '';
@@ -2696,13 +2742,42 @@ async function renderSettingsSection(section) {
           </div>
         </div>
 
-        <div class="settings-row">
-          <div><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="privacy-pin-input" class="lib-search-input" type="password" inputmode="numeric" maxlength="8" placeholder="${pinfo.hasPin ? 'New PIN' : 'Set a PIN'}" style="max-width:140px" />
-            <div class="btn-sm pri" id="privacy-pin-save">Save</div>
-            ${pinfo.hasPin ? '<div class="btn-sm sec" id="privacy-pin-remove">Remove</div>' : ''}
-          </div>
+        <div class="settings-row" style="flex-direction:column;align-items:stretch">
+          <div style="margin-bottom:12px"><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
+          ${!pinfo.hasPin ? `
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              ${pinSlotsHtml('privacy-pin-new')}
+              <div class="btn-sm pri" id="privacy-pin-save">Set PIN</div>
+            </div>
+          ` : privacyPinStep === 'confirmChange' ? `
+            <div class="settings-sub" style="margin-bottom:8px">Enter your current PIN to continue.</div>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              ${pinSlotsHtml('privacy-pin-verify')}
+              <div class="btn-sm pri" id="privacy-pin-verify-btn">Continue</div>
+              <div class="btn-sm sec" id="privacy-pin-cancel">Cancel</div>
+            </div>
+            <div class="settings-sub" id="privacy-pin-error" style="color:var(--coral-deep);margin-top:8px"></div>
+          ` : privacyPinStep === 'newPin' ? `
+            <div class="settings-sub" style="margin-bottom:8px">Enter a new PIN.</div>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              ${pinSlotsHtml('privacy-pin-new')}
+              <div class="btn-sm pri" id="privacy-pin-save">Save</div>
+              <div class="btn-sm sec" id="privacy-pin-cancel">Cancel</div>
+            </div>
+          ` : privacyPinStep === 'confirmRemove' ? `
+            <div class="settings-sub" style="margin-bottom:8px">Enter your current PIN to remove it.</div>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              ${pinSlotsHtml('privacy-pin-verify')}
+              <div class="btn-sm danger" id="privacy-pin-remove-btn">Remove PIN</div>
+              <div class="btn-sm sec" id="privacy-pin-cancel">Cancel</div>
+            </div>
+            <div class="settings-sub" id="privacy-pin-error" style="color:var(--coral-deep);margin-top:8px"></div>
+          ` : `
+            <div style="display:flex;gap:8px">
+              <div class="btn-sm sec" id="privacy-pin-start-change">Change PIN</div>
+              <div class="btn-sm sec" id="privacy-pin-start-remove">Remove PIN</div>
+            </div>
+          `}
         </div>
 
         <div class="settings-note">The PIN is optional. Without one, unlocking your Private wishlist is just a deliberate click — enough to avoid an accidental glance while sharing your screen, not real access control.</div>
@@ -2725,19 +2800,67 @@ async function renderSettingsSection(section) {
         await window.api.privacySetUnlockMins(mins);
         renderSettingsSection('Privacy');
       }));
-    document.getElementById('privacy-pin-save')?.addEventListener('click', async () => {
-      const input = document.getElementById('privacy-pin-input');
-      const val = input.value.trim();
-      if (!val) return;
-      settings.privacyPinHash = 'set';
-      await window.api.privacySetPin(val);
-      renderSettingsSection('Privacy');
-    });
-    document.getElementById('privacy-pin-remove')?.addEventListener('click', async () => {
-      settings.privacyPinHash = null;
-      await window.api.privacySetPin(null);
-      renderSettingsSection('Privacy');
-    });
+
+    if (!pinfo.hasPin) {
+      // No PIN yet — set one directly, no verification needed.
+      wirePinSlots('privacy-pin-new', () => {});
+      document.getElementById('privacy-pin-save')?.addEventListener('click', async () => {
+        const val = getPinValue('privacy-pin-new');
+        if (val.length !== 4) return;
+        settings.privacyPinHash = 'set';
+        await window.api.privacySetPin(val);
+        renderSettingsSection('Privacy');
+      });
+    } else if (privacyPinStep === 'confirmChange' || privacyPinStep === 'confirmRemove') {
+      const verify = async (pinArg) => {
+        const pin = pinArg !== undefined ? pinArg : getPinValue('privacy-pin-verify');
+        if (pin.length !== 4) return;
+        const ok = await window.api.privacyVerifyPin(pin).catch(() => false);
+        const errEl = document.getElementById('privacy-pin-error');
+        if (!ok) {
+          if (errEl) errEl.textContent = 'Wrong PIN.';
+          clearPinSlots('privacy-pin-verify');
+          return;
+        }
+        privacyPinStep = privacyPinStep === 'confirmChange' ? 'newPin' : 'confirmRemove-verified';
+        if (privacyPinStep === 'confirmRemove-verified') {
+          settings.privacyPinHash = null;
+          await window.api.privacySetPin(null);
+          privacyPinStep = null;
+        }
+        renderSettingsSection('Privacy');
+      };
+      wirePinSlots('privacy-pin-verify', verify);
+      document.getElementById('privacy-pin-verify-btn')?.addEventListener('click', () => verify());
+      document.getElementById('privacy-pin-remove-btn')?.addEventListener('click', () => verify());
+      document.getElementById('privacy-pin-cancel')?.addEventListener('click', () => {
+        privacyPinStep = null;
+        renderSettingsSection('Privacy');
+      });
+    } else if (privacyPinStep === 'newPin') {
+      wirePinSlots('privacy-pin-new', () => {});
+      document.getElementById('privacy-pin-save')?.addEventListener('click', async () => {
+        const val = getPinValue('privacy-pin-new');
+        if (val.length !== 4) return;
+        settings.privacyPinHash = 'set';
+        await window.api.privacySetPin(val);
+        privacyPinStep = null;
+        renderSettingsSection('Privacy');
+      });
+      document.getElementById('privacy-pin-cancel')?.addEventListener('click', () => {
+        privacyPinStep = null;
+        renderSettingsSection('Privacy');
+      });
+    } else {
+      document.getElementById('privacy-pin-start-change')?.addEventListener('click', () => {
+        privacyPinStep = 'confirmChange';
+        renderSettingsSection('Privacy');
+      });
+      document.getElementById('privacy-pin-start-remove')?.addEventListener('click', () => {
+        privacyPinStep = 'confirmRemove';
+        renderSettingsSection('Privacy');
+      });
+    }
 
   } else if (section === 'About') {
     const [version, installPath, dataPath] = await Promise.all([
@@ -4024,26 +4147,22 @@ async function init() {
   });
 
   // Private wishlist lock: PIN entry (or a plain click if no PIN is set)
-  const tryUnlockPrivateWishlist = async () => {
-    const input = document.getElementById('wl-pin-input');
+  const tryUnlockPrivateWishlist = async (pinArg) => {
     const errEl = document.getElementById('wl-pin-error');
-    const pin = input ? input.value.trim() : '';
+    const pin = pinArg !== undefined ? pinArg : getPinValue('wl-pin');
     const ok = await window.api.privacyVerifyPin(pin).catch(() => false);
     if (!ok) {
       if (errEl) errEl.textContent = 'Wrong PIN.';
-      if (input) { input.value = ''; input.focus(); }
+      clearPinSlots('wl-pin');
       return;
     }
     if (errEl) errEl.textContent = '';
-    if (input) input.value = '';
     const mins = settings.privacyUnlockMins || 0;
     privacyUnlockedUntil = mins > 0 ? Date.now() + mins * 60000 : Infinity;
     renderWishlist();
   };
-  document.getElementById('wl-unlock-btn')?.addEventListener('click', tryUnlockPrivateWishlist);
-  document.getElementById('wl-pin-input')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') tryUnlockPrivateWishlist();
-  });
+  document.getElementById('wl-unlock-btn')?.addEventListener('click', () => tryUnlockPrivateWishlist());
+  wirePinSlots('wl-pin', tryUnlockPrivateWishlist);
   document.getElementById('wish-lock-now')?.addEventListener('click', () => {
     privacyUnlockedUntil = null;
     renderWishlist();

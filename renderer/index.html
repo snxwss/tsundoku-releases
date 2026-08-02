@@ -216,8 +216,13 @@
             <div class="em-glyph">🔒</div>
             <div class="em-title">Private wishlist is locked</div>
             <div class="em-sub" id="wl-pin-sub">Enter your PIN to unlock.</div>
-            <input id="wl-pin-input" class="lib-search-input" type="password" inputmode="numeric" placeholder="PIN" style="max-width:200px;text-align:center;margin-top:14px" />
-            <div class="btn-sm pri" id="wl-unlock-btn" style="margin-top:12px">Unlock</div>
+            <div class="pin-slots" data-pin-group="wl-pin">
+              <input class="pin-slot" type="text" inputmode="numeric" maxlength="1" data-pin-idx="0" />
+              <input class="pin-slot" type="text" inputmode="numeric" maxlength="1" data-pin-idx="1" />
+              <input class="pin-slot" type="text" inputmode="numeric" maxlength="1" data-pin-idx="2" />
+              <input class="pin-slot" type="text" inputmode="numeric" maxlength="1" data-pin-idx="3" />
+            </div>
+            <div class="btn-lg pri" id="wl-unlock-btn">Unlock</div>
             <div class="em-sub" id="wl-pin-error" style="color:var(--coral-deep);margin-top:8px"></div>
           </div>
         </div>

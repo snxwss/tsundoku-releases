@@ -1968,8 +1968,10 @@ ipcMain.handle('export-data', async () => {
   if (r.canceled || !r.filePath) return { ok: false };
   const entries = Object.values(readStore());
   const exportSettings = { ...readSettings() };
-  delete exportSettings.vndbToken;     // never write the private API token into a backup file
-  delete exportSettings.privacyPinHash; // never write the privacy PIN into a backup file
+  delete exportSettings.vndbToken;          // never write the private API token into a backup file
+  delete exportSettings.privacyPinHash;     // never write the privacy PIN into a backup file
+  delete exportSettings.privacyLockEnabled; // lock config is per-device, not part of the library backup
+  delete exportSettings.privacyUnlockMins;
   const payload = {
     type: 'tsundoku-backup', version: 2,
     exportedAt: Date.now(), appVersion: app.getVersion(),

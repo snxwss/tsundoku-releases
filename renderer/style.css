@@ -314,6 +314,22 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .btn-sm:hover { transform: translateY(-1px); }
 .btn-sm:disabled { opacity: 0.4; pointer-events: none; transform: none; }
 
+.btn-lg { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; padding: 14px 34px; border-radius: 12px; cursor: pointer; user-select: none; transition: transform .1s; margin-top: 18px; }
+.btn-lg.pri { background: var(--accent-deep); color: oklch(0.97 0.01 154); border: 1.5px solid var(--accent-edge); box-shadow: 0 3px 0 var(--accent-edge); }
+.btn-lg.sec { background: var(--card); color: var(--ink); border: 1.5px solid var(--border); box-shadow: 0 3px 0 var(--edge); }
+.btn-lg:hover { transform: translateY(-1px); }
+.btn-lg:disabled { opacity: 0.4; pointer-events: none; transform: none; }
+.app2:not(.t-dark) .btn-lg.pri { background: var(--accent); color: var(--ink); }
+.app2.t-dark .btn-lg.pri { color: var(--on-accent); }
+
+.pin-slots { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.pin-slot {
+  width: 48px; height: 56px; text-align: center; font-family: 'Space Mono', monospace;
+  font-size: 22px; font-weight: 800; color: var(--ink); background: var(--card);
+  border: 2px solid var(--border); border-radius: 12px; box-shadow: 0 2px 0 var(--edge); outline: none;
+}
+.pin-slot:focus { border-color: var(--accent-deep); }
+
 /* Light themes: primary buttons (Launch / Continue / Add / Import / etc.) use the
    lighter accent fill with dark text instead of the deep saturated fill. The edge
    (border + 3D shadow) stays the mid tone so the button keeps its depth. Dark
