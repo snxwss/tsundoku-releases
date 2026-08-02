@@ -2,6 +2,18 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.11 — 2026-06-20
+
+**Privacy**
+- New Settings → Privacy tab: lock your Private wishlist behind a click (or an optional PIN), with a configurable unlock duration (5/15/30/60 minutes or until Tsundoku closes) and a "Lock now" button.
+
+**Detail modal**
+- 18+ titles now use VNDB's own screenshots instead of Steam's SFW store screenshots, falling back to Steam only when VNDB has none.
+- Fixed the modal's rounded corners clipping the scrollbar.
+
+**Windows**
+- Strengthened the fix for content rendering oversized after restoring a minimized window or moving to a monitor with a different scale — now forces a real relayout instead of a no-op zoom reapply.
+
 ## 1.2.10 — 2026-06-20
 
 **Detail modal**

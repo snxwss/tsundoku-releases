@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, shell, protocol, net } = require('electron');
-const path = require('path');
-const fs   = require('fs');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, shell, protocol, net, screen } = require('electron');
+const path   = require('path');
+const fs     = require('fs');
+const crypto = require('crypto');
 const zlib = require('zlib');
 const { spawn, execFile } = require('child_process');
 
@@ -312,6 +313,9 @@ const SETTINGS_DEFAULTS = {
   syncFolder:   null, // path to shared sync folder (Google Drive / Dropbox / etc.)
   lastSyncAt:   null, // timestamp of last successful sync (UI display)
   syncOptions: { library: true, hidden: true, preferences: true, appearance: true, history: true },
+  privacyLockEnabled: false, // require unlocking before viewing the Private wishlist
+  privacyPinHash:     null,  // optional PIN (sha256), null = unlock is a single click, no PIN required
+  privacyUnlockMins:  0,     // 0 = stay unlocked until Tsundoku is closed; else re-lock after N minutes
 };
 
 function readSettings() {
@@ -935,12 +939,25 @@ function createWindow() {
   win.on('unmaximize', () => win.webContents.send('win-maximized', false));
 
   // Windows sometimes fails to recompute the correct DPI scale factor when a
-  // window is restored from minimized, leaving content rendered oversized until
-  // a manual resize. Re-apply the zoom factor on restore to force a fresh layout.
-  win.on('restore', () => {
+  // window is restored from minimized (or moved to a monitor with a different
+  // scale), leaving content rendered oversized until a manual resize. Nudging
+  // the size by 1px and back forces Chromium to redo DPI-aware layout —
+  // reapplying the zoom factor alone is a no-op since it hasn't changed.
+  const nudgeRelayout = () => {
     try {
-      const z = (readSettings().zoom || 100) / 100;
-      win.webContents.setZoomFactor(z);
+      if (!win || win.isDestroyed() || win.isMinimized()) return;
+      const [w, h] = win.getSize();
+      win.setSize(w + 1, h);
+      win.setSize(w, h);
+    } catch {}
+  };
+  win.on('restore', nudgeRelayout);
+  let lastScaleFactor = null;
+  win.on('moved', () => {
+    try {
+      const sf = screen.getDisplayMatching(win.getBounds()).scaleFactor;
+      if (lastScaleFactor !== null && sf !== lastScaleFactor) nudgeRelayout();
+      lastScaleFactor = sf;
     } catch {}
   });
 
@@ -1111,7 +1128,8 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
 ipcMain.handle('restore-default-settings', () => {
   const KEEP = ['sessions', 'achievements', 'achSeenCount', 'collections',
     'scanDirs', 'scanDir', 'hiddenTags', 'dismissedScans', 'vndbUsername', 'vndbToken',
-    'syncFolder', 'syncOptions', 'lastSyncAt'];
+    'syncFolder', 'syncOptions', 'lastSyncAt',
+    'privacyLockEnabled', 'privacyPinHash', 'privacyUnlockMins'];
   const cur = readSettings();
   const next = { ...SETTINGS_DEFAULTS };
   for (const k of KEEP) if (cur[k] !== undefined) next[k] = cur[k];
@@ -1846,6 +1864,48 @@ ipcMain.handle('write-setting', (_e, key, value) => {
   return true;
 });
 
+// ── Privacy lock (Private wishlist) ────────────────────────────────────────────
+// The PIN is optional — most of the time this is just a "click to reveal" shield
+// for glancing away from the screen, not real access control. When a PIN is set
+// we only ever store/compare its sha256 hash, never the plaintext.
+const hashPin = pin => crypto.createHash('sha256').update(String(pin)).digest('hex');
+
+ipcMain.handle('privacy-get-info', () => {
+  const s = readSettings();
+  return {
+    lockEnabled: !!s.privacyLockEnabled,
+    hasPin:      !!s.privacyPinHash,
+    unlockMins:  s.privacyUnlockMins || 0,
+  };
+});
+
+ipcMain.handle('privacy-set-lock-enabled', (_e, enabled) => {
+  const s = readSettings();
+  s.privacyLockEnabled = !!enabled;
+  writeSettings(s);
+  return true;
+});
+
+ipcMain.handle('privacy-set-unlock-mins', (_e, mins) => {
+  const s = readSettings();
+  s.privacyUnlockMins = Number(mins) || 0;
+  writeSettings(s);
+  return true;
+});
+
+ipcMain.handle('privacy-set-pin', (_e, pin) => {
+  const s = readSettings();
+  s.privacyPinHash = pin ? hashPin(pin) : null;
+  writeSettings(s);
+  return true;
+});
+
+ipcMain.handle('privacy-verify-pin', (_e, pin) => {
+  const s = readSettings();
+  if (!s.privacyPinHash) return true;
+  return hashPin(pin) === s.privacyPinHash;
+});
+
 function getScanDirs(s) {
   const dirs = Array.isArray(s.scanDirs) ? s.scanDirs.slice() : [];
   if (!dirs.length && s.scanDir) dirs.push(s.scanDir);
@@ -1899,7 +1959,8 @@ ipcMain.handle('export-data', async () => {
   if (r.canceled || !r.filePath) return { ok: false };
   const entries = Object.values(readStore());
   const exportSettings = { ...readSettings() };
-  delete exportSettings.vndbToken; // never write the private API token into a backup file
+  delete exportSettings.vndbToken;     // never write the private API token into a backup file
+  delete exportSettings.privacyPinHash; // never write the privacy PIN into a backup file
   const payload = {
     type: 'tsundoku-backup', version: 2,
     exportedAt: Date.now(), appVersion: app.getVersion(),

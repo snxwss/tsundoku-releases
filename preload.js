@@ -84,6 +84,13 @@ contextBridge.exposeInMainWorld('api', {
   syncNow:        ()       => ipcRenderer.invoke('sync-now'),
   onSyncStatus:   (cb)     => ipcRenderer.on('sync-status', (_e, s) => cb(s)),
 
+  // Privacy lock (Private wishlist)
+  privacyGetInfo:      ()    => ipcRenderer.invoke('privacy-get-info'),
+  privacySetLockEnabled: (v) => ipcRenderer.invoke('privacy-set-lock-enabled', v),
+  privacySetUnlockMins: (m)  => ipcRenderer.invoke('privacy-set-unlock-mins', m),
+  privacySetPin:       (pin) => ipcRenderer.invoke('privacy-set-pin', pin),
+  privacyVerifyPin:    (pin) => ipcRenderer.invoke('privacy-verify-pin', pin),
+
   // Offline cache
   getCachedChars:      (id)        => ipcRenderer.invoke('get-cached-chars', id),
   cacheChars:          (id, chars) => ipcRenderer.invoke('cache-chars', id, chars),

@@ -203,6 +203,7 @@
               <div class="stog-btn" data-wishview="private">Private</div>
             </div>
             <input id="wish-search" class="lib-search-input" type="text" placeholder="Search wishlist…" />
+            <div class="btn-sm sec hidden" id="wish-lock-now">🔒 Lock now</div>
           </div>
           <div id="wish-alerts" class="wish-alerts hidden"></div>
           <div id="wishlist-grid" class="wish-grid"></div>
@@ -210,6 +211,14 @@
             <div class="em-glyph">♡</div>
             <div class="em-title">Nothing on your wishlist</div>
             <div class="em-sub">Browse VNDB and hover a cover<br />to wishlist titles for later.</div>
+          </div>
+          <div id="wishlist-lock" class="empty-state hidden">
+            <div class="em-glyph">🔒</div>
+            <div class="em-title">Private wishlist is locked</div>
+            <div class="em-sub" id="wl-pin-sub">Enter your PIN to unlock.</div>
+            <input id="wl-pin-input" class="lib-search-input" type="password" inputmode="numeric" placeholder="PIN" style="max-width:200px;text-align:center;margin-top:14px" />
+            <div class="btn-sm pri" id="wl-unlock-btn" style="margin-top:12px">Unlock</div>
+            <div class="em-sub" id="wl-pin-error" style="color:var(--coral-deep);margin-top:8px"></div>
           </div>
         </div>
       </div>
@@ -229,6 +238,7 @@
             <div class="settings-nav-item" data-section="NSFW">NSFW</div>
             <div class="settings-nav-item" data-section="Hidden">Hidden</div>
             <div class="settings-nav-item" data-section="Sync">Sync</div>
+            <div class="settings-nav-item" data-section="Privacy">Privacy</div>
             <div class="settings-nav-item" data-section="System">System</div>
             <div class="settings-nav-item" data-section="About">About</div>
           </aside>

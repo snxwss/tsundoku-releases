@@ -102,6 +102,12 @@ let libCollFilter  = null;   // null = no collection filter; string id when acti
 let wishSearch     = '';
 let wishView       = 'public'; // 'public' = wishlist, 'private' = wishlistPrivate
 let wishlistAlerts = [];     // [{ vnId, vnTitle, releases: [] }]
+let privacyUnlockedUntil = null; // ms timestamp, or Infinity for "until Tsundoku closes"; null = locked
+
+function isPrivateWishlistLocked() {
+  if (!settings.privacyLockEnabled) return false;
+  return !(privacyUnlockedUntil && (privacyUnlockedUntil === Infinity || Date.now() < privacyUnlockedUntil));
+}
 let modalNav    = null;      // { list, idx } — active navigation context for the detail modal
 let libVisible  = [];        // entries currently rendered in the library grid (for modal nav)
 let wishVisible = [];        // entries currently rendered in the wishlist grid (for modal nav)
@@ -2168,6 +2174,34 @@ function renderBrowseGrid(vns) {
 // ── WISHLIST ──────────────────────────────────────────────────────────────────
 function renderWishlist() {
   const isPrivate = wishView === 'private';
+  const locked = isPrivate && isPrivateWishlistLocked();
+  const lockEl     = document.getElementById('wishlist-lock');
+  const lockNowBtn = document.getElementById('wish-lock-now');
+  const searchEl   = document.getElementById('wish-search');
+
+  if (locked) {
+    const hasPin = !!settings.privacyPinHash;
+    lockEl?.classList.remove('hidden');
+    document.getElementById('wishlist-grid')?.classList.add('hidden');
+    document.getElementById('wishlist-empty')?.classList.add('hidden');
+    document.getElementById('wish-alerts')?.classList.add('hidden');
+    lockNowBtn?.classList.add('hidden');
+    searchEl?.classList.add('hidden');
+    const countTop = document.getElementById('wish-count');
+    if (countTop) countTop.textContent = '';
+    const pinInput = document.getElementById('wl-pin-input');
+    const pinSub   = document.getElementById('wl-pin-sub');
+    if (pinInput) pinInput.classList.toggle('hidden', !hasPin);
+    if (pinSub) pinSub.textContent = hasPin ? 'Enter your PIN to unlock.' : 'Click to unlock.';
+    const errEl = document.getElementById('wl-pin-error');
+    if (errEl) errEl.textContent = '';
+    wishVisible = [];
+    return;
+  }
+  lockEl?.classList.add('hidden');
+  searchEl?.classList.remove('hidden');
+  lockNowBtn?.classList.toggle('hidden', !(isPrivate && settings.privacyLockEnabled));
+
   const flag = isPrivate ? 'wishlistPrivate' : 'wishlist';
   let items = entries.filter(e => e[flag]).sort(byNewest);
   // Don't NSFW-hide the Private list — that's exactly where private/18+ titles live.
@@ -2419,7 +2453,7 @@ async function renderSettingsSection(section) {
         <div class="settings-h">NSFW / 18+</div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ covers in Browse</div><div class="settings-sub">Blur adult-rated cover images in browse and search</div></div>
+          <div><div class="settings-label">Blur 18+ in Browse</div><div class="settings-sub">Blur adult-rated cover images in browse and search</div></div>
           <div class="toggle-switch ${settings.nsfwBlurBrowse ? 'on' : ''}" id="tog-blur-browse"></div>
         </div>
 
@@ -2429,7 +2463,7 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ covers in your library</div><div class="settings-sub">Blur adult-rated cover images in Home, Library and Wishlist</div></div>
+          <div><div class="settings-label">Blur 18+ in your library</div><div class="settings-sub">Blur adult-rated cover images in Home, Library and Wishlist</div></div>
           <div class="toggle-switch ${settings.nsfwBlurLibrary ? 'on' : ''}" id="tog-blur-lib"></div>
         </div>
 
@@ -2637,6 +2671,66 @@ async function renderSettingsSection(section) {
       await window.api.syncNow().catch(() => {});
       if (btn) { btn.style.pointerEvents = ''; btn.style.opacity = ''; }
       if (st) { st.textContent = '✓ Synced'; setTimeout(() => { if (st) st.textContent = ''; }, 2000); }
+    });
+
+  } else if (section === 'Privacy') {
+    const pinfo = await window.api.privacyGetInfo().catch(() => ({ lockEnabled: false, hasPin: false, unlockMins: 0 }));
+    const DURATIONS = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 hour'], [0, 'Until closed']];
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3>Privacy</h3>
+
+        <div class="settings-row">
+          <div><div class="settings-label">Lock Private wishlist</div><div class="settings-sub">Require unlocking before viewing your Private wishlist tab</div></div>
+          <div class="toggle-switch ${pinfo.lockEnabled ? 'on' : ''}" id="tog-privacy-lock"></div>
+        </div>
+
+        <div class="settings-row">
+          <div><div class="settings-label">Stay unlocked for</div><div class="settings-sub">How long it stays unlocked once you enter — re-locks after this, or when you leave the tab with "Lock now"</div></div>
+          <div class="settings-toggle">
+            ${DURATIONS.map(([mins, label]) =>
+              `<div class="stog-btn ${(pinfo.unlockMins || 0) === mins ? 'on' : ''}" data-unlockmins="${mins}">${label}</div>`).join('')}
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="privacy-pin-input" class="lib-search-input" type="password" inputmode="numeric" maxlength="8" placeholder="${pinfo.hasPin ? 'New PIN' : 'Set a PIN'}" style="max-width:140px" />
+            <div class="btn-sm pri" id="privacy-pin-save">Save</div>
+            ${pinfo.hasPin ? '<div class="btn-sm sec" id="privacy-pin-remove">Remove</div>' : ''}
+          </div>
+        </div>
+
+        <div class="settings-note">The PIN is optional. Without one, unlocking your Private wishlist is just a deliberate click — enough to avoid an accidental glance while sharing your screen, not real access control.</div>
+      </div>`;
+
+    document.getElementById('tog-privacy-lock')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      const enabled = this.classList.contains('on');
+      settings.privacyLockEnabled = enabled;
+      await window.api.privacySetLockEnabled(enabled);
+      if (!enabled) { privacyUnlockedUntil = Infinity; if (activeView === 'wishlist') renderWishlist(); }
+    });
+    content.querySelectorAll('[data-unlockmins]').forEach(el =>
+      el.addEventListener('click', async () => {
+        const mins = parseInt(el.dataset.unlockmins);
+        settings.privacyUnlockMins = mins;
+        await window.api.privacySetUnlockMins(mins);
+        renderSettingsSection('Privacy');
+      }));
+    document.getElementById('privacy-pin-save')?.addEventListener('click', async () => {
+      const input = document.getElementById('privacy-pin-input');
+      const val = input.value.trim();
+      if (!val) return;
+      settings.privacyPinHash = 'set';
+      await window.api.privacySetPin(val);
+      renderSettingsSection('Privacy');
+    });
+    document.getElementById('privacy-pin-remove')?.addEventListener('click', async () => {
+      settings.privacyPinHash = null;
+      await window.api.privacySetPin(null);
+      renderSettingsSection('Privacy');
     });
 
   } else if (section === 'About') {
@@ -3089,7 +3183,7 @@ async function openModal(item, nav = null) {
   // title, cover, rating, year, tags, length, usually description). Enrich with the
   // full VNDB detail — mainly external links — in the background, so the modal no
   // longer sits on a blank "Loading…" while a serialized request resolves.
-  let charsData = null, steamData = null, vndbShots = null;
+  let charsData = null, steamData = null, vndbShots = null, currentNsfw = false;
 
   function paint(full) {
     if (token !== modalToken) return;
@@ -3142,6 +3236,7 @@ async function openModal(item, nav = null) {
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const nsfw     = isNsfw(full);
+  currentNsfw    = nsfw;
 
   const reopen = async () => {
     await loadEntries();
@@ -3348,7 +3443,11 @@ async function openModal(item, nav = null) {
     if (!box) return;
     const steamShots = (steamData && steamData.screenshots) || [];
     const onSteam = !!(steamData && steamData.storeUrl);
-    const shots = steamShots.length ? steamShots : (vndbShots || []);
+    // 18+ titles use VNDB's own screenshots (Steam store pages are SFW-only and
+    // rarely represent the actual content); everything else prefers Steam's gallery.
+    const shots = currentNsfw
+      ? ((vndbShots && vndbShots.length) ? vndbShots : steamShots)
+      : (steamShots.length ? steamShots : (vndbShots || []));
     if (!onSteam && !shots.length) { box.innerHTML = ''; return; }
     const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
     box.innerHTML = `
@@ -3361,9 +3460,10 @@ async function openModal(item, nav = null) {
       ).join('')}</div>` : ''}`;
     box.querySelector('.modal-steam-link')?.addEventListener('click', () =>
       window.api.openExternal(steamData.storeUrl));
-    const fullUrls = shots.map(s => s.full);
+    const fullUrls  = shots.map(s => s.full);
+    const blurFlags = shots.map(s => blur && s.sexual >= 1);
     box.querySelectorAll('.modal-steam-shot').forEach((img, i) =>
-      img.addEventListener('click', () => openLightbox(fullUrls, i)));
+      img.addEventListener('click', () => openLightbox(fullUrls, i, blurFlags)));
   }
 
   paint(item); // instant render with the data already on hand
@@ -3424,14 +3524,20 @@ function closeModal() {
   if (nextBtn) nextBtn.classList.add('hidden');
 }
 
-// Gallery lightbox: openLightbox(urlArray, startIndex).
+// Gallery lightbox: openLightbox(urlArray, startIndex, blurFlags?).
 // X button, prev/next arrows, Esc/ArrowLeft/ArrowRight navigation.
-let _lbShots = [];
-let _lbIdx   = 0;
+// blurFlags (optional, same length as shots): images flagged true stay blurred
+// behind a "click to reveal" gate, re-asked each time you navigate to them.
+let _lbShots    = [];
+let _lbIdx      = 0;
+let _lbBlur     = [];
+let _lbRevealed = new Set();
 
-function openLightbox(shots, idx) {
-  _lbShots = Array.isArray(shots) ? shots : [shots];
-  _lbIdx   = idx || 0;
+function openLightbox(shots, idx, blurFlags) {
+  _lbShots    = Array.isArray(shots) ? shots : [shots];
+  _lbIdx      = idx || 0;
+  _lbBlur     = Array.isArray(blurFlags) ? blurFlags : [];
+  _lbRevealed = new Set();
   let lb = document.getElementById('img-lightbox');
   if (!lb) {
     lb = document.createElement('div');
@@ -3440,13 +3546,19 @@ function openLightbox(shots, idx) {
     lb.innerHTML = `
       <div class="lb-close" id="lb-close">✕</div>
       <div class="lb-prev" id="lb-prev">&#8249;</div>
-      <img class="img-lightbox-img" alt="" />
+      <div class="lb-img-wrap">
+        <img class="img-lightbox-img" alt="" />
+        <div class="lb-reveal-gate" id="lb-reveal-gate"><div class="lb-reveal-btn">Click to reveal</div></div>
+      </div>
       <div class="lb-next" id="lb-next">&#8250;</div>
       <div class="lb-counter" id="lb-counter"></div>`;
     lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
     lb.querySelector('#lb-close').addEventListener('click', closeLightbox);
     lb.querySelector('#lb-prev').addEventListener('click', e => { e.stopPropagation(); lbNav(-1); });
     lb.querySelector('#lb-next').addEventListener('click', e => { e.stopPropagation(); lbNav(1); });
+    lb.querySelector('#lb-reveal-gate').addEventListener('click', e => {
+      e.stopPropagation(); _lbRevealed.add(_lbIdx); _lbRender();
+    });
     document.body.appendChild(lb);
   }
   _lbRender();
@@ -3473,6 +3585,9 @@ function _lbRender() {
   lb.querySelector('#lb-next').style.display    = multi ? '' : 'none';
   lb.querySelector('#lb-counter').style.display = multi ? '' : 'none';
   if (multi) lb.querySelector('#lb-counter').textContent = `${_lbIdx + 1} / ${_lbShots.length}`;
+  const gated = !!_lbBlur[_lbIdx] && !_lbRevealed.has(_lbIdx);
+  lb.querySelector('.img-lightbox-img').classList.toggle('lb-blurred', gated);
+  lb.querySelector('#lb-reveal-gate').classList.toggle('hidden', !gated);
 }
 
 // ── SCAN ──────────────────────────────────────────────────────────────────────
@@ -3807,6 +3922,15 @@ async function init() {
   // Auto theme: re-evaluate every minute so it flips at the scheduled times.
   setInterval(() => { if (themeMode === 'auto') applyTheme(); }, 60000);
 
+  // Re-lock the Private wishlist once its unlock timer expires, even if the
+  // user hasn't interacted with the tab since unlocking it.
+  setInterval(() => {
+    if (activeView === 'wishlist' && wishView === 'private' &&
+        privacyUnlockedUntil && privacyUnlockedUntil !== Infinity && Date.now() >= privacyUnlockedUntil) {
+      renderWishlist();
+    }
+  }, 15000);
+
   // Version in top bar
   const version = await window.api.getVersion().catch(() => null);
   const vEl = document.getElementById('tbar-version');
@@ -3880,6 +4004,32 @@ async function init() {
         b.classList.toggle('on', b.dataset.wishview === wishView));
       renderWishlist();
     });
+  });
+
+  // Private wishlist lock: PIN entry (or a plain click if no PIN is set)
+  const tryUnlockPrivateWishlist = async () => {
+    const input = document.getElementById('wl-pin-input');
+    const errEl = document.getElementById('wl-pin-error');
+    const pin = input ? input.value.trim() : '';
+    const ok = await window.api.privacyVerifyPin(pin).catch(() => false);
+    if (!ok) {
+      if (errEl) errEl.textContent = 'Wrong PIN.';
+      if (input) { input.value = ''; input.focus(); }
+      return;
+    }
+    if (errEl) errEl.textContent = '';
+    if (input) input.value = '';
+    const mins = settings.privacyUnlockMins || 0;
+    privacyUnlockedUntil = mins > 0 ? Date.now() + mins * 60000 : Infinity;
+    renderWishlist();
+  };
+  document.getElementById('wl-unlock-btn')?.addEventListener('click', tryUnlockPrivateWishlist);
+  document.getElementById('wl-pin-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryUnlockPrivateWishlist();
+  });
+  document.getElementById('wish-lock-now')?.addEventListener('click', () => {
+    privacyUnlockedUntil = null;
+    renderWishlist();
   });
 
   // Library sort
