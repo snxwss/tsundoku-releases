@@ -314,6 +314,8 @@ const SETTINGS_DEFAULTS = {
   nsfwBlur:         false,   // legacy (split into the two below)
   nsfwBlurLibrary:  false,   // blur 18+ covers in Home/Library/Wishlist
   nsfwBlurBrowse:   true,    // blur 18+ covers in Browse/Search (on by default)
+  nsfwBlurLibraryImages: false, // blur 18+ character art/screenshots in the detail modal, opened from Home/Library/Wishlist
+  nsfwBlurBrowseImages:  true,  // blur 18+ character art/screenshots in the detail modal, opened from Browse/Search
   browseNsfwFilter: true,    // hide 18+ in Browse lists (search still shows all)
   zoom:             100,
   showExcluded:     false,
@@ -373,7 +375,8 @@ const SYNC_FILENAME = 'tsundoku-sync.json';
 
 const SYNC_PREF_KEYS = [
   'cardSize', 'zoom',
-  'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
+  'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
+  'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
   'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
 const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
@@ -2063,7 +2066,8 @@ ipcMain.handle('import-data', async () => {
   let settingsApplied = false;
   if (data && data.settings && typeof data.settings === 'object') {
     const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
-      'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse', 'browseNsfwFilter',
+      'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
+      'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
       'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
     const local = readSettings();
     for (const k of PREF_KEYS) {

@@ -2,6 +2,11 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.17 — 2026-06-20
+
+**NSFW**
+- Added separate "Blur 18+ images" toggles for Browse and your library, controlling character art and screenshots in the detail modal independently from cover blurring.
+
 ## 1.2.16 — 2026-06-20
 
 - Bug fixes.

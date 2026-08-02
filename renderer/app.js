@@ -2531,6 +2531,11 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
+          <div><div class="settings-label">Blur 18+ images in Browse</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Browse</div></div>
+          <div class="toggle-switch ${settings.nsfwBlurBrowseImages ? 'on' : ''}" id="tog-blur-browse-images"></div>
+        </div>
+
+        <div class="settings-row">
           <div><div class="settings-label">Hide 18+ in Browse</div><div class="settings-sub">Filter adult-rated titles out of browse lists and search results</div></div>
           <div class="toggle-switch ${(settings.browseNsfwFilter ?? true) ? 'on' : ''}" id="tog-browse-nsfw"></div>
         </div>
@@ -2538,6 +2543,11 @@ async function renderSettingsSection(section) {
         <div class="settings-row">
           <div><div class="settings-label">Blur 18+ in your library</div><div class="settings-sub">Blur adult-rated cover images in Home, Library and Wishlist</div></div>
           <div class="toggle-switch ${settings.nsfwBlurLibrary ? 'on' : ''}" id="tog-blur-lib"></div>
+        </div>
+
+        <div class="settings-row">
+          <div><div class="settings-label">Blur 18+ images in your library</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Home/Library/Wishlist</div></div>
+          <div class="toggle-switch ${settings.nsfwBlurLibraryImages ? 'on' : ''}" id="tog-blur-lib-images"></div>
         </div>
 
         <div class="settings-row">
@@ -2555,10 +2565,18 @@ async function renderSettingsSection(section) {
       await setSetting('nsfwBlurBrowse', this.classList.contains('on'));
       renderBrowseGrid(browseVns);
     });
+    document.getElementById('tog-blur-browse-images')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      await setSetting('nsfwBlurBrowseImages', this.classList.contains('on'));
+    });
     document.getElementById('tog-blur-lib').addEventListener('click', async function() {
       this.classList.toggle('on');
       await setSetting('nsfwBlurLibrary', this.classList.contains('on'));
       renderHome(); renderLibrary(); renderWishlist();
+    });
+    document.getElementById('tog-blur-lib-images')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      await setSetting('nsfwBlurLibraryImages', this.classList.contains('on'));
     });
     document.getElementById('tog-browse-nsfw').addEventListener('click', async function() {
       this.classList.toggle('on');
@@ -3568,7 +3586,7 @@ async function openModal(item, nav = null) {
     if (token !== modalToken || !charsData || !charsData.length) return;
     const box = document.getElementById('m-characters');
     if (!box) return;
-    const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
+    const blur = activeView === 'browse' ? settings.nsfwBlurBrowseImages : settings.nsfwBlurLibraryImages;
     box.innerHTML = `
       <div class="mk">CHARACTERS</div>
       <div class="modal-chars-strip">
@@ -3613,7 +3631,7 @@ async function openModal(item, nav = null) {
       ? ((vndbShots && vndbShots.length) ? vndbShots : steamShots)
       : (steamShots.length ? steamShots : (vndbShots || []));
     if (!onSteam && !shots.length) { box.innerHTML = ''; return; }
-    const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
+    const blur = activeView === 'browse' ? settings.nsfwBlurBrowseImages : settings.nsfwBlurLibraryImages;
     box.innerHTML = `
       <div class="modal-steam-head">
         <span class="mk">${onSteam ? 'STEAM' : 'SCREENSHOTS'}</span>
