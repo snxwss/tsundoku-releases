@@ -2526,12 +2526,12 @@ async function renderSettingsSection(section) {
         <div class="settings-h">NSFW / 18+</div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ in Browse</div><div class="settings-sub">Blur adult-rated cover images in browse and search</div></div>
+          <div><div class="settings-label">Blur 18+ covers in Browse</div><div class="settings-sub">Blur adult-rated cover images in browse and search</div></div>
           <div class="toggle-switch ${settings.nsfwBlurBrowse ? 'on' : ''}" id="tog-blur-browse"></div>
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ images in Browse</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Browse</div></div>
+          <div><div class="settings-label">Blur 18+ screenshots in Browse</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Browse</div></div>
           <div class="toggle-switch ${settings.nsfwBlurBrowseImages ? 'on' : ''}" id="tog-blur-browse-images"></div>
         </div>
 
@@ -2541,12 +2541,12 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ in your library</div><div class="settings-sub">Blur adult-rated cover images in Home, Library and Wishlist</div></div>
+          <div><div class="settings-label">Blur 18+ covers in your library</div><div class="settings-sub">Blur adult-rated cover images in Home, Library and Wishlist</div></div>
           <div class="toggle-switch ${settings.nsfwBlurLibrary ? 'on' : ''}" id="tog-blur-lib"></div>
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Blur 18+ images in your library</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Home/Library/Wishlist</div></div>
+          <div><div class="settings-label">Blur 18+ screenshots in your library</div><div class="settings-sub">Blur adult-rated character art and screenshots in the detail modal, opened from Home/Library/Wishlist</div></div>
           <div class="toggle-switch ${settings.nsfwBlurLibraryImages ? 'on' : ''}" id="tog-blur-lib-images"></div>
         </div>
 
