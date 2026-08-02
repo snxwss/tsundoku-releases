@@ -579,6 +579,11 @@ function renderWindowIcon() {
 
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
+  // Leaving the Private wishlist tab re-locks it immediately — the unlock
+  // duration only covers staying idle ON the tab, not navigating away and back.
+  if (activeView === 'wishlist' && view !== 'wishlist' && wishView === 'private') {
+    privacyUnlockedUntil = null;
+  }
   activeView = view;
   document.querySelectorAll('.tnav').forEach(el =>
     el.classList.toggle('on', el.dataset.view === view));
@@ -2123,7 +2128,7 @@ async function runBrowseSearch() {
 }
 
 // Tags that are never acceptable — titles carrying these are removed entirely.
-const BLOCKED_TAG_FRAGMENTS = ['lolicon', 'shotacon', 'sex involving children'];
+const BLOCKED_TAG_FRAGMENTS = ['sex involving children'];
 function hasBlockedTag(vn) {
   return (vn.tags || []).some(t => {
     const name = (t.name || t || '').toLowerCase();
@@ -2735,14 +2740,14 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
-          <div><div class="settings-label">Stay unlocked for</div><div class="settings-sub">How long it stays unlocked once you enter — re-locks after this, or when you leave the tab with "Lock now"</div></div>
+          <div><div class="settings-label">Stay unlocked for</div><div class="settings-sub">How long it stays unlocked while you're on this tab. Switching to Public or leaving Wishlist always re-locks it immediately.</div></div>
           <div class="settings-toggle">
             ${DURATIONS.map(([mins, label]) =>
               `<div class="stog-btn ${(pinfo.unlockMins || 0) === mins ? 'on' : ''}" data-unlockmins="${mins}">${label}</div>`).join('')}
           </div>
         </div>
 
-        <div class="settings-row" style="flex-direction:column;align-items:stretch">
+        <div class="settings-row" style="flex-direction:column;align-items:stretch;justify-content:flex-start;gap:12px">
           <div style="margin-bottom:12px"><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
           ${!pinfo.hasPin ? `
             <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -4139,7 +4144,9 @@ async function init() {
   // Public / Private wishlist toggle
   document.querySelectorAll('#wish-view-toggle [data-wishview]').forEach(el => {
     el.addEventListener('click', () => {
+      const leavingPrivate = wishView === 'private' && el.dataset.wishview !== 'private';
       wishView = el.dataset.wishview;
+      if (leavingPrivate) privacyUnlockedUntil = null; // re-lock the moment you switch away
       document.querySelectorAll('#wish-view-toggle [data-wishview]').forEach(b =>
         b.classList.toggle('on', b.dataset.wishview === wishView));
       renderWishlist();

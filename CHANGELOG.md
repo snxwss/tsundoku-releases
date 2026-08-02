@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.14 — 2026-06-20
+
+**Privacy**
+- Fixed the Privacy PIN section rendering with a huge blank gap between the label and the buttons.
+- Leaving the Private wishlist tab (switching to Public, or navigating to another part of the app) now re-locks it immediately. The "Stay unlocked for" duration now only governs how long it stays unlocked while you remain on the tab.
+
 ## 1.2.13 — 2026-06-20
 
 **Privacy**
