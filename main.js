@@ -5,6 +5,15 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const { spawn, execFile } = require('child_process');
 
+// Windows recomputes the per-monitor DPI scale factor on window restore/move,
+// and Chromium sometimes fails to relayout content to match — leaving the UI
+// rendered oversized/undersized until a manual resize (a long-standing Electron/
+// Windows bug). Forcing a fixed scale factor sidesteps the recompute entirely;
+// the app's own Zoom setting (Settings → Appearance) already covers user-driven
+// scaling, so OS-level DPI scaling isn't needed on top of it.
+app.commandLine.appendSwitch('high-dpi-support', '1');
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
+
 // ── Taskbar icon (pure Node.js, no native deps) ───────────────────────────────
 // Renders the yellow tsundoku tile with a dark "積" glyph, returns a PNG buffer.
 function makeIconPng(S) {

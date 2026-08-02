@@ -609,8 +609,9 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .settings-content { flex: 1; padding: 32px 44px; overflow-y: auto; }
 .settings-section { max-width: 520px; margin-bottom: 44px; }
 .settings-h { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 22px; }
-.settings-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 0; border-bottom: 1.5px solid var(--line); gap: 24px; }
+.settings-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 0; border-bottom: 1.5px solid var(--line); gap: 24px; flex-wrap: wrap; }
 .settings-row:last-child { border-bottom: none; }
+.settings-row > div:first-child { flex: 1 1 220px; min-width: 200px; }
 .settings-label { font-size: 15px; font-weight: 700; color: var(--ink); }
 .settings-sub   { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--mut); margin-top: 4px; line-height: 1.55; }
 .settings-note { font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.6; color: var(--faint); margin-top: 18px; padding: 12px 14px; background: var(--panel); border: 1.5px solid var(--line-2); border-radius: 10px; }
@@ -625,7 +626,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .scan-dir-item { display: flex; gap: 10px; align-items: center; }
 .scan-dir-item .settings-path { flex: 1; min-width: 0; }
 .scan-dir-remove { flex-shrink: 0; color: var(--coral-deep) !important; border-color: var(--coral-deep) !important; }
-.settings-toggle { display: flex; gap: 5px; flex-shrink: 0; }
+.settings-toggle { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 .stog-btn { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; padding: 7px 13px; border-radius: 9px; border: 2px solid var(--line-2); color: var(--mut); background: var(--card); cursor: pointer; user-select: none; transition: all .12s; }
 .stog-btn.on    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .stog-btn:hover:not(.on) { border-color: var(--line); color: var(--ink); }

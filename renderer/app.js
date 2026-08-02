@@ -2086,7 +2086,9 @@ function hasBlockedTag(vn) {
 }
 
 // Lowercased set of tag names the user has chosen to auto-hide from discovery.
+// Empty when the master "Blocked tags" toggle is off, without touching the saved list.
 function hiddenTagSet() {
+  if (settings.hiddenTagsEnabled === false) return new Set();
   return new Set((settings.hiddenTags || []).map(t => (t.name || '').toLowerCase()));
 }
 // True if a VN carries any blocked tag (so it should be hidden from Browse/Search).
@@ -2199,6 +2201,7 @@ function renderWishlist() {
     return;
   }
   lockEl?.classList.add('hidden');
+  document.getElementById('wishlist-grid')?.classList.remove('hidden');
   searchEl?.classList.remove('hidden');
   lockNowBtn?.classList.toggle('hidden', !(isPrivate && settings.privacyLockEnabled));
 
@@ -2710,7 +2713,10 @@ async function renderSettingsSection(section) {
       const enabled = this.classList.contains('on');
       settings.privacyLockEnabled = enabled;
       await window.api.privacySetLockEnabled(enabled);
-      if (!enabled) { privacyUnlockedUntil = Infinity; if (activeView === 'wishlist') renderWishlist(); }
+      // Re-enabling should lock immediately, not silently stay unlocked from a
+      // stale session flag; disabling should stop gating even if it was mid-lock.
+      privacyUnlockedUntil = enabled ? null : Infinity;
+      if (activeView === 'wishlist') renderWishlist();
     });
     content.querySelectorAll('[data-unlockmins]').forEach(el =>
       el.addEventListener('click', async () => {
@@ -2792,7 +2798,11 @@ async function renderSettingsSection(section) {
       <div class="settings-section">
         <div class="settings-h">Hidden from browse</div>
 
-        <div class="settings-label">Blocked tags</div>
+        <div class="settings-row" style="padding-top:0">
+          <div><div class="settings-label">Blocked tags</div><div class="settings-sub">Turn off to temporarily allow everything, without losing your blocked list</div></div>
+          <div class="toggle-switch ${settings.hiddenTagsEnabled !== false ? 'on' : ''}" id="tog-hidden-tags-enabled"></div>
+        </div>
+
         <div class="settings-sub" style="margin:4px 0 12px">Auto-hide any title carrying a tag you block — applies across Browse &amp; Search.</div>
         <div class="hidden-tag-row">
           <input class="filter-input" id="hide-tag-input" type="text" placeholder="e.g. NTR, rape, pregnancy…" style="flex:1" />
@@ -2833,6 +2843,13 @@ async function renderSettingsSection(section) {
     const refreshBrowseForTags = () => {
       if (activeView === 'browse') renderBrowseGrid(browseVns);
     };
+    document.getElementById('tog-hidden-tags-enabled')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      const enabled = this.classList.contains('on');
+      settings.hiddenTagsEnabled = enabled;
+      await window.api.writeSetting('hiddenTagsEnabled', enabled);
+      refreshBrowseForTags();
+    });
     const addBlockedTag = async () => {
       const input    = document.getElementById('hide-tag-input');
       const statusEl = document.getElementById('hide-tag-status');

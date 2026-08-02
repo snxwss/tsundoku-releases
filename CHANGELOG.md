@@ -2,6 +2,18 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.12 — 2026-06-20
+
+**Fixes**
+- Fixed wishlist titles not showing after viewing a locked Private wishlist — the grid stayed hidden even after unlocking or switching back to Public.
+- Fixed re-enabling the Private wishlist lock not actually locking it if it was previously left unlocked.
+- Fixed the Privacy settings row (duration picker) squeezing its label text down to nothing — settings rows now reserve a minimum label width and wrap wide button groups onto their own line instead.
+- Replaced the reactive DPI-restore fix with a permanent one: the app now forces a fixed rendering scale factor, sidestepping the Windows/Electron bug entirely instead of patching individual triggers.
+
+**Settings**
+- Moved Privacy below Library in the settings sidebar.
+- Added a single "Blocked tags" master toggle in Settings → Hidden to temporarily allow everything without clearing your blocked list.
+
 ## 1.2.11 — 2026-06-20
 
 **Privacy**
