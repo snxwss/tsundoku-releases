@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.15 — 2026-06-20
+
+- Actually fixed the Privacy PIN section's huge blank gap this time — a flex-basis rule meant for horizontal rows was being reinterpreted as a ~220px minimum height once the row switched to a stacked layout.
+
 ## 1.2.14 — 2026-06-20
 
 **Privacy**

@@ -2128,8 +2128,15 @@ async function runBrowseSearch() {
 }
 
 // Tags that are never acceptable — titles carrying these are removed entirely.
-const BLOCKED_TAG_FRAGMENTS = ['sex involving children'];
+const BLOCKED_TAG_FRAGMENTS = ['sex involving children', 'shotacon', 'lolicon'];
+
+const BLOCKED_TAG_EXCEPTIONS = new Set([
+  'v27519',
+]);
+
 function hasBlockedTag(vn) {
+  if (BLOCKED_TAG_EXCEPTIONS.has(vn.id)) return false;
+
   return (vn.tags || []).some(t => {
     const name = (t.name || t || '').toLowerCase();
     return BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
@@ -2142,6 +2149,7 @@ function hiddenTagSet() {
   if (settings.hiddenTagsEnabled === false) return new Set();
   return new Set((settings.hiddenTags || []).map(t => (t.name || '').toLowerCase()));
 }
+
 // True if a VN carries any blocked tag (so it should be hidden from Browse/Search).
 function hasHiddenTag(vn, set = hiddenTagSet()) {
   if (!set.size) return false;
@@ -2748,7 +2756,7 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row" style="flex-direction:column;align-items:stretch;justify-content:flex-start;gap:12px">
-          <div style="margin-bottom:12px"><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
+          <div style="margin-bottom:12px;flex:none"><div class="settings-label">PIN</div><div class="settings-sub">${pinfo.hasPin ? 'A PIN is required to unlock' : 'Optional — without one, unlocking is a single click'}</div></div>
           ${!pinfo.hasPin ? `
             <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
               ${pinSlotsHtml('privacy-pin-new')}
