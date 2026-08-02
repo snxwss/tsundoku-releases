@@ -3089,7 +3089,7 @@ async function openModal(item, nav = null) {
   // title, cover, rating, year, tags, length, usually description). Enrich with the
   // full VNDB detail — mainly external links — in the background, so the modal no
   // longer sits on a blank "Loading…" while a serialized request resolves.
-  let charsData = null, steamData = null;
+  let charsData = null, steamData = null, vndbShots = null;
 
   function paint(full) {
     if (token !== modalToken) return;
@@ -3341,19 +3341,23 @@ async function openModal(item, nav = null) {
     requestAnimationFrame(syncArrows);
   }
 
-  // ── Steam: store link + screenshot gallery (lazy, cached in main) ──
+  // ── Screenshots: Steam gallery when available, VNDB screenshots as fallback ──
   function renderSteam() {
-    if (token !== modalToken || !steamData) return;  // not on Steam → render nothing
+    if (token !== modalToken) return;
     const box = document.getElementById('m-steam');
     if (!box) return;
-    const shots = steamData.screenshots || [];
+    const steamShots = (steamData && steamData.screenshots) || [];
+    const onSteam = !!(steamData && steamData.storeUrl);
+    const shots = steamShots.length ? steamShots : (vndbShots || []);
+    if (!onSteam && !shots.length) { box.innerHTML = ''; return; }
+    const blur = activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary;
     box.innerHTML = `
       <div class="modal-steam-head">
-        <span class="mk">STEAM</span>
-        <span class="modal-link modal-steam-link" data-url="${escHtml(steamData.storeUrl)}">${icon('browse', 11)} View on Steam</span>
+        <span class="mk">${onSteam ? 'STEAM' : 'SCREENSHOTS'}</span>
+        ${onSteam ? `<span class="modal-link modal-steam-link" data-url="${escHtml(steamData.storeUrl)}">${icon('browse', 11)} View on Steam</span>` : ''}
       </div>
       ${shots.length ? `<div class="modal-steam-shots">${shots.map(s =>
-        `<img class="modal-steam-shot" src="${escHtml(s.thumb)}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
+        `<img class="modal-steam-shot${blur && s.sexual >= 1 ? ' nsfw-blur' : ''}" src="${escHtml(s.thumb)}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
       ).join('')}</div>` : ''}`;
     box.querySelector('.modal-steam-link')?.addEventListener('click', () =>
       window.api.openExternal(steamData.storeUrl));
@@ -3389,6 +3393,12 @@ async function openModal(item, nav = null) {
     if (!data.results?.length) return;
     const full = data.results[0];
     paint({ ...item, ...full });
+    if (Array.isArray(full.screenshots)) {
+      vndbShots = full.screenshots
+        .filter(s => s && s.url)
+        .map(s => ({ thumb: s.thumbnail || s.url, full: s.url, sexual: Number(s.sexual || 0) }));
+      renderSteam();
+    }
     const e = entryById(item.id);
     if (e && (e.library || e.wishlist || e.wishlistPrivate) && Array.isArray(full.extlinks)) {
       window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});

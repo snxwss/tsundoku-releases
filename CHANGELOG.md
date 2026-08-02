@@ -2,6 +2,14 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.10 — 2026-06-20
+
+**Detail modal**
+- Screenshot gallery now falls back to VNDB screenshots when a title isn't on Steam or Steam has none. Adult-rated screenshots are blurred, matching the existing cover/character blur setting.
+
+**Windows**
+- Fixed content rendering oversized after restoring a minimized window — zoom is now reapplied on restore.
+
 ## 1.2.9 — 2026-06-20
 
 - Auto schedule inputs now accept 3-digit shorthand (e.g. 800 → 8:00) and reject invalid hours (e.g. 80 reverts).

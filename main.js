@@ -934,6 +934,16 @@ function createWindow() {
   win.on('maximize',   () => win.webContents.send('win-maximized', true));
   win.on('unmaximize', () => win.webContents.send('win-maximized', false));
 
+  // Windows sometimes fails to recompute the correct DPI scale factor when a
+  // window is restored from minimized, leaving content rendered oversized until
+  // a manual resize. Re-apply the zoom factor on restore to force a fresh layout.
+  win.on('restore', () => {
+    try {
+      const z = (readSettings().zoom || 100) / 100;
+      win.webContents.setZoomFactor(z);
+    } catch {}
+  });
+
   // Close button → hide to tray (keep running) unless really quitting or the
   // "minimize on close" setting is off.
   win.on('close', (e) => {
@@ -1273,7 +1283,7 @@ const vndbVN = (body, opts = {}) => vndbFetch('vn', body, opts);
 // misses adult titles with tame covers).
 const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.name, length, length_minutes, tags.name, tags.category, tags.rating';
 // Full detail fields for single-VN fetch
-const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name';
+const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name, screenshots.url, screenshots.thumbnail, screenshots.sexual';
 
 // Tags whose presence makes a title completely unacceptable — never stored, never shown.
 // Matched as lowercase substrings so all variants (e.g. "Lesbian Lolicon") are caught.

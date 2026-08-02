@@ -703,6 +703,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-steam-shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .modal-steam-shot { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--line-2); cursor: pointer; transition: border-color .12s, transform .1s; background: var(--panel); display: block; }
 .modal-steam-shot:hover { border-color: var(--accent-edge); transform: translateY(-1px); }
+.modal-steam-shot.nsfw-blur { filter: blur(14px); }
 
 /* Full-screenshot lightbox */
 .img-lightbox { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); padding: 4vh 4vw; }
