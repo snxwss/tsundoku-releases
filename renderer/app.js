@@ -2128,21 +2128,32 @@ async function runBrowseSearch() {
 }
 
 // Tags that are never acceptable — titles carrying these are removed entirely.
-const BLOCKED_TAG_FRAGMENTS = ['sex involving children', 'shotacon', 'lolicon'];
+const BLOCKED_TAG_FRAGMENTS = [
+  'sex involving children',
+  'shotacon',
+  'lolicon'
+];
 
 const BLOCKED_TAG_EXCEPTIONS = new Set([
   'v27519',
 ]);
 
 function hasBlockedTag(vn) {
-  if (BLOCKED_TAG_EXCEPTIONS.has(vn.id)) return false;
+  const id = String(vn.id || '').trim().toLowerCase();
+
+  // Exception titles bypass blocked tag removal.
+  if (BLOCKED_TAG_EXCEPTIONS.has(id)) {
+    return false;
+  }
 
   return (vn.tags || []).some(t => {
-    const name = (t.name || t || '').toLowerCase();
-    return BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
+    const name = String(t.name || t || '').toLowerCase();
+
+    return BLOCKED_TAG_FRAGMENTS.some(f =>
+      name.includes(f)
+    );
   });
 }
-
 // Lowercased set of tag names the user has chosen to auto-hide from discovery.
 // Empty when the master "Blocked tags" toggle is off, without touching the saved list.
 function hiddenTagSet() {

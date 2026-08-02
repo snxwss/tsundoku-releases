@@ -1314,19 +1314,33 @@ const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.of
 
 // Tags whose presence makes a title completely unacceptable — never stored, never shown.
 // Matched as lowercase substrings so all variants (e.g. "Lesbian Lolicon") are caught.
-const BLOCKED_TAG_FRAGMENTS = ['sex involving children', 'shotacon', 'lolicon'];
+const BLOCKED_TAG_FRAGMENTS = [
+  'sex involving children',
+  'shotacon',
+  'lolicon'
+];
 
+// Titles that are allowed even if they contain blocked tags.
 const BLOCKED_TAG_EXCEPTIONS = new Set([
   'v27519',
 ]);
 
 function hasBlockedTag(vn) {
-  if (BLOCKED_TAG_EXCEPTIONS.has(vn.id)) return false;
+  const id = String(vn.id || '').trim().toLowerCase();
+
+  // Allow explicitly approved titles through.
+  if (BLOCKED_TAG_EXCEPTIONS.has(id)) {
+    return false;
+  }
 
   const tags = vn.tags || [];
+
   return tags.some(t => {
-    const name = (t.name || t || '').toLowerCase();
-    return BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
+    const name = String(t.name || t || '').toLowerCase();
+
+    return BLOCKED_TAG_FRAGMENTS.some(fragment =>
+      name.includes(fragment)
+    );
   });
 }
 
