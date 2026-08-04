@@ -2154,7 +2154,8 @@ async function runBrowseSearch() {
 const BLOCKED_TAG_FRAGMENTS = [
   'sex involving children',
   'shotacon',
-  'lolicon'
+  'lolicon',
+  'rape by shota'
 ];
 
 const BLOCKED_TAG_EXCEPTIONS = new Set([

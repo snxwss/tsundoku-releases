@@ -1327,7 +1327,8 @@ const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.of
 const BLOCKED_TAG_FRAGMENTS = [
   'sex involving children',
   'shotacon',
-  'lolicon'
+  'lolicon',
+  'rape by shota'
 ];
 
 // Titles that are allowed even if they contain blocked tags.
@@ -1343,10 +1344,10 @@ function hasBlockedTag(vn) {
     return false;
   }
 
-  const tags = vn.tags || [];
+  const tags = Array.isArray(vn.tags) ? vn.tags : [];
 
   return tags.some(t => {
-    const name = String(t.name || t || '').toLowerCase();
+    const name = String(t?.name || t || '').toLowerCase().trim();
 
     return BLOCKED_TAG_FRAGMENTS.some(fragment =>
       name.includes(fragment)

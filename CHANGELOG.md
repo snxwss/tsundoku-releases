@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.21 — 2026-06-20
+
+**Fixes**
+- Fixed the "Load more" button in Browse never actually appearing — a CSS `!important` rule was silently overriding the JS that was supposed to show it.
+- Fixed a remaining edge case in the screenshot lightbox where a blur could lag a frame behind on fast navigation — the reveal gate is now fully opaque instead of relying on the image's blur filter alone.
+
 ## 1.2.20 — 2026-06-20
 
 **Browse**
