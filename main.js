@@ -1495,21 +1495,31 @@ ipcMain.handle('vndb-search', async (_e, query, sort = 'rating', opts = {}) =>
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
 const tagSearchCache = new Map();
+// Punctuation-insensitive normalization so "bla-bla" / "bla bla" / "bla_bla" all
+// match a VNDB tag actually named "Bla/Bla".
+const normalizeTagQuery = s => s.toLowerCase().replace(/[-_/.]+/g, ' ').replace(/\s+/g, ' ').trim();
+
 ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   const { nsfw = true } = opts || {};
-  if (!name || !name.trim()) return null;
-  if (BLOCKED_TAG_FRAGMENTS.some(f => name.trim().toLowerCase().includes(f))) return null;
-  const cacheKey = `${name.trim().toLowerCase()}|${nsfw}`;
+  const raw = (name || '').trim();
+  if (!raw) return null;
+  if (BLOCKED_TAG_FRAGMENTS.some(f => raw.toLowerCase().includes(f))) return null;
+  const query = normalizeTagQuery(raw);
+  if (!query) return null;
+  const cacheKey = `${query}|${nsfw}`;
   if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);
   try {
     // Short timeout/retry ceiling — this is an inline interactive lookup (the input
     // is disabled while it's in flight), not a background fetch, so it should fail
     // fast under VNDB rate-limiting instead of the field looking "frozen" for ~40s.
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 6000, maxRetries: 1 });
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', query], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 6000, maxRetries: 1 });
     let results = (d.results || []).filter(t => !BLOCKED_TAG_FRAGMENTS.some(f => t.name.toLowerCase().includes(f)));
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
-    const result = { id: results[0].id, name: results[0].name };
+    // Prefer an exact (punctuation-insensitive) name match over the merely most-popular substring match.
+    const exact = results.find(t => normalizeTagQuery(t.name) === query);
+    const best = exact || results[0];
+    const result = { id: best.id, name: best.name };
     tagSearchCache.set(cacheKey, result);
     return result;
   } catch { return null; }

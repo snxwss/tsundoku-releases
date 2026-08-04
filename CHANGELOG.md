@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.19 — 2026-06-20
+
+- Tag search now ignores punctuation differences — "bla-bla", "bla/bla", and "bla bla" all match a tag named any of those, and an exact match is now preferred over just the most popular substring match.
+
 ## 1.2.18 — 2026-06-20
 
 **Performance**
