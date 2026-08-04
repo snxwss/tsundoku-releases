@@ -1952,9 +1952,12 @@ function initBrowse() {
   const addBrowseTag = async () => {
     const name = tagInput.value.trim();
     if (!name) return;
+    const origPlaceholder = tagInput.placeholder;
     tagInput.disabled = true;
+    tagInput.placeholder = 'Searching…';
     const tag = await window.api.vndbTagSearch(name).catch(() => null);
     tagInput.disabled = false;
+    tagInput.placeholder = origPlaceholder;
     tagInput.focus();
     if (!tag) { showBrowseStatus(`No tag matching “${name}”.`); return; }
     if (browseTagIds.some(t => t.id === tag.id)) { tagInput.value = ''; return; }

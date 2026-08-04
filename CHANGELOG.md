@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.18 — 2026-06-20
+
+**Performance**
+- Fixed the Browse tag search field appearing to freeze during VNDB rate-limiting — it now fails fast (~20s worst case instead of ~40s) and shows "Searching…" while it works.
+- Raised max concurrent VNDB requests from 3 to 4 to better absorb bursty usage (scrolling, opening several titles quickly, typing tag searches) before hitting rate limits.
+
 ## 1.2.17 — 2026-06-20
 
 **NSFW**

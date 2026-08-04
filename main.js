@@ -1216,7 +1216,7 @@ const VNDB_GAP_MIN = 160;
 const VNDB_GAP_MAX = 600;
 let vndbGap = VNDB_GAP_MIN;
 const PRI = { HIGH: 2, NORMAL: 1, LOW: 0 };
-const VNDB_MAX_CONCURRENT = 3;
+const VNDB_MAX_CONCURRENT = 4;
 const VNDB_MAX_LOW = 1;          // at most one background request in flight
 const vndbQueue = [];
 let vndbActive = 0;
@@ -1275,7 +1275,7 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
   finally { clearTimeout(t); }
 }
 
-function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {} } = {}) {
+function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {}, timeoutMs = 10000, maxRetries = 5 } = {}) {
   return vndbEnqueue(async () => {
     for (let attempt = 0; ; attempt++) {
       let res;
@@ -1284,14 +1284,14 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {} } = {})
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify(body),
-        }, 10000);
+        }, timeoutMs);
       } catch (e) {
         // Timeout / network drop. One quick retry, then give up so the slot frees
         // up instead of wedging on a dead request.
         if (attempt < 1) { await new Promise(r => setTimeout(r, 700)); continue; }
         throw new Error('VNDB timeout');
       }
-      if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
         vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 250); // back off globally
         const ra = parseInt(res.headers.get('retry-after'), 10);
         const ms = Number.isFinite(ra) ? ra * 1000 : Math.min(8000, 1000 * 2 ** attempt);
@@ -1502,7 +1502,10 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   const cacheKey = `${name.trim().toLowerCase()}|${nsfw}`;
   if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);
   try {
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH });
+    // Short timeout/retry ceiling — this is an inline interactive lookup (the input
+    // is disabled while it's in flight), not a background fetch, so it should fail
+    // fast under VNDB rate-limiting instead of the field looking "frozen" for ~40s.
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', name.trim()], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 6000, maxRetries: 1 });
     let results = (d.results || []).filter(t => !BLOCKED_TAG_FRAGMENTS.some(f => t.name.toLowerCase().includes(f)));
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
