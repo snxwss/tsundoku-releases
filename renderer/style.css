@@ -728,10 +728,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .img-lightbox-img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); cursor: default; display: block; }
 .lb-img-wrap { position: relative; max-width: 100%; max-height: 100%; display: flex; }
 .img-lightbox-img.lb-blurred { filter: blur(28px); transform: scale(1.03); }
-/* Fully opaque — this is what actually hides the image, not the underlying blur
-   filter. The filter can lag a frame behind a src/class change on fast navigation;
-   an opaque gate on top means that lag is never visible, regardless of timing. */
-.lb-reveal-gate { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; background: oklch(0.12 0.015 160); }
+.lb-reveal-gate { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .lb-reveal-gate.hidden { display: none; pointer-events: none; }
 .lb-reveal-btn { background: rgba(0,0,0,0.55); color: #fff; font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.35); }
 .lb-close { position: absolute; top: 16px; right: 16px; z-index: 1; width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.15); color: #fff; display: grid; place-items: center; font-size: 16px; cursor: pointer; transition: background .12s; }

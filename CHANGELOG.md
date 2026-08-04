@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.22 — 2026-06-20
+
+**Fixes**
+- Reverted the screenshot reveal-gate to a translucent overlay — the fully opaque version from 1.2.21 blacked out the preview entirely instead of just closing a minor timing gap.
+- Wired up F12 / Ctrl+Shift+I to open DevTools — it wasn't registered at all in this frameless window, so the console was unreachable.
+
 ## 1.2.21 — 2026-06-20
 
 **Fixes**

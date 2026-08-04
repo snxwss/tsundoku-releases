@@ -946,6 +946,16 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.once('did-finish-load', () => { try { win.setTitle('Tsundoku'); } catch {} });
 
+  // F12 / Ctrl+Shift+I toggles DevTools. There's no app menu (frameless custom
+  // window), so Electron's default accelerator for this never gets registered —
+  // wire it manually so the console is reachable for bug reports.
+  win.webContents.on('before-input-event', (_e, input) => {
+    if (input.type !== 'keyDown') return;
+    const isF12 = input.key === 'F12';
+    const isCtrlShiftI = input.control && input.shift && input.key.toLowerCase() === 'i';
+    if (isF12 || isCtrlShiftI) win.webContents.toggleDevTools();
+  });
+
   // Tell renderer when maximize state changes
   win.on('maximize',   () => win.webContents.send('win-maximized', true));
   win.on('unmaximize', () => win.webContents.send('win-maximized', false));
