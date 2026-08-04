@@ -2,6 +2,15 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.2.20 — 2026-06-20
+
+**Browse**
+- Added a "Load more" button below the grid — recovers a stalled infinite-scroll without losing your scroll position (unlike Refresh, which resets to page 1).
+
+**Fixes**
+- Fixed cover images that could hang indefinitely on a stalled connection instead of failing and retrying.
+- Fixed the screenshot lightbox briefly showing the previous (wrongly blurred/unblurred) image when rapidly cycling through screenshots — Chromium was decoding the new image asynchronously, so it could keep painting the old one for a frame while the new one loaded.
+
 ## 1.2.19 — 2026-06-20
 
 - Tag search now ignores punctuation differences — "bla-bla", "bla/bla", and "bla bla" all match a tag named any of those, and an exact match is now preferred over just the most popular substring match.

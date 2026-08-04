@@ -1006,7 +1006,14 @@ if (!gotLock) {
       }
       if (!src) return new Response(null, { status: 404 });
       try {
-        const res = await net.fetch(decodeURIComponent(src));
+        // A hard timeout so a single slow/stalled image can't hang forever — without
+        // this, a bad connection to the CDN would just leave that cover blank
+        // indefinitely instead of failing and letting a later retry succeed.
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12000);
+        let res;
+        try { res = await net.fetch(decodeURIComponent(src), { signal: ctrl.signal }); }
+        finally { clearTimeout(t); }
         if (!res.ok) return new Response(null, { status: res.status });
         const buf = Buffer.from(await res.arrayBuffer());
         try { fs.writeFileSync(cached, buf); } catch {}

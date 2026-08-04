@@ -2019,6 +2019,15 @@ function initBrowse() {
     });
   }
 
+  // Manual "Load more" — same recovery value as Refresh (clears any stuck in-flight
+  // flags) but continues from the current page instead of resetting to page 1, so a
+  // stalled infinite-scroll doesn't cost you your scroll position.
+  document.getElementById('browse-load-more')?.addEventListener('click', () => {
+    browseLoading = false;
+    browseFilling = false;
+    loadBrowse(true);
+  });
+
   // Infinite scroll: observer + direct scroll fallback. The fallback matters when
   // layout changes while the sentinel is already visible, which may not emit a new
   // IntersectionObserver transition.
@@ -2043,6 +2052,7 @@ function resetBrowse() {
   browsePage = 1; browseMore = true; browseVns = [];
   document.getElementById('browse-grid').innerHTML = '';
   document.getElementById('browse-status').classList.add('hidden');
+  updateLoadMoreBtn();
 }
 
 function showBrowseStatus(text) {
@@ -2086,9 +2096,18 @@ async function browseFill() {
   } finally { browseFilling = false; }
 }
 
+function updateLoadMoreBtn() {
+  const btn = document.getElementById('browse-load-more');
+  if (!btn) return;
+  const show = !browseIsSearch && browseMore && !browseLoading && browseVns.length > 0;
+  btn.style.display = show ? '' : 'none';
+  btn.textContent = browseLoading ? 'Loading…' : 'Load more';
+}
+
 async function loadBrowse(append = false) {
   if (browseLoading) return;
   browseLoading = true;
+  updateLoadMoreBtn();
   if (!append) showBrowseStatus('Loading…');
   try {
     const opts = { page: browsePage, ...currentFilterOpts() };
@@ -2105,6 +2124,7 @@ async function loadBrowse(append = false) {
     showBrowseStatus('Error: ' + err.message);
   } finally {
     browseLoading = false;
+    updateLoadMoreBtn();
   }
 }
 
@@ -3732,7 +3752,7 @@ function openLightbox(shots, idx, blurFlags) {
       <div class="lb-close" id="lb-close">✕</div>
       <div class="lb-prev" id="lb-prev">&#8249;</div>
       <div class="lb-img-wrap">
-        <img class="img-lightbox-img" alt="" />
+        <img class="img-lightbox-img" alt="" decoding="sync" />
         <div class="lb-reveal-gate" id="lb-reveal-gate"><div class="lb-reveal-btn">Click to reveal</div></div>
       </div>
       <div class="lb-next" id="lb-next">&#8250;</div>
