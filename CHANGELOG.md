@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.3 — 2026-06-20
+
+- Fixed Steam/JAST links sometimes not appearing even when they exist — a background refresh could wipe them out if it finished after they were already shown; it now reapplies them correctly regardless of which finishes first.
+
 ## 1.3.2 — 2026-06-20
 
 - JAST links pointing to the retired jastusa.com domain (still stored on many VNDB entries) are now rewritten to jaststore.com instead of sending you to the old site.

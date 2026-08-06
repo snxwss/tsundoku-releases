@@ -3690,20 +3690,27 @@ async function openModal(item, nav = null) {
       if (cached && token === modalToken) { charsData = cached; renderChars(); }
     });
 
-  window.api.steamAppDetails(item.id).then(s => {
-    steamData = s;
-    renderSteam();
-    if (token !== modalToken) return;
+  // Idempotent — reads from steamData rather than a one-shot argument, so it can
+  // safely be re-run after paint() regenerates #m-store-links (paint() runs again
+  // once vndbGet resolves, which can land before OR after steamAppDetails).
+  function renderStoreLinks() {
+    if (token !== modalToken || !steamData) return;
     const box = document.getElementById('m-store-links');
     if (!box) return;
     const storeLinks = [];
-    if (s?.storeUrl) storeLinks.push({ label: 'Steam', url: s.storeUrl });
-    if (s?.jastUrl)  storeLinks.push({ label: 'JAST',  url: s.jastUrl });
+    if (steamData.storeUrl) storeLinks.push({ label: 'Steam', url: steamData.storeUrl });
+    if (steamData.jastUrl)  storeLinks.push({ label: 'JAST',  url: steamData.jastUrl });
     box.innerHTML = storeLinks.map(l =>
       `<span class="modal-link" data-url="${escHtml(l.url)}">${icon('browse', 11)} ${escHtml(l.label)}</span>`
     ).join('');
     box.querySelectorAll('.modal-link[data-url]').forEach(el =>
       el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
+  }
+
+  window.api.steamAppDetails(item.id).then(s => {
+    steamData = s;
+    renderSteam();
+    renderStoreLinks();
   }).catch(() => {});
 
   // Background enrich: full VNDB detail (external links + meta). Store extlinks in the
@@ -3713,6 +3720,7 @@ async function openModal(item, nav = null) {
     if (!data.results?.length) return;
     const full = data.results[0];
     paint({ ...item, ...full });
+    renderStoreLinks();
     if (Array.isArray(full.screenshots)) {
       vndbShots = full.screenshots
         .filter(s => s && s.url)
