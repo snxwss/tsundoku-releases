@@ -1565,13 +1565,15 @@ const STEAM_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
 // Find the Steam appid + a JAST store link for a VN via its VNDB releases'
 // external links. VNDB has no dedicated "JAST" extlink type — a JAST-published
-// release just shows a generic "website" link, so we match by hostname instead.
+// release just shows a generic "website" link, so we match by hostname/label
+// instead. JAST rebranded jastusa.com -> jaststore.com at some point, so match
+// broadly (any hostname containing "jast") rather than one fixed domain.
 async function storeLinksForVn(vnId) {
   let d;
   try {
     d = await vndbFetch('release', {
       filters: ['vn', '=', ['id', '=', vnId]],
-      fields: 'extlinks.url, extlinks.name',
+      fields: 'extlinks.url, extlinks.name, extlinks.label',
       results: 100, // VNDB page max; most VNs have far fewer releases than this
     }, { priority: PRI.HIGH });
   } catch { return { steamAppId: null, jastUrl: null }; }
@@ -1584,9 +1586,10 @@ async function storeLinksForVn(vnId) {
         if (m) steamAppId = m[1];
       }
       if (!jastUrl) {
-        try {
-          if (/(^|\.)jast\w*\./i.test(new URL(l.url).hostname)) jastUrl = l.url;
-        } catch {}
+        const label = (l.label || '').toLowerCase();
+        let host = '';
+        try { host = new URL(l.url).hostname.toLowerCase(); } catch {}
+        if (host.includes('jast') || label.includes('jast')) jastUrl = l.url;
       }
     }
   }
