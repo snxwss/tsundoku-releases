@@ -3497,7 +3497,7 @@ async function openModal(item, nav = null) {
 
     ${linksHtml ? `<div class="modal-links-row">
       <div class="mk">LINKS</div>
-      <div class="modal-links">${linksHtml}</div>
+      <div class="modal-links">${linksHtml}<span id="m-store-links"></span></div>
     </div>` : ''}
 
     ${desc ? `<div class="modal-desc">${escHtml(desc).replace(/\n/g, '<br>')}</div>` : ''}
@@ -3690,7 +3690,21 @@ async function openModal(item, nav = null) {
       if (cached && token === modalToken) { charsData = cached; renderChars(); }
     });
 
-  window.api.steamAppDetails(item.id).then(s => { steamData = s; renderSteam(); }).catch(() => {});
+  window.api.steamAppDetails(item.id).then(s => {
+    steamData = s;
+    renderSteam();
+    if (token !== modalToken) return;
+    const box = document.getElementById('m-store-links');
+    if (!box) return;
+    const storeLinks = [];
+    if (s?.storeUrl) storeLinks.push({ label: 'Steam', url: s.storeUrl });
+    if (s?.jastUrl)  storeLinks.push({ label: 'JAST',  url: s.jastUrl });
+    box.innerHTML = storeLinks.map(l =>
+      `<span class="modal-link" data-url="${escHtml(l.url)}">${icon('browse', 11)} ${escHtml(l.label)}</span>`
+    ).join('');
+    box.querySelectorAll('.modal-link[data-url]').forEach(el =>
+      el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
+  }).catch(() => {});
 
   // Background enrich: full VNDB detail (external links + meta). Store extlinks in the
   // entry so the modal can show them offline next time.

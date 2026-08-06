@@ -1563,8 +1563,10 @@ ipcMain.handle('vndb-producer-search', async (_e, name) => {
 const steamCache = new Map(); // vnId -> { data, ts }
 const STEAM_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
-// Find the Steam appid for a VN via its VNDB releases' external links.
-async function steamAppIdForVn(vnId) {
+// Find the Steam appid + a JAST store link for a VN via its VNDB releases'
+// external links. VNDB has no dedicated "JAST" extlink type — a JAST-published
+// release just shows a generic "website" link, so we match by hostname instead.
+async function storeLinksForVn(vnId) {
   let d;
   try {
     d = await vndbFetch('release', {
@@ -1572,16 +1574,23 @@ async function steamAppIdForVn(vnId) {
       fields: 'extlinks.url, extlinks.name',
       results: 100, // VNDB page max; most VNs have far fewer releases than this
     }, { priority: PRI.HIGH });
-  } catch { return null; }
+  } catch { return { steamAppId: null, jastUrl: null }; }
+  let steamAppId = null, jastUrl = null;
   for (const rel of (d.results || [])) {
     for (const l of (rel.extlinks || [])) {
-      if (l && l.name === 'steam' && typeof l.url === 'string') {
+      if (!l || typeof l.url !== 'string') continue;
+      if (!steamAppId && l.name === 'steam') {
         const m = l.url.match(/\/app\/(\d+)/);
-        if (m) return m[1];
+        if (m) steamAppId = m[1];
+      }
+      if (!jastUrl) {
+        try {
+          if (/(^|\.)jast\w*\./i.test(new URL(l.url).hostname)) jastUrl = l.url;
+        } catch {}
       }
     }
   }
-  return null;
+  return { steamAppId, jastUrl };
 }
 
 // Main/primary characters for a VN (portrait + name), cached per VN. Lazy-loaded by
@@ -1617,8 +1626,11 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
   if (cached && (Date.now() - cached.ts) < STEAM_TTL_MS) return cached.data;
 
   let data = null;
+  let jastUrl = null;
   try {
-    const appId = await steamAppIdForVn(vnId);
+    const links = await storeLinksForVn(vnId);
+    jastUrl = links.jastUrl;
+    const appId = links.steamAppId;
     if (appId) {
       const r = await fetchWithTimeout(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`, {}, 12000);
       if (r.ok) {
@@ -1641,6 +1653,9 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
       if (!data) data = { appId, storeUrl: `https://store.steampowered.com/app/${appId}/`, name: null, screenshots: [] };
     }
   } catch { data = null; }
+
+  if (data) data.jastUrl = jastUrl;
+  else if (jastUrl) data = { appId: null, storeUrl: null, name: null, screenshots: [], jastUrl };
 
   steamCache.set(vnId, { data, ts: Date.now() });
   return data;

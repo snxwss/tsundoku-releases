@@ -2,6 +2,47 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.0 — 2026-06-20
+
+**Privacy**
+- New Settings → Privacy tab: lock your Private wishlist behind a click or an optional 4-digit PIN, with a configurable unlock duration (5/15/30/60 minutes or until Tsundoku closes) and a "Lock now" button.
+- PIN entry redesigned as 4 individual digit slots with a bigger Unlock button.
+- Changing or removing your PIN now requires entering the current PIN first.
+- Leaving the Private wishlist tab (switching to Public, or navigating elsewhere) re-locks it immediately.
+- Backups no longer include the PIN or lock settings — those stay per-device; your library and Private wishlist entries still travel with backups as before.
+- Moved Privacy below Library in the settings sidebar.
+
+**Detail modal**
+- Full offline support: cover, description, tags, rating, external links, and characters all cached locally after the first online view.
+- 18+ titles now use VNDB's own screenshots instead of Steam's SFW store screenshots, falling back to Steam only when VNDB has none.
+- Added a "Blur 18+ screenshots" toggle (separate for Browse and your library) controlling character art and screenshots independently from cover blurring.
+- Added Steam and JAST store links to the Links row, alongside VNDB/Wikipedia/HowLongToBeat.
+- Fixed the screenshot lightbox stretching images to fill the frame instead of keeping their native aspect ratio.
+- Fixed a lightbox flash of the previous (wrongly blurred/unblurred) image when rapidly cycling through screenshots.
+- Fixed the modal's rounded corners clipping the scrollbar.
+
+**Sync**
+- New Sync section in Settings: keep your library in sync across PCs via a shared cloud folder (Google Drive, Dropbox, OneDrive, etc.), with automatic syncing and a manual "Sync now" button.
+- Fixed preferences, reading status, and color palette (incl. light/dark mode and auto schedule) syncing correctly using last-write-wins instead of blindly overwriting.
+- VNDB username now syncs with the Library toggle instead of Preferences.
+
+**Browse & Performance**
+- Added a "Load more" button below the Browse grid — recovers a stalled infinite-scroll without losing your scroll position.
+- Raised max concurrent VNDB requests from 3 to 4 to better absorb bursty usage before hitting rate limits.
+- Tag search now fails fast under rate-limiting (~20s worst case instead of ~40s) and shows "Searching…" while it works.
+- Tag search now ignores punctuation differences ("bla-bla" / "bla/bla" / "bla bla" all match), preferring an exact match over the most popular substring match.
+- Fixed cover images hanging indefinitely on a stalled connection instead of failing and retrying.
+- Added a single "Blocked tags" master toggle in Settings → Hidden to temporarily allow everything without clearing your blocked list.
+
+**Windows**
+- Replaced the reactive DPI-restore fix with a permanent one — Tsundoku now forces a fixed rendering scale factor, sidestepping the Windows/Electron scaling bug entirely.
+- Wired up F12 / Ctrl+Shift+I to open DevTools.
+
+**Fixes**
+- Fixed several Settings layout bugs: a Privacy PIN section rendering with a huge blank gap, and rows with wide button groups squeezing their label text down to nothing.
+- Fixed wishlist titles not showing after viewing a locked Private wishlist.
+- Auto schedule time fields are now plain text inputs (HH:MM, with shorthand like "800" → 8:00) instead of the browser time picker.
+
 ## 1.2.22 — 2026-06-20
 
 **Fixes**
