@@ -1589,7 +1589,12 @@ async function storeLinksForVn(vnId) {
         const label = (l.label || '').toLowerCase();
         let host = '';
         try { host = new URL(l.url).hostname.toLowerCase(); } catch {}
-        if (host.includes('jast') || label.includes('jast')) jastUrl = l.url;
+        if (host.includes('jast') || label.includes('jast')) {
+          // VNDB still has the old jastusa.com domain on many entries — JAST
+          // rebranded to jaststore.com, so rewrite instead of sending users
+          // to the retired domain.
+          jastUrl = host.includes('jastusa') ? l.url.replace(/jastusa\.com/i, 'jaststore.com') : l.url;
+        }
       }
     }
   }

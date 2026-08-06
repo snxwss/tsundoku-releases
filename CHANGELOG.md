@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.2 — 2026-06-20
+
+- JAST links pointing to the retired jastusa.com domain (still stored on many VNDB entries) are now rewritten to jaststore.com instead of sending you to the old site.
+
 ## 1.3.1 — 2026-06-20
 
 - Fixed JAST link detection to match any "jast" domain/label (JAST rebranded from jastusa.com to jaststore.com), instead of a single fixed domain pattern.
