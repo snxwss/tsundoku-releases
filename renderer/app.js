@@ -89,6 +89,7 @@ let libSort    = 'added';
 let libSelId   = null;
 let modalToken = 0;
 let scanState  = [];
+let scanTab    = 'all'; // 'all' | 'new' | 'reconnect' — filters the Scan Results list
 let vndbImportState = [];
 let dzFlash = null;          // one-shot "✓ done" message shown after a Danger-zone action
 let browseSort = 'rating';
@@ -3908,13 +3909,25 @@ function openScanResults(result) {
       include:    confident && !rejected,
     };
   });
-  const reconnects = scanState.filter(r => r.candidates.find(c => c.id === r.selectedId)?.inLibrary).length;
+  const reconnects = scanState.filter(isReconnectRow).length;
   const weak       = scanState.filter(r => r.candidates.length && !r.include).length;
   const noExeNote  = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
   const reconNote  = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
   const weakNote   = weak ? ` ${weak} weak match(es) left unchecked — tick them if they're correct.` : '';
   document.getElementById('scan-subtitle').textContent =
     `Found ${scanState.length} game folder(s) in ${result.root}.${reconNote}${weakNote}${noExeNote}`;
+
+  scanTab = 'all';
+  document.querySelectorAll('#scan-tabs [data-scantab]').forEach(b =>
+    b.classList.toggle('on', b.dataset.scantab === 'all'));
+  const newCount = scanState.length - reconnects;
+  const tabAll   = document.querySelector('#scan-tabs [data-scantab="all"]');
+  const tabNew   = document.querySelector('#scan-tabs [data-scantab="new"]');
+  const tabRecon = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
+  if (tabAll)   tabAll.textContent   = `All (${scanState.length})`;
+  if (tabNew)   tabNew.textContent   = `New matches (${newCount})`;
+  if (tabRecon) tabRecon.textContent = `Reconnects (${reconnects})`;
+
   renderScanList();
   document.getElementById('scan-overlay').classList.remove('hidden');
 }
@@ -3968,19 +3981,26 @@ function showNewGamesStrip(count, result) {
   document.getElementById('ngs-dismiss').addEventListener('click', () => strip.remove());
 }
 
+// A row "reconnects" if its currently-selected candidate is already in your
+// library; otherwise (incl. unmatched/skip) it counts as a "new" match.
+const isReconnectRow = row => !!row.candidates.find(c => c.id === row.selectedId)?.inLibrary;
+
 function renderScanList() {
   const scanList = document.getElementById('scan-list');
   scanList.innerHTML = '';
-  scanState.forEach((row, i) => {
+  const visible = scanState.filter(row =>
+    scanTab === 'all' ? true : scanTab === 'reconnect' ? isReconnectRow(row) : !isReconnectRow(row));
+  visible.forEach(row => {
     const selected = row.candidates.find(c => c.id === row.selectedId);
     const cover    = selected ? imgUrl(selected.image, selected.id) : null;
+    const blur     = selected && isNsfw(selected) && settings.nsfwBlurLibrary;
 
     const el = document.createElement('div');
     el.className = 'scan-row' + (row.include && row.selectedId ? '' : ' skipped');
     el.innerHTML = `
       <input type="checkbox" class="scan-check" ${row.include && row.selectedId ? 'checked' : ''} />
       ${cover
-        ? `<img class="scan-cover" src="${escHtml(cover)}" />`
+        ? `<img class="scan-cover${blur ? ' nsfw-blur' : ''}" src="${escHtml(cover)}" />`
         : `<div class="scan-cover"></div>`}
       <div class="scan-info">
         <div class="scan-folder">📁 ${escHtml(row.folderName)}${selected && selected.inLibrary ? ` <span class="scan-known">↩ in your library</span>` : ''}</div>
@@ -4349,6 +4369,14 @@ async function init() {
   });
 
   // Scan modal
+  document.querySelectorAll('#scan-tabs [data-scantab]').forEach(el => {
+    el.addEventListener('click', () => {
+      scanTab = el.dataset.scantab;
+      document.querySelectorAll('#scan-tabs [data-scantab]').forEach(b =>
+        b.classList.toggle('on', b.dataset.scantab === scanTab));
+      renderScanList();
+    });
+  });
   document.getElementById('scan-close')?.addEventListener('click', () =>
     document.getElementById('scan-overlay').classList.add('hidden'));
   document.getElementById('scan-overlay')?.addEventListener('click', e => {

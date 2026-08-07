@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.4 — 2026-06-20
+
+**Scan**
+- Folder-scan candidate covers now respect "Blur 18+ covers in your library".
+- Scan Results now has All / New matches / Reconnects tabs, so you can review new additions separately from titles reconnecting to your existing library.
+
 ## 1.3.3 — 2026-06-20
 
 - Fixed Steam/JAST links sometimes not appearing even when they exist — a background refresh could wipe them out if it finished after they were already shown; it now reapplies them correctly regardless of which finishes first.
