@@ -3899,6 +3899,8 @@ function openScanResults(result) {
     const confident = !!top && (top.inLibrary
       || scanNameMatches(m.query, top.title)
       || scanNameMatches(m.folderName, top.title));
+    // "Ignored" = explicitly unchecked/skipped on a PRIOR scan and persisted via
+    // settings.dismissedScans — distinct from a fresh, never-reviewed new match.
     const rejected = dismissed.has(m.exePath) && !(top && top.inLibrary);
     return {
       folderName: m.folderName,
@@ -3907,9 +3909,11 @@ function openScanResults(result) {
       candidates,
       selectedId: top ? top.id : '',
       include:    confident && !rejected,
+      ignored:    rejected,
     };
   });
   const reconnects = scanState.filter(isReconnectRow).length;
+  const ignoredCnt  = scanState.filter(r => r.ignored).length;
   const weak       = scanState.filter(r => r.candidates.length && !r.include).length;
   const noExeNote  = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
   const reconNote  = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
@@ -3920,13 +3924,15 @@ function openScanResults(result) {
   scanTab = 'all';
   document.querySelectorAll('#scan-tabs [data-scantab]').forEach(b =>
     b.classList.toggle('on', b.dataset.scantab === 'all'));
-  const newCount = scanState.length - reconnects;
-  const tabAll   = document.querySelector('#scan-tabs [data-scantab="all"]');
-  const tabNew   = document.querySelector('#scan-tabs [data-scantab="new"]');
-  const tabRecon = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
-  if (tabAll)   tabAll.textContent   = `All (${scanState.length})`;
-  if (tabNew)   tabNew.textContent   = `New matches (${newCount})`;
-  if (tabRecon) tabRecon.textContent = `Reconnects (${reconnects})`;
+  const newCount  = scanState.length - reconnects - ignoredCnt;
+  const tabAll    = document.querySelector('#scan-tabs [data-scantab="all"]');
+  const tabNew    = document.querySelector('#scan-tabs [data-scantab="new"]');
+  const tabRecon  = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
+  const tabIgnore = document.querySelector('#scan-tabs [data-scantab="ignored"]');
+  if (tabAll)    tabAll.textContent    = `All (${scanState.length})`;
+  if (tabNew)    tabNew.textContent    = `New matches (${newCount})`;
+  if (tabRecon)  tabRecon.textContent  = `Reconnects (${reconnects})`;
+  if (tabIgnore) tabIgnore.textContent = `Ignored (${ignoredCnt})`;
 
   renderScanList();
   document.getElementById('scan-overlay').classList.remove('hidden');
@@ -3988,8 +3994,12 @@ const isReconnectRow = row => !!row.candidates.find(c => c.id === row.selectedId
 function renderScanList() {
   const scanList = document.getElementById('scan-list');
   scanList.innerHTML = '';
-  const visible = scanState.filter(row =>
-    scanTab === 'all' ? true : scanTab === 'reconnect' ? isReconnectRow(row) : !isReconnectRow(row));
+  const visible = scanState.filter(row => {
+    if (scanTab === 'all')       return true;
+    if (scanTab === 'reconnect') return isReconnectRow(row);
+    if (scanTab === 'ignored')   return !!row.ignored;
+    return !isReconnectRow(row) && !row.ignored; // 'new'
+  });
   visible.forEach(row => {
     const selected = row.candidates.find(c => c.id === row.selectedId);
     const cover    = selected ? imgUrl(selected.image, selected.id) : null;

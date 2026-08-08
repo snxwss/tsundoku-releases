@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.5 — 2026-06-20
+
+**Scan**
+- Added an "Ignored" tab for folders previously left unchecked, separate from genuinely new matches.
+- Fixed the close button on Scan Results / VNDB Import scrolling away with the content instead of staying pinned in the corner.
+
 ## 1.3.4 — 2026-06-20
 
 **Scan**

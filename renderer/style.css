@@ -748,11 +748,16 @@ html, body { height: 100%; background: #141714; user-select: none; }
 /* =====================================================================
    SCAN REVIEW MODAL
    ===================================================================== */
-#scan-modal, #vndb-modal { background: var(--paper); border: 2px solid var(--border); border-radius: 22px; box-shadow: 0 28px 64px oklch(0.1 0.01 160 / 0.26), 0 6px 0 var(--edge); width: 720px; max-width: calc(100% - 48px); max-height: 85vh; overflow-y: auto; position: relative; padding: 32px; }
+/* Close button is position:absolute against #scan-modal/#vndb-modal, so those
+   must NOT be the scrolling element themselves (an absolutely-positioned child
+   scrolls away with its scrolling ancestor) — only .review-modal-scroll scrolls,
+   keeping the close button and footer pinned in place. */
+#scan-modal, #vndb-modal { background: var(--paper); border: 2px solid var(--border); border-radius: 22px; box-shadow: 0 28px 64px oklch(0.1 0.01 160 / 0.26), 0 6px 0 var(--edge); width: 720px; max-width: calc(100% - 48px); max-height: 85vh; overflow: hidden; position: relative; padding: 32px; display: flex; flex-direction: column; }
+.review-modal-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 #scan-title, #vndb-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.4rem; margin-bottom: 4px; }
 #scan-subtitle, #vndb-subtitle { font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--mut); margin-bottom: 18px; }
-#scan-list, #vndb-import-list { display: flex; flex-direction: column; max-height: 52vh; overflow-y: auto; }
-#scan-footer, #vndb-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--line); }
+#scan-list, #vndb-import-list { display: flex; flex-direction: column; }
+#scan-footer, #vndb-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--line); }
 #scan-count, #vndb-count { font-family: 'Space Mono', monospace; font-size: 0.82rem; color: var(--mut); }
 .scan-row { display: flex; gap: 14px; background: var(--panel); border: 2px solid var(--border); border-radius: 12px; padding: 12px; align-items: flex-start; margin-bottom: 12px; }
 .scan-row.skipped { opacity: 0.45; }

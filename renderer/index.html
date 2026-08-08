@@ -269,14 +269,17 @@
     <div id="scan-overlay" class="modal-backdrop hidden">
       <div id="scan-modal">
         <div class="modal-close" id="scan-close">✕</div>
-        <h2 id="scan-title">Scan Results</h2>
-        <p id="scan-subtitle"></p>
-        <div class="settings-toggle" id="scan-tabs" style="margin-bottom:12px">
-          <div class="stog-btn on" data-scantab="all">All</div>
-          <div class="stog-btn" data-scantab="new">New matches</div>
-          <div class="stog-btn" data-scantab="reconnect">Reconnects</div>
+        <div class="review-modal-scroll">
+          <h2 id="scan-title">Scan Results</h2>
+          <p id="scan-subtitle"></p>
+          <div class="settings-toggle" id="scan-tabs" style="margin-bottom:12px">
+            <div class="stog-btn on" data-scantab="all">All</div>
+            <div class="stog-btn" data-scantab="new">New matches</div>
+            <div class="stog-btn" data-scantab="reconnect">Reconnects</div>
+            <div class="stog-btn" data-scantab="ignored">Ignored</div>
+          </div>
+          <div id="scan-list"></div>
         </div>
-        <div id="scan-list"></div>
         <div id="scan-footer">
           <span id="scan-count"></span>
           <button class="btn-sm pri" id="scan-add">Add Selected to Library</button>
@@ -287,9 +290,11 @@
     <div id="vndb-overlay" class="modal-backdrop hidden">
       <div id="vndb-modal">
         <div class="modal-close" id="vndb-close">✕</div>
-        <h2 id="vndb-title">Import from VNDB</h2>
-        <p id="vndb-subtitle"></p>
-        <div id="vndb-import-list"></div>
+        <div class="review-modal-scroll">
+          <h2 id="vndb-title">Import from VNDB</h2>
+          <p id="vndb-subtitle"></p>
+          <div id="vndb-import-list"></div>
+        </div>
         <div id="vndb-footer">
           <span id="vndb-count"></span>
           <button class="btn-sm pri" id="vndb-add">Add Selected to Library</button>
