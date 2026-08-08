@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.6 — 2026-06-20
+
+- Folders with no VNDB match at all (nothing to select but "skip this folder") now count as Ignored instead of New matches.
+
 ## 1.3.5 — 2026-06-20
 
 **Scan**

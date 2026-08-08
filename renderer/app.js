@@ -3899,9 +3899,10 @@ function openScanResults(result) {
     const confident = !!top && (top.inLibrary
       || scanNameMatches(m.query, top.title)
       || scanNameMatches(m.folderName, top.title));
-    // "Ignored" = explicitly unchecked/skipped on a PRIOR scan and persisted via
-    // settings.dismissedScans — distinct from a fresh, never-reviewed new match.
-    const rejected = dismissed.has(m.exePath) && !(top && top.inLibrary);
+    // "Ignored" = either explicitly unchecked/skipped on a PRIOR scan (persisted
+    // via settings.dismissedScans), or a folder with no VNDB match at all (nothing
+    // actionable to review) — distinct from a fresh, real new match to confirm.
+    const rejected = (dismissed.has(m.exePath) && !(top && top.inLibrary)) || !candidates.length;
     return {
       folderName: m.folderName,
       exePath:    m.exePath,
