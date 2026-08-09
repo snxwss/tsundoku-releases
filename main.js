@@ -125,6 +125,15 @@ const runningVNs = new Map(); // id → { proc, startTime }  (app-launched, for 
 // (Steam, desktop, Start menu) — you never have to launch through Tsundoku.
 const autoTracking  = new Map(); // id → last tick timestamp (ms)
 const sessionStarts = new Map(); // id → session start timestamp (ms)
+const seenPidTrees  = new Map(); // id → Set(pid) of the exe's process family last seen alive.
+                                  // Many VN installers ship a bootstrapper exe that launches the
+                                  // real game as a CHILD process and then exits itself — matching
+                                  // only the recorded exe's own path loses the game the moment the
+                                  // bootstrapper quits, even though play continues. Once we've
+                                  // matched the recorded exe, we keep following its descendant
+                                  // processes (Windows retains each process's parent PID even
+                                  // after the parent itself has exited), so tracking survives the
+                                  // handoff and only truly ends when the whole family is gone.
 const launchTimes   = new Map(); // id → when WE launched it (ms); lets the poller
                                 // backfill the gap before the process appears
 let pollTimer = null;
@@ -138,19 +147,43 @@ const MAX_TICK_SECONDS = 12;
 // generically-named exe (e.g. many doujin/kirikiri titles literally reuse names
 // like "game.exe"), so basename-only matching can cross-wire two different
 // library entries, or keep tracking as "running" because of an unrelated
-// process that happens to share a name. Uses PowerShell (Get-Process exposes
-// full Path) instead of `tasklist`, which only reports image names.
+// process that happens to share a name. Uses PowerShell Get-CimInstance
+// Win32_Process (exposes ExecutablePath AND ParentProcessId — Get-Process/
+// tasklist only give the name) so we can also follow a bootstrapper exe's
+// child processes once it hands off and exits (see seenPidTrees above).
 function pollRunningGames() {
-  const psCmd = 'Get-Process | ForEach-Object { if ($_.Path) { "$($_.Id)|$($_.Path)" } }';
+  const psCmd = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)|$($_.ParentProcessId)|$($_.ExecutablePath)" }';
   execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
     if (err) return;
-    const running = new Set(); // normalized full exe paths, lowercased
+    const pidToPpid = new Map();
+    const pathToPids = new Map(); // normalized lowercased exe path → Set(pid)
     for (const line of stdout.split(/\r?\n/)) {
-      const i = line.indexOf('|');
-      if (i === -1) continue;
-      const p = line.slice(i + 1).trim();
-      if (p) running.add(path.normalize(p).toLowerCase());
+      const first = line.indexOf('|');
+      const second = line.indexOf('|', first + 1);
+      if (first === -1 || second === -1) continue;
+      const pid = parseInt(line.slice(0, first), 10);
+      const ppid = parseInt(line.slice(first + 1, second), 10);
+      if (!pid) continue;
+      pidToPpid.set(pid, ppid);
+      const p = line.slice(second + 1).trim();
+      if (p) {
+        const norm = path.normalize(p).toLowerCase();
+        if (!pathToPids.has(norm)) pathToPids.set(norm, new Set());
+        pathToPids.get(norm).add(pid);
+      }
     }
+    const allPids = [...pidToPpid.keys()];
+    function isDescendantOf(pid, rootPids) {
+      let cur = pid;
+      for (let depth = 0; depth < 16; depth++) {
+        if (rootPids.has(cur)) return true;
+        const parent = pidToPpid.get(cur);
+        if (parent === undefined || parent === cur) return false;
+        cur = parent;
+      }
+      return false;
+    }
+
     const store = readStore();
     // full exe_path(lower) → id for every library game with a known exe
     const idx = new Map();
@@ -159,9 +192,26 @@ function pollRunningGames() {
     }
     const now = Date.now();
     let changed = false;
+    // Resolve this tick's live process family per id: direct exe-path matches,
+    // plus any currently-alive process descended from last tick's family (so a
+    // bootstrapper that already exited doesn't drop tracking of the game it spawned).
+    const liveThisTick = new Map(); // id → Set(pid)
+    for (const [exePath, id] of idx) {
+      const direct = pathToPids.get(exePath);
+      const family = direct ? new Set(direct) : new Set();
+      const prevFamily = seenPidTrees.get(id);
+      if (prevFamily && prevFamily.size) {
+        for (const pid of allPids) {
+          if (family.has(pid)) continue;
+          if (isDescendantOf(pid, prevFamily)) family.add(pid);
+        }
+      }
+      if (family.size) { seenPidTrees.set(id, family); liveThisTick.set(id, family); }
+      else seenPidTrees.delete(id);
+    }
     // Accrue time for running games (incrementally, so a crash loses ≤ one tick).
-    for (const [base, id] of idx) {
-      if (!running.has(base)) continue;
+    for (const [, id] of idx) {
+      if (!liveThisTick.has(id)) continue;
       const e = store[id];
       if (!e) continue;
       if (!autoTracking.has(id)) {
@@ -187,9 +237,7 @@ function pollRunningGames() {
     }
     // Detect stops.
     for (const id of [...autoTracking.keys()]) {
-      const e = store[id];
-      const base = e && e.exe_path ? path.normalize(e.exe_path).toLowerCase() : null;
-      if (!base || !running.has(base)) finalizeVnStop(id, e, now);
+      if (!liveThisTick.has(id)) finalizeVnStop(id, store[id], now);
     }
     if (changed) writeStore(store);
   });
@@ -203,6 +251,7 @@ function finalizeVnStop(id, entry, now) {
   const startMs = sessionStarts.get(id);
   autoTracking.delete(id);
   sessionStarts.delete(id);
+  seenPidTrees.delete(id);
   if (startMs) {
     const durationSeconds = Math.round((now - startMs) / 1000);
     if (durationSeconds >= 1800) { // only log sessions >= 30 min
@@ -1940,10 +1989,17 @@ ipcMain.handle('stop-vn', (_e, id) => {
   const e = store[id];
   const now = Date.now();
   const runningEntry = runningVNs.get(id);
-  // Kill by PID tree (/T) rather than proc.kill(), which only signals the exact
-  // process we spawned — if that exe is itself a launcher that spawned the real
-  // game as a child, proc.kill() alone leaves the game running.
-  if (runningEntry) {
+  const trackedFamily = seenPidTrees.get(id); // last-known live pids, incl. any bootstrapper hand-off
+  if (trackedFamily && trackedFamily.size) {
+    // Most precise: kill the exact pids we've actually seen alive for this VN
+    // (covers the case where a bootstrapper exe already exited and only its
+    // spawned child — the real game — is left running).
+    const psKill = 'Stop-Process -Id ' + [...trackedFamily].join(',') + ' -Force -ErrorAction SilentlyContinue';
+    try { execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psKill], { windowsHide: true }, () => {}); } catch {}
+  } else if (runningEntry) {
+    // Kill by PID tree (/T) rather than proc.kill(), which only signals the exact
+    // process we spawned — if that exe is itself a launcher that spawned the real
+    // game as a child, proc.kill() alone leaves the game running.
     try { execFile('taskkill', ['/PID', String(runningEntry.proc.pid), '/F', '/T'], { windowsHide: true }, () => {}); } catch {}
   } else if (e && e.exe_path) {
     // Auto-detected game: kill by FULL PATH (not just image name) so a generic

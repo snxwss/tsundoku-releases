@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.8 — 2026-08-09
+
+- Fixed tracking losing a running VN when its exe is a bootstrapper that launches the real game as a separate child process and then exits — process detection now follows the handoff instead of only watching the exact exe you picked, so both auto-stop-detection and Force Stop keep working through the redirect.
+
 ## 1.3.7 — 2026-08-09
 
 - Fixed games sometimes never being detected as closed (and the Stop button appearing to do nothing) — process tracking now matches by full executable path instead of just the filename, which could be fooled by generically-named exes shared across different VN engines/titles.
