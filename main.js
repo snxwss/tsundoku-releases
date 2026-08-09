@@ -151,9 +151,17 @@ const MAX_TICK_SECONDS = 12;
 // Win32_Process (exposes ExecutablePath AND ParentProcessId — Get-Process/
 // tasklist only give the name) so we can also follow a bootstrapper exe's
 // child processes once it hands off and exits (see seenPidTrees above).
+let pollInFlight = false; // re-entrancy guard: burst-polling after launch can fire
+                           // faster than a prior poll's PowerShell call returns; without
+                           // this, two overlapping polls each read the same last-tick
+                           // timestamp and independently credit the same real-time
+                           // window to playtime, double-counting seconds.
 function pollRunningGames() {
+  if (pollInFlight) return;
+  pollInFlight = true;
   const psCmd = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)|$($_.ParentProcessId)|$($_.ExecutablePath)" }';
   execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+    pollInFlight = false;
     if (err) return;
     const pidToPpid = new Map();
     const pathToPids = new Map(); // normalized lowercased exe path → Set(pid)

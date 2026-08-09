@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.11 — 2026-08-09
+
+- Fixed playtime accruing too fast for a few seconds right after hitting Play — the burst-polling added in 1.3.9 could fire a new process check before the previous one finished, and two overlapping checks would each credit the same stretch of real time to playtime. Overlapping checks are now skipped instead of double-counting.
+
 ## 1.3.10 — 2026-08-09
 
 - Added a diagnostic log at `C:\ProgramData\Tsundoku\process-debug.log` recording every launch, poll tick, stop-detection, and Force Stop for process tracking — temporary, for tracking down remaining detection edge cases.
