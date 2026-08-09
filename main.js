@@ -134,19 +134,28 @@ const POLL_INTERVAL_MS = 5000;  // how often we scan running processes
 // slack absorbs normal scheduling jitter; anything beyond is treated as a sleep gap.
 const MAX_TICK_SECONDS = 12;
 
+// Match by FULL executable path (not just basename) — many VN engines ship a
+// generically-named exe (e.g. many doujin/kirikiri titles literally reuse names
+// like "game.exe"), so basename-only matching can cross-wire two different
+// library entries, or keep tracking as "running" because of an unrelated
+// process that happens to share a name. Uses PowerShell (Get-Process exposes
+// full Path) instead of `tasklist`, which only reports image names.
 function pollRunningGames() {
-  execFile('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+  const psCmd = 'Get-Process | ForEach-Object { if ($_.Path) { "$($_.Id)|$($_.Path)" } }';
+  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
     if (err) return;
-    const running = new Set();
+    const running = new Set(); // normalized full exe paths, lowercased
     for (const line of stdout.split(/\r?\n/)) {
-      const m = line.match(/^"([^"]+)"/);
-      if (m) running.add(m[1].toLowerCase());
+      const i = line.indexOf('|');
+      if (i === -1) continue;
+      const p = line.slice(i + 1).trim();
+      if (p) running.add(path.normalize(p).toLowerCase());
     }
     const store = readStore();
-    // basename(lower) → id for every library game with a known exe
+    // full exe_path(lower) → id for every library game with a known exe
     const idx = new Map();
     for (const e of Object.values(store)) {
-      if (e.library && e.exe_path) idx.set(path.basename(e.exe_path).toLowerCase(), e.id);
+      if (e.library && e.exe_path) idx.set(path.normalize(e.exe_path).toLowerCase(), e.id);
     }
     const now = Date.now();
     let changed = false;
@@ -179,35 +188,41 @@ function pollRunningGames() {
     // Detect stops.
     for (const id of [...autoTracking.keys()]) {
       const e = store[id];
-      const base = e && e.exe_path ? path.basename(e.exe_path).toLowerCase() : null;
-      if (!base || !running.has(base)) {
-        const startMs = sessionStarts.get(id);
-        autoTracking.delete(id);
-        sessionStarts.delete(id);
-        if (startMs) {
-          const durationSeconds = Math.round((now - startMs) / 1000);
-          if (durationSeconds >= 1800) { // only log sessions >= 30 min
-            try {
-              const s = readSettings();
-              const sessions = s.sessions || [];
-              sessions.push({
-                vnId: id,
-                vnTitle: (e && e.title) || id,
-                startedAt: startMs,
-                endedAt: now,
-                durationSeconds,
-              });
-              // keep last 100 sessions
-              s.sessions = sessions.slice(-100);
-              writeSettings(s);
-            } catch (_) {}
-          }
-        }
-        if (win && !win.isDestroyed()) win.webContents.send('vn-stopped', id);
-      }
+      const base = e && e.exe_path ? path.normalize(e.exe_path).toLowerCase() : null;
+      if (!base || !running.has(base)) finalizeVnStop(id, e, now);
     }
     if (changed) writeStore(store);
   });
+}
+
+// Ends local tracking for `id` and logs the session — used both when the poller
+// notices the process is gone AND when the user hits Stop, so the UI reflects
+// "stopped" immediately instead of waiting up to POLL_INTERVAL_MS for the next
+// tasklist confirmation (which can lag or, if matching is ever wrong, never come).
+function finalizeVnStop(id, entry, now) {
+  const startMs = sessionStarts.get(id);
+  autoTracking.delete(id);
+  sessionStarts.delete(id);
+  if (startMs) {
+    const durationSeconds = Math.round((now - startMs) / 1000);
+    if (durationSeconds >= 1800) { // only log sessions >= 30 min
+      try {
+        const s = readSettings();
+        const sessions = s.sessions || [];
+        sessions.push({
+          vnId: id,
+          vnTitle: (entry && entry.title) || id,
+          startedAt: startMs,
+          endedAt: now,
+          durationSeconds,
+        });
+        // keep last 100 sessions
+        s.sessions = sessions.slice(-100);
+        writeSettings(s);
+      } catch (_) {}
+    }
+  }
+  if (win && !win.isDestroyed()) win.webContents.send('vn-stopped', id);
 }
 
 function applyAutoStart(enabled) {
@@ -1921,13 +1936,29 @@ ipcMain.handle('launch-vn', (_e, exePath, id) => {
 ipcMain.handle('is-vn-running', (_e, id) => runningVNs.has(id) || autoTracking.has(id));
 
 ipcMain.handle('stop-vn', (_e, id) => {
-  const entry = runningVNs.get(id);
-  if (entry) { try { entry.proc.kill(); } catch {} return true; }
-  // Auto-detected game (launched outside Tsundoku): kill it by image name.
   const store = readStore();
-  const exe = store[id] && store[id].exe_path;
-  if (exe) { try { execFile('taskkill', ['/IM', path.basename(exe), '/F'], { windowsHide: true }, () => {}); } catch {} return true; }
-  return false;
+  const e = store[id];
+  const now = Date.now();
+  const runningEntry = runningVNs.get(id);
+  // Kill by PID tree (/T) rather than proc.kill(), which only signals the exact
+  // process we spawned — if that exe is itself a launcher that spawned the real
+  // game as a child, proc.kill() alone leaves the game running.
+  if (runningEntry) {
+    try { execFile('taskkill', ['/PID', String(runningEntry.proc.pid), '/F', '/T'], { windowsHide: true }, () => {}); } catch {}
+  } else if (e && e.exe_path) {
+    // Auto-detected game: kill by FULL PATH (not just image name) so a generic
+    // exe name shared with another library entry can't get force-stopped by mistake.
+    const exePath = e.exe_path;
+    const psKill = `Get-Process | Where-Object { $_.Path -and ($_.Path -ieq '${exePath.replace(/'/g, "''")}') } | Stop-Process -Force`;
+    try { execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psKill], { windowsHide: true }, () => {}); } catch {}
+  } else {
+    return false;
+  }
+  // Don't wait for the next poll tick to confirm — reflect "stopped" in Tsundoku's
+  // own state right away, since the user just explicitly asked it to stop.
+  if (autoTracking.has(id)) finalizeVnStop(id, e, now);
+  runningVNs.delete(id);
+  return true;
 });
 
 // Auto-start (launch hidden at Windows login) toggle.
@@ -2363,7 +2394,7 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
 // (e.g. UnityCrashHandler64.exe — which is often LARGER than the actual game, so
 // the size heuristic used to wrongly pick it); second group is installer/util
 // names that sit at a word boundary.
-const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.)/i;
+const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher)/i;
 
 function findExes(dir, depth, acc) {
   if (depth < 0) return;

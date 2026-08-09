@@ -2,6 +2,13 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.7 — 2026-08-09
+
+- Fixed games sometimes never being detected as closed (and the Stop button appearing to do nothing) — process tracking now matches by full executable path instead of just the filename, which could be fooled by generically-named exes shared across different VN engines/titles.
+- Stop now updates Tsundoku's own "running" state immediately instead of waiting for the next background check to confirm.
+- Force-stop now kills the whole process tree, so a launcher/updater exe that spawned the actual game as a separate process gets closed too.
+- Folder scan no longer picks an updater/launcher exe as a VN's main executable just because it's the largest file in the folder.
+
 ## 1.3.6 — 2026-06-20
 
 - Folders with no VNDB match at all (nothing to select but "skip this folder") now count as Ignored instead of New matches.
