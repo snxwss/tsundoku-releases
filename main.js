@@ -208,6 +208,10 @@ function pollRunningGames() {
       }
       if (family.size) { seenPidTrees.set(id, family); liveThisTick.set(id, family); }
       else seenPidTrees.delete(id);
+      {
+        const e = store[id];
+        debugLog(`poll id=${id} title="${e && e.title}" exe="${exePath}" directMatches=${direct ? direct.size : 0} prevFamily=${prevFamily ? prevFamily.size : 0} resolvedFamily=${family.size} pids=[${[...family].join(',')}]`);
+      }
     }
     // Accrue time for running games (incrementally, so a crash loses ≤ one tick).
     for (const [, id] of idx) {
@@ -237,7 +241,10 @@ function pollRunningGames() {
     }
     // Detect stops.
     for (const id of [...autoTracking.keys()]) {
-      if (!liveThisTick.has(id)) finalizeVnStop(id, store[id], now);
+      if (!liveThisTick.has(id)) {
+        debugLog(`STOP-DETECTED id=${id} title="${store[id] && store[id].title}"`);
+        finalizeVnStop(id, store[id], now);
+      }
     }
     if (changed) writeStore(store);
   });
@@ -343,6 +350,21 @@ const DB_PATH       = path.join(DATA_DIR, 'entries.json');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
 const COVERS_DIR    = path.join(DATA_DIR, 'covers');
 const CHARS_DIR     = path.join(DATA_DIR, 'chars');
+const DEBUG_LOG_PATH = path.join(DATA_DIR, 'process-debug.log');
+
+// Diagnostic log for the process-detection poller (launch, poll ticks, stop
+// detection, force-stop). Capped and rewritten from scratch above ~2MB so it
+// never grows unbounded — this is meant to be turned on briefly to capture one
+// repro, not run forever.
+function debugLog(line) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (fs.existsSync(DEBUG_LOG_PATH) && fs.statSync(DEBUG_LOG_PATH).size > 2 * 1024 * 1024) {
+      fs.writeFileSync(DEBUG_LOG_PATH, '');
+    }
+    fs.appendFileSync(DEBUG_LOG_PATH, `[${new Date().toISOString()}] ${line}\n`);
+  } catch {}
+}
 
 // cover:// scheme must be registered before app is ready
 protocol.registerSchemesAsPrivileged([
@@ -1973,6 +1995,7 @@ ipcMain.handle('launch-vn', (_e, exePath, id) => {
   if (appId) { try { shell.openExternal('steam://rungameid/' + appId); } catch {} return true; }
 
   const proc = spawn(exePath, [], { cwd: path.dirname(exePath), detached: true, stdio: 'ignore' });
+  debugLog(`LAUNCH id=${id} exe="${exePath}" spawnedPid=${proc.pid}`);
   if (id) runningVNs.set(id, { proc, startTime: Date.now() });
   // Playtime is handled by the process-detection poller (pollRunningGames), which
   // also catches games launched outside Tsundoku (e.g. via Steam). We only clean
@@ -1996,6 +2019,7 @@ ipcMain.handle('stop-vn', (_e, id) => {
   const now = Date.now();
   const runningEntry = runningVNs.get(id);
   const trackedFamily = seenPidTrees.get(id); // last-known live pids, incl. any bootstrapper hand-off
+  debugLog(`STOP-VN id=${id} runningEntryPid=${runningEntry ? runningEntry.proc.pid : null} trackedFamily=[${trackedFamily ? [...trackedFamily].join(',') : ''}] exe="${e && e.exe_path}"`);
   if (trackedFamily && trackedFamily.size) {
     // Most precise: kill the exact pids we've actually seen alive for this VN
     // (covers the case where a bootstrapper exe already exited and only its

@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.10 — 2026-08-09
+
+- Added a diagnostic log at `C:\ProgramData\Tsundoku\process-debug.log` recording every launch, poll tick, stop-detection, and Force Stop for process tracking — temporary, for tracking down remaining detection edge cases.
+
 ## 1.3.9 — 2026-08-09
 
 - When you hit Play, Tsundoku now checks for the running process a few times in the first few seconds instead of only every 5 seconds — catches bootstrapper exes that hand off to the real engine binary and exit faster than the normal poll interval, so process-tree tracking (1.3.8) actually gets a chance to anchor onto the handoff.
