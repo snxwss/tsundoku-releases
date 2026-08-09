@@ -1979,6 +1979,12 @@ ipcMain.handle('launch-vn', (_e, exePath, id) => {
   // up the proc handle here so the Stop button can kill what we launched.
   proc.on('exit', () => { if (id) runningVNs.delete(id); });
   proc.unref();
+  // Some VNs ship a bootstrapper exe that immediately hands off to the real
+  // engine binary as a child process and exits — often faster than the normal
+  // 5s poll interval, so seenPidTrees never gets a chance to anchor onto it.
+  // Burst-poll right after launch to catch that handoff while the bootstrapper
+  // (or its freshly-spawned child) is still visible.
+  for (const delay of [400, 1000, 2000, 3500]) setTimeout(pollRunningGames, delay);
   return true;
 });
 

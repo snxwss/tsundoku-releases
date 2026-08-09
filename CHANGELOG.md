@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.9 — 2026-08-09
+
+- When you hit Play, Tsundoku now checks for the running process a few times in the first few seconds instead of only every 5 seconds — catches bootstrapper exes that hand off to the real engine binary and exit faster than the normal poll interval, so process-tree tracking (1.3.8) actually gets a chance to anchor onto the handoff.
+
 ## 1.3.8 — 2026-08-09
 
 - Fixed tracking losing a running VN when its exe is a bootstrapper that launches the real game as a separate child process and then exits — process detection now follows the handoff instead of only watching the exact exe you picked, so both auto-stop-detection and Force Stop keep working through the redirect.
