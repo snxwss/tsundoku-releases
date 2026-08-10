@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.12 — 2026-08-09
+
+- Fixed genuinely new folder-scan matches silently disappearing from "New matches" on later scans — clicking Add was treating any weak match left at its default unchecked state as an explicit rejection, not just folders you actually chose "— skip this folder —" for. Weak matches you haven't decided on now stay visible as New instead of getting permanently pushed to Ignored.
+
 ## 1.3.11 — 2026-08-09
 
 - Fixed playtime accruing too fast for a few seconds right after hitting Play — the burst-polling added in 1.3.9 could fire a new process check before the previous one finished, and two overlapping checks would each credit the same stretch of real time to playtime. Overlapping checks are now skipped instead of double-counting.

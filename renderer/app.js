@@ -4406,7 +4406,11 @@ async function init() {
         const cand = row.candidates.find(c => c.id === row.selectedId);
         if (cand) await window.api.libraryAddScanned(metaOf(cand), row.exePath);
         dismissed.delete(row.exePath);
-      } else if (row.candidates.length) {
+      } else if (row.selectedId === '') {
+        // Only remember an EXPLICIT "— skip this folder —" choice. A weak match
+        // that was simply left unchecked (its default state, so you can opt in)
+        // is not a rejection — dismissing it here would make it silently vanish
+        // from "New matches" on every future scan even though it's still new.
         dismissed.add(row.exePath);
       }
     }
