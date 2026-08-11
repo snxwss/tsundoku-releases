@@ -2,6 +2,14 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.14 — 2026-08-09
+
+- Added ~29 more well-known VN studios to the curated list that bypasses the vote-count floor in Browse/Top Rated (age, ensemble, Unison Shift, Akatsuki WORKS, 0verflow, light, GIGA, Whirlpool, Eushully, HOOKSOFT, Lump of Sugar, Navel, Tactics, C's Ware, MOONSTONE, propeller, QuinRose, Rejet, Vridge, Escu:de, Alchemist, Yeti, Windmill, CLOCKUP, Cocktail Soft, Marmalade, NekoNeko Soft, Kogado Studio, Applique), so new/lower-vote releases from these studios still surface without needing the developer filter.
+
+## 1.3.13 — 2026-08-09
+
+- Fixed developer search/filter hiding titles from small or niche developers (e.g. Suikasoft) — it was still applying the global 200-vote popularity floor unless the studio was on a curated list of ~40 well-known developers. Filtering by a specific developer now shows that studio's whole catalog, popular or not.
+
 ## 1.3.12 — 2026-08-09
 
 - Fixed genuinely new folder-scan matches silently disappearing from "New matches" on later scans — clicking Add was treating any weak match left at its default unchecked state as an explicit rejection, not just folders you actually chose "— skip this folder —" for. Weak matches you haven't decided on now stay visible as New instead of getting permanently pushed to Ignored.

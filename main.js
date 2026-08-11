@@ -1508,6 +1508,35 @@ const ALLOWED_DEV_IDS = [
   'p371',  // ASa Project
   'p437',  // Fuguriya (Sono Hanabira)
   'p29',   // Liar-soft
+  'p4',    // age (Muv-Luv)
+  'p628',  // ensemble (Sharin no Kuni)
+  'p262',  // Unison Shift (Aiyoku no Eustia)
+  'p180',  // Akatsuki WORKS (Sakura no Uta)
+  'p74',   // 0verflow (School Days)
+  'p242',  // light (Dies Irae)
+  'p119',  // GIGA (Baldr Sky)
+  'p273',  // Whirlpool (Comyu)
+  'p268',  // Eushully (Ikusa Megami)
+  'p106',  // HOOKSOFT (Kimi ga Ita Kisetsu)
+  'p81',   // Lump of Sugar
+  'p13',   // Navel (Shuffle!)
+  'p49',   // Tactics (original Kanon/One)
+  'p105',  // C's Ware (Eve Burst Error)
+  'p251',  // MOONSTONE (Subarashiki Hibi)
+  'p253',  // propeller (Kimi to Kanojo to Kanojo no Koi)
+  'p388',  // QuinRose (Alice in the Country of Hearts)
+  'p1499', // Rejet (Diabolik Lovers)
+  'p591',  // Vridge (Amnesia)
+  'p403',  // Escu:de (Kusarihime)
+  'p37',   // Alchemist (Baldr / Ikusa Megami crossovers)
+  'p99',   // Yeti (Symphonic Rain)
+  'p221',  // Windmill (Wagamama High Spec)
+  'p200',  // CLOCKUP (Making*Lovers)
+  'p126',  // Cocktail Soft
+  'p391',  // Marmalade
+  'p135',  // NekoNeko Soft
+  'p30',   // Kogado Studio
+  'p232',  // Applique
 ];
 
 // VNDB filter that matches any VN developed by an allowed studio.
@@ -1536,7 +1565,11 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   // bypass is a 40-clause OR (+ developer join) that's expensive on VNDB; Top
   // Rated passes simpleFloor:true to skip it, since low-vote titles rank low after
   // weighting anyway — keeping that query cheap avoids 429 throttling.
-  if (minVotes > 0) {
+  // Skipped entirely when the query is already scoped to a specific developer
+  // (devId/devSearch) — the whole point of a developer filter is to see that
+  // studio's catalog, including small/niche circles that will never clear a
+  // global popularity floor and aren't in the curated well-known-studio list.
+  if (minVotes > 0 && !devId && !devSearch) {
     filters.push(simpleFloor
       ? ['votecount', '>=', minVotes]
       : ['or', ['votecount', '>=', minVotes], allowedDevFilter()]);
