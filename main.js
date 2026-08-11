@@ -747,7 +747,7 @@ function readStore() {
   // Purge any titles carrying completely unacceptable tags.
   let purged = false;
   for (const id of Object.keys(store)) {
-    if (hasBlockedTag(store[id])) { delete store[id]; purged = true; }
+    if (isBlockedVn(store[id])) { delete store[id]; purged = true; }
   }
   if (purged) writeJsonAtomic(DB_PATH, store);
 
@@ -1422,9 +1422,9 @@ const vndbVN = (body, opts = {}) => vndbFetch('vn', body, opts);
 // Fields we always request for list/search results.
 // tags.{name,category,rating} drive accurate 18+ detection (cover rating alone
 // misses adult titles with tame covers).
-const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.name, length, length_minutes, tags.name, tags.category, tags.rating';
+const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.id, developers.name, length, length_minutes, tags.name, tags.category, tags.rating';
 // Full detail fields for single-VN fetch
-const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name, screenshots.url, screenshots.thumbnail, screenshots.sexual';
+const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.id, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name, screenshots.url, screenshots.thumbnail, screenshots.sexual';
 
 // Tags whose presence makes a title completely unacceptable — never stored, never shown.
 // Matched as lowercase substrings so all variants (e.g. "Lesbian Lolicon") are caught.
@@ -1457,6 +1457,28 @@ function hasBlockedTag(vn) {
       name.includes(fragment)
     );
   });
+}
+
+// Developers whose catalog is excluded outright, regardless of tags/rating.
+const BLOCKED_DEV_IDS = new Set([
+  'p10474', // Mutt & Jeff
+]);
+// Name fallback (lowercase) for already-saved library entries, which only
+// store a joined developer name string (e.g. "Mutt & Jeff", or "A & B" for a
+// multi-studio title) rather than a VNDB id — used when purging on load.
+const BLOCKED_DEV_NAMES = new Set([
+  'mutt & jeff',
+]);
+
+function hasBlockedDev(vn) {
+  const devs = Array.isArray(vn.developers) ? vn.developers : [];
+  if (devs.some(d => BLOCKED_DEV_IDS.has(String(d?.id || '').trim()))) return true;
+  const nameStr = String(vn.developer || '').toLowerCase();
+  return !!nameStr && [...BLOCKED_DEV_NAMES].some(n => nameStr.includes(n));
+}
+
+function isBlockedVn(vn) {
+  return hasBlockedTag(vn) || hasBlockedDev(vn);
 }
 
 // Minimum vote count for a VN to appear in browse lists AND search. Filters out
@@ -1546,7 +1568,7 @@ function allowedDevFilter() {
 
 // Shared query builder for both browse and search so they behave identically
 // (same vote floor, same sort options, same year filters).
-function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTES, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor } = {}) {
+function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTES, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor, screenshotsOnly } = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const presets = {
     rating:   { sort: 'rating',    reverse: true },
@@ -1591,7 +1613,10 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   else if (tags.length > 1)   filters.push(['and', ...tags.map(tagClause)]);
 
   const body = {
-    fields: LIST_FIELDS,
+    // VNDB has no "has screenshots" filter — screenshots.url is requested here
+    // and the empty-array titles are dropped client-side after the fetch (see
+    // filterResults below), same pattern as the blocked-tag/dev post-filter.
+    fields: screenshotsOnly ? LIST_FIELDS + ', screenshots.url' : LIST_FIELDS,
     sort: cfg.sort,
     reverse: cfg.reverse,
     results: 30,
@@ -1602,11 +1627,18 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   return body;
 }
 
+function hasScreenshot(vn) {
+  return Array.isArray(vn.screenshots) && vn.screenshots.length > 0;
+}
+
 // Search: 1000-vote floor + active browse sort + year filters. Pass
 // opts.minVotes = 0 to bypass the floor (used by the folder-scan matcher).
-function filterBlockedFromResults(data) {
+function filterBlockedFromResults(data, { screenshotsOnly } = {}) {
   if (!data || !data.results) return data;
-  return { ...data, results: data.results.filter(vn => !hasBlockedTag(vn)) };
+  return {
+    ...data,
+    results: data.results.filter(vn => !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn))),
+  };
 }
 
 async function fetchFilteredBrowse_UNUSED(sort, opts = {}) {
@@ -1624,7 +1656,7 @@ async function fetchFilteredBrowse_UNUSED(sort, opts = {}) {
     }), { priority: PRI.HIGH });
     last = data;
     more = !!data.more;
-    results.push(...((data.results || []).filter(vn => !hasBlockedTag(vn))));
+    results.push(...((data.results || []).filter(vn => !isBlockedVn(vn))));
   }
 
   return { ...(last || {}), results, more, nextPage: page };
@@ -1635,7 +1667,8 @@ ipcMain.handle('vndb-search', async (_e, query, sort = 'rating', opts = {}) =>
     query, minVotes: opts.minVotes, simpleFloor: opts.simpleFloor,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  }), { priority: PRI.HIGH })));
+    screenshotsOnly: opts.screenshotsOnly,
+  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly }));
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
@@ -1810,7 +1843,7 @@ ipcMain.handle('vndb-get', async (_e, id, { background = false } = {}) => {
     results: 1,
   }, { priority: background ? PRI.LOW : PRI.HIGH });
   const vn = data?.results?.[0];
-  if (vn && hasBlockedTag(vn)) return null;
+  if (vn && isBlockedVn(vn)) return null;
   vnDetailCache.set(id, { data, ts: Date.now() });
   return data;
 });
@@ -1820,7 +1853,8 @@ ipcMain.handle('vndb-browse', async (_e, sort, opts = {}) =>
     page: opts.page || 1,
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
-  }), { priority: PRI.HIGH })));
+    screenshotsOnly: opts.screenshotsOnly,
+  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly }));
 
 // "Top Rated" uses an IMDb-style weighted ranking instead of raw average, so a
 // 9.0 with 16k votes outranks a 9.0 with 141 votes. We fetch a pool of the
@@ -1834,8 +1868,8 @@ const WR_C = 65;     // pulled toward this (≈ global VN average) when low-vote
 const topRatedCache = new Map();
 const TOP_RATED_TTL = 5 * 60 * 1000;
 ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
-  const { yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds } = opts;
-  const key = JSON.stringify({ yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds });
+  const { yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, screenshotsOnly } = opts;
+  const key = JSON.stringify({ yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, screenshotsOnly });
   const hit = topRatedCache.get(key);
   if (hit && Date.now() - hit.ts < TOP_RATED_TTL) return { results: hit.results };
 
@@ -1843,7 +1877,7 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
   // Up to 8 pages keeps Top Rated usable after mandatory content filtering.
   // OR (simpleFloor) keeps each query cheap — together this avoids the throttling.
   for (let page = 1; page <= 8 && pool.length < 240; page++) {
-    const body = buildVnQuery('rating', { page, yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor: true });
+    const body = buildVnQuery('rating', { page, yearFrom, yearTo, ratingMin, length, devSearch, devId, tagId, tagIds, simpleFloor: true, screenshotsOnly });
     body.results = 100;
     let data;
     // Let a page-1 failure (network / VNDB down / rate-limit) propagate so the UI
@@ -1852,7 +1886,7 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
     try { data = await vndbVN(body, { priority: PRI.HIGH }); }
     catch (e) { if (page === 1) throw e; break; }
     const raw = data.results || [];
-    const r = raw.filter(vn => !hasBlockedTag(vn));
+    const r = raw.filter(vn => !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn)));
     pool.push(...r);
     if (raw.length < 100 || !data.more) break;
   }
@@ -2413,7 +2447,7 @@ ipcMain.handle('clear-all-offline-cache', () => {
 const ULIST_VN_FIELDS = [
   'vn.title', 'vn.alttitle', 'vn.titles.lang', 'vn.titles.title', 'vn.titles.official',
   'vn.image.url', 'vn.image.sexual', 'vn.description', 'vn.rating', 'vn.released',
-  'vn.developers.name', 'vn.length_minutes', 'vn.tags.name', 'vn.tags.category', 'vn.tags.rating',
+  'vn.developers.id', 'vn.developers.name', 'vn.length_minutes', 'vn.tags.name', 'vn.tags.category', 'vn.tags.rating',
 ].join(', ');
 
 ipcMain.handle('vndb-import-fetch', async (_e, opts = {}) => {
@@ -2480,7 +2514,7 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
   const counts = { reading: 0, finished: 0, paused: 0, dropped: 0, unplayed: 0, wishlist: 0 };
   for (const it of batch) {
     if (!it || !it.meta || !it.meta.id) continue;
-    if (hasBlockedTag(it.meta)) continue;
+    if (isBlockedVn(it.meta)) continue;
     const existed = !!store[it.meta.id];
     const e = ensureEntry(store, it.meta);
     if (it.list === 'blacklist') {

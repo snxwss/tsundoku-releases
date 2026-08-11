@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.15 — 2026-08-09
+
+- Added a "Screenshots only" filter to Browse — hides titles that have no screenshots on VNDB.
+
 ## 1.3.14 — 2026-08-09
 
 - Added ~29 more well-known VN studios to the curated list that bypasses the vote-count floor in Browse/Top Rated (age, ensemble, Unison Shift, Akatsuki WORKS, 0verflow, light, GIGA, Whirlpool, Eushully, HOOKSOFT, Lump of Sugar, Navel, Tactics, C's Ware, MOONSTONE, propeller, QuinRose, Rejet, Vridge, Escu:de, Alchemist, Yeti, Windmill, CLOCKUP, Cocktail Soft, Marmalade, NekoNeko Soft, Kogado Studio, Applique), so new/lower-vote releases from these studios still surface without needing the developer filter.

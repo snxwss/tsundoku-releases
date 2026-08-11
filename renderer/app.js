@@ -173,6 +173,7 @@ let browseRatingMin = null; // 10–100 scale (e.g. 70 = "7+")
 let browseLength    = null; // 1–5 (VNDB length category)
 let browseDevId     = null; // resolved VNDB producer id (e.g. "p57")
 let browseTagIds    = []; // resolved VNDB tags to filter by (AND): [{ id, name }]
+let browseScreenshotsOnly = false; // only show titles that have VNDB screenshots
 
 // Bundle the active browse/search filters for an API call.
 function currentFilterOpts() {
@@ -180,6 +181,7 @@ function currentFilterOpts() {
     yearFrom: browseYearFrom, yearTo: browseYearTo,
     ratingMin: browseRatingMin, length: browseLength,
     devId: browseDevId || null, tagIds: browseTagIds.map(t => t.id),
+    screenshotsOnly: browseScreenshotsOnly,
   };
 }
 
@@ -212,6 +214,7 @@ function updateFilterCount() {
   if (browseLength)     n++;
   if (browseDevId)      n++;
   if (browseTagIds.length) n++;
+  if (browseScreenshotsOnly) n++;
   el.textContent = n ? ` · ${n}` : '';
 }
 
@@ -1971,12 +1974,21 @@ function initBrowse() {
   renderBrowseTags();
   document.getElementById('filter-clear')?.addEventListener('click', () => {
     browseRatingMin = null; browseLength = null; browseDevId = null; browseTagIds = [];
-    browseYearFrom = null; browseYearTo = null;
+    browseYearFrom = null; browseYearTo = null; browseScreenshotsOnly = false;
     document.querySelectorAll('.length-chip, .decade-chip').forEach(c => c.classList.remove('on'));
+    document.getElementById('filter-screenshots')?.classList.remove('on');
     ['filter-dev', 'filter-tag', 'year-from', 'year-to', 'rating-min'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
     renderBrowseTags();
+    reapplyBrowse();
+  });
+
+  // "Screenshots only" — re-queries with screenshots.url requested and drops any
+  // title with none (see screenshotsOnly threading in main.js's buildVnQuery).
+  document.getElementById('filter-screenshots')?.addEventListener('click', function () {
+    browseScreenshotsOnly = !browseScreenshotsOnly;
+    this.classList.toggle('on', browseScreenshotsOnly);
     reapplyBrowse();
   });
 
