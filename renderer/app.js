@@ -438,15 +438,11 @@ function formatDate(ts) {
 
 // blur: whether to blur this cover if it's nsfw (caller decides per context —
 // library vs browse have independent blur settings).
-// `extreme` (e.g. scat) always gets the stronger blur + warning label, regardless
-// of the normal NSFW blur setting — it's a safety net against surprise, not a
-// preference toggle, so it can't be turned off the same way ordinary 18+ blur can.
-function makePoster(url, rounded = 12, nsfw = false, blur = false, extreme = false) {
-  return `<div class="pv2${(nsfw && blur) || extreme ? ' nsfw-blur' : ''}${extreme ? ' extreme-blur' : ''}" style="border-radius:${rounded}px">
+function makePoster(url, rounded = 12, nsfw = false, blur = false) {
+  return `<div class="pv2${nsfw && blur ? ' nsfw-blur' : ''}" style="border-radius:${rounded}px">
     ${url
       ? `<img src="${escHtml(url)}" loading="lazy" />`
       : `<div class="pv2-no-img">No Image</div>`}
-    ${extreme ? `<span class="extreme-warning">⚠ Extreme content</span>` : ''}
   </div>`;
 }
 
@@ -2247,16 +2243,12 @@ function renderBrowseGrid(vns) {
     const inLib  = !!(entry?.library && !entry?.excluded);
     const inWish = !!entry?.wishlist;
     const nsfw   = isNsfw(vn);
-    // Anything reaching this point already survived the hide-filter above (or the
-    // setting is off). Whether it then gets the heavy blur + warning treatment is
-    // its own separate toggle (extremeContentBlur) — off means fully normal display.
-    const extreme = settings.extremeContentBlur !== false && isExtreme(vn);
     const yr     = vn.released ? vn.released.slice(0, 4) : '';
     const len    = formatLength(vn);
 
     return `<div class="browse-item" data-id="${escHtml(vn.id)}">
       <div class="bi-poster">
-        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse, extreme)}
+        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse)}
         ${inLib  ? `<span class="cover-badge lib">in library</span>` : ''}
         ${!inLib && inWish ? `<span class="cover-badge wish">wishlisted</span>` : ''}
         <div class="bi-overlay">
@@ -3032,13 +3024,8 @@ async function renderSettingsSection(section) {
         <div class="settings-h">Hidden from browse</div>
 
         <div class="settings-row" style="padding-top:0">
-          <div><div class="settings-label">Hide extreme content</div><div class="settings-sub">Titles strongly tagged with extreme content are hidden from Browse &amp; Search entirely. Turn off to reveal them instead</div></div>
+          <div><div class="settings-label">Hide extreme content</div><div class="settings-sub">Titles strongly tagged with extreme content are hidden from Browse &amp; Search entirely. Turn off to show them like anything else</div></div>
           <div class="toggle-switch ${settings.extremeContentWarnings !== false ? 'on' : ''}" id="tog-extreme-warnings"></div>
-        </div>
-
-        <div class="settings-row">
-          <div><div class="settings-label">Blur + warn extreme content when shown</div><div class="settings-sub">Only matters if the above is off. When on, revealed titles still get a heavy blur + warning label instead of displaying normally</div></div>
-          <div class="toggle-switch ${settings.extremeContentBlur !== false ? 'on' : ''}" id="tog-extreme-blur"></div>
         </div>
 
         <div class="settings-row">
@@ -3091,13 +3078,6 @@ async function renderSettingsSection(section) {
       const enabled = this.classList.contains('on');
       settings.extremeContentWarnings = enabled;
       await window.api.writeSetting('extremeContentWarnings', enabled);
-      refreshBrowseForTags();
-    });
-    document.getElementById('tog-extreme-blur')?.addEventListener('click', async function() {
-      this.classList.toggle('on');
-      const enabled = this.classList.contains('on');
-      settings.extremeContentBlur = enabled;
-      await window.api.writeSetting('extremeContentBlur', enabled);
       refreshBrowseForTags();
     });
     document.getElementById('tog-hidden-tags-enabled')?.addEventListener('click', async function() {
@@ -3510,7 +3490,6 @@ async function openModal(item, nav = null) {
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const nsfw     = isNsfw(full);
-  const extreme  = settings.extremeContentBlur !== false && isExtreme(full);
   currentNsfw    = nsfw;
 
   const reopen = async () => {
@@ -3520,7 +3499,7 @@ async function openModal(item, nav = null) {
 
   // ── Left panel ──
   left.innerHTML = `
-    <div class="modal-cover-wrap">${makePoster(url, 14, nsfw, activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary, extreme)}</div>
+    <div class="modal-cover-wrap">${makePoster(url, 14, nsfw, activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary)}</div>
 
     <div class="modal-left-actions">
       ${inLib && onDevice && isRunning ? `<div class="btn-sm pri btn-stop" id="m-launch">■ Stop</div>` : ''}

@@ -2,6 +2,26 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.0 — 2026-08-17
+
+**Playtime & process tracking**
+- Process detection now matches by full executable path instead of just the filename, so a generic exe name shared across different VN engines/installs can't be mistaken for the wrong title.
+- Tracking now follows a bootstrapper exe's handoff to the actual game process, so a launcher that exits after starting the real game no longer drops tracking.
+- Added extra checks right after launch to catch bootstrappers that exit faster than the normal check interval.
+- Force Stop and auto-detected stops now update immediately instead of waiting on the next check, and kill the correct process (including child processes spawned by a launcher).
+- Fixed a bug where playtime could briefly accrue too fast right after hitting Play.
+
+**Folder scan**
+- Fixed the scanner sometimes picking an updater/launcher exe as a title's main executable instead of the actual game.
+- Fixed newly-scanned matches getting silently and permanently marked "Ignored" instead of appearing under "New matches" on later scans.
+
+**Browse & Search**
+- Fixed developer search/filter hiding titles from small or niche developers due to the popularity vote floor.
+- Added many more well-known studios to the curated list that bypasses the vote floor in Browse/Top Rated.
+- Added a "Screenshots only" filter.
+- Extreme content is now hidden from Browse & Search by default; a toggle in Settings → Hidden reveals it (shown like any other title, no special treatment).
+- A few additional content categories are now hard-blocked outright, same as the existing baseline blocklist.
+
 ## 1.3.18 — 2026-08-17
 
 - Added a second toggle in Settings → Hidden: the heavy blur + warning label on revealed extreme content is now its own on/off switch, separate from whether it's hidden in the first place.

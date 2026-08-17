@@ -893,17 +893,6 @@ html, body { height: 100%; background: #141714; user-select: none; }
    ===================================================================== */
 .nsfw-blur img { filter: blur(14px); transform: scale(1.05); }
 
-/* Extreme content (e.g. scat) — stronger blur + an explicit warning label,
-   always on regardless of the normal NSFW blur setting. Not a preference,
-   a safety net so it's never an unlabeled surprise. */
-.extreme-blur img { filter: blur(26px) grayscale(0.4); transform: scale(1.1); }
-.extreme-warning {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  text-align: center; padding: 10px; font-family: 'Space Mono', monospace; font-size: 0.7rem;
-  font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); z-index: 2;
-  pointer-events: none;
-}
-
 /* =====================================================================
    SETTINGS — zoom picker + toggles
    ===================================================================== */
