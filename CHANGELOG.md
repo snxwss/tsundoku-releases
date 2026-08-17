@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.17 — 2026-08-17
+
+- Extreme content is now hidden from Browse &amp; Search by default instead of just blurred — toggle "Hide extreme content" off in Settings → Hidden to reveal it (still with the heavy blur + warning label).
+
 ## 1.3.16 — 2026-08-17
 
 - Added an "Extreme content warnings" tier: certain strongly-tagged titles still show up with 18+ allowed, but get a much heavier blur and a warning label instead of blending in as ordinary 18+ content. Toggle it off in Settings → Hidden if you don't want it.

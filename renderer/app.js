@@ -2234,6 +2234,10 @@ function renderBrowseGrid(vns) {
   const tagSet = hiddenTagSet();
   let display = vns.filter(vn => !hasBlockedTag(vn) && !entryById(vn.id)?.hidden && !hasHiddenTag(vn, tagSet));
   if (browseNsfwOn) display = display.filter(vn => !isNsfw(vn));
+  // Extreme content is hidden from discovery entirely by default (not just
+  // blurred) — Settings → Hidden can turn this off to reveal them instead,
+  // still with the heavier blur + warning label so it's never unlabeled.
+  if (settings.extremeContentWarnings !== false) display = display.filter(vn => !isExtreme(vn));
 
   const grid = document.getElementById('browse-grid');
   grid.innerHTML = display.map(vn => {
@@ -2243,7 +2247,10 @@ function renderBrowseGrid(vns) {
     const inLib  = !!(entry?.library && !entry?.excluded);
     const inWish = !!entry?.wishlist;
     const nsfw   = isNsfw(vn);
-    const extreme = settings.extremeContentWarnings !== false && isExtreme(vn);
+    // Anything reaching this point already survived the hide-filter above (or the
+    // setting is off), so if it's extreme it always gets the warning treatment —
+    // no silent unblurred display once shown.
+    const extreme = isExtreme(vn);
     const yr     = vn.released ? vn.released.slice(0, 4) : '';
     const len    = formatLength(vn);
 
@@ -3025,7 +3032,7 @@ async function renderSettingsSection(section) {
         <div class="settings-h">Hidden from browse</div>
 
         <div class="settings-row" style="padding-top:0">
-          <div><div class="settings-label">Extreme content warnings</div><div class="settings-sub">Stronger blur + a warning label on titles tagged with extreme content (scat, guro, etc.) — still shown, never hidden outright</div></div>
+          <div><div class="settings-label">Hide extreme content</div><div class="settings-sub">Titles strongly tagged with extreme content are hidden from Browse &amp; Search entirely. Turn off to reveal them instead, still with a heavy blur + warning label</div></div>
           <div class="toggle-switch ${settings.extremeContentWarnings !== false ? 'on' : ''}" id="tog-extreme-warnings"></div>
         </div>
 
@@ -3491,7 +3498,7 @@ async function openModal(item, nav = null) {
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const nsfw     = isNsfw(full);
-  const extreme  = settings.extremeContentWarnings !== false && isExtreme(full);
+  const extreme  = isExtreme(full);
   currentNsfw    = nsfw;
 
   const reopen = async () => {
