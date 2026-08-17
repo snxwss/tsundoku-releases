@@ -2248,9 +2248,9 @@ function renderBrowseGrid(vns) {
     const inWish = !!entry?.wishlist;
     const nsfw   = isNsfw(vn);
     // Anything reaching this point already survived the hide-filter above (or the
-    // setting is off), so if it's extreme it always gets the warning treatment —
-    // no silent unblurred display once shown.
-    const extreme = isExtreme(vn);
+    // setting is off). Whether it then gets the heavy blur + warning treatment is
+    // its own separate toggle (extremeContentBlur) — off means fully normal display.
+    const extreme = settings.extremeContentBlur !== false && isExtreme(vn);
     const yr     = vn.released ? vn.released.slice(0, 4) : '';
     const len    = formatLength(vn);
 
@@ -3032,8 +3032,13 @@ async function renderSettingsSection(section) {
         <div class="settings-h">Hidden from browse</div>
 
         <div class="settings-row" style="padding-top:0">
-          <div><div class="settings-label">Hide extreme content</div><div class="settings-sub">Titles strongly tagged with extreme content are hidden from Browse &amp; Search entirely. Turn off to reveal them instead, still with a heavy blur + warning label</div></div>
+          <div><div class="settings-label">Hide extreme content</div><div class="settings-sub">Titles strongly tagged with extreme content are hidden from Browse &amp; Search entirely. Turn off to reveal them instead</div></div>
           <div class="toggle-switch ${settings.extremeContentWarnings !== false ? 'on' : ''}" id="tog-extreme-warnings"></div>
+        </div>
+
+        <div class="settings-row">
+          <div><div class="settings-label">Blur + warn extreme content when shown</div><div class="settings-sub">Only matters if the above is off. When on, revealed titles still get a heavy blur + warning label instead of displaying normally</div></div>
+          <div class="toggle-switch ${settings.extremeContentBlur !== false ? 'on' : ''}" id="tog-extreme-blur"></div>
         </div>
 
         <div class="settings-row">
@@ -3086,6 +3091,13 @@ async function renderSettingsSection(section) {
       const enabled = this.classList.contains('on');
       settings.extremeContentWarnings = enabled;
       await window.api.writeSetting('extremeContentWarnings', enabled);
+      refreshBrowseForTags();
+    });
+    document.getElementById('tog-extreme-blur')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      const enabled = this.classList.contains('on');
+      settings.extremeContentBlur = enabled;
+      await window.api.writeSetting('extremeContentBlur', enabled);
       refreshBrowseForTags();
     });
     document.getElementById('tog-hidden-tags-enabled')?.addEventListener('click', async function() {
@@ -3498,7 +3510,7 @@ async function openModal(item, nav = null) {
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const nsfw     = isNsfw(full);
-  const extreme  = isExtreme(full);
+  const extreme  = settings.extremeContentBlur !== false && isExtreme(full);
   currentNsfw    = nsfw;
 
   const reopen = async () => {

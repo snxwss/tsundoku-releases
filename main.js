@@ -411,7 +411,8 @@ const SETTINGS_DEFAULTS = {
   nsfwBlurLibraryImages: false, // blur 18+ character art/screenshots in the detail modal, opened from Home/Library/Wishlist
   nsfwBlurBrowseImages:  true,  // blur 18+ character art/screenshots in the detail modal, opened from Browse/Search
   browseNsfwFilter: true,    // hide 18+ in Browse lists (search still shows all)
-  extremeContentWarnings: true, // stronger blur + warning label on extreme-tagged titles
+  extremeContentWarnings: true, // hide extreme-tagged titles from Browse/Search entirely
+  extremeContentBlur: true,     // when shown (the above is off), give them a heavy blur + warning label instead of normal display
   zoom:             100,
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
@@ -472,7 +473,7 @@ const SYNC_PREF_KEYS = [
   'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
   'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
-  'extremeContentWarnings',
+  'extremeContentWarnings', 'extremeContentBlur',
   'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
 const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
@@ -2321,7 +2322,7 @@ ipcMain.handle('import-data', async () => {
     const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
       'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
       'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
-      'extremeContentWarnings',
+      'extremeContentWarnings', 'extremeContentBlur',
       'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
     const local = readSettings();
     for (const k of PREF_KEYS) {
