@@ -291,6 +291,25 @@ const isNsfw = vn => {
   return explicit.length >= 1;
 };
 
+// Content that's legal and stays reachable with 18+ allowed, but shouldn't just
+// blend in as ordinary NSFW — flagged for a stronger blur + explicit warning
+// label instead of Tsundoku's normal "18+" cover blur, so it's never a surprise.
+const EXTREME_TAG_FRAGMENTS = [
+  'scat',
+  'vomiting',
+  'piss drinking',
+  'guro',
+  'cock and ball torture',
+  'vore',
+  'unbirth',
+];
+// Same confidence bar as isNsfw: a barely-there tag (a couple of low-confidence
+// votes) shouldn't trigger the full extreme-content treatment — only a tag the
+// community actually agrees strongly applies (VNDB tag rating out of 3).
+const isExtreme = vn => (vn.tags || []).some(t =>
+  t && Number(t.rating) >= 2.0 &&
+  EXTREME_TAG_FRAGMENTS.some(f => (t.name || '').toLowerCase().includes(f)));
+
 function escHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -419,11 +438,15 @@ function formatDate(ts) {
 
 // blur: whether to blur this cover if it's nsfw (caller decides per context —
 // library vs browse have independent blur settings).
-function makePoster(url, rounded = 12, nsfw = false, blur = false) {
-  return `<div class="pv2${nsfw && blur ? ' nsfw-blur' : ''}" style="border-radius:${rounded}px">
+// `extreme` (e.g. scat) always gets the stronger blur + warning label, regardless
+// of the normal NSFW blur setting — it's a safety net against surprise, not a
+// preference toggle, so it can't be turned off the same way ordinary 18+ blur can.
+function makePoster(url, rounded = 12, nsfw = false, blur = false, extreme = false) {
+  return `<div class="pv2${(nsfw && blur) || extreme ? ' nsfw-blur' : ''}${extreme ? ' extreme-blur' : ''}" style="border-radius:${rounded}px">
     ${url
       ? `<img src="${escHtml(url)}" loading="lazy" />`
       : `<div class="pv2-no-img">No Image</div>`}
+    ${extreme ? `<span class="extreme-warning">⚠ Extreme content</span>` : ''}
   </div>`;
 }
 
@@ -2220,12 +2243,13 @@ function renderBrowseGrid(vns) {
     const inLib  = !!(entry?.library && !entry?.excluded);
     const inWish = !!entry?.wishlist;
     const nsfw   = isNsfw(vn);
+    const extreme = settings.extremeContentWarnings !== false && isExtreme(vn);
     const yr     = vn.released ? vn.released.slice(0, 4) : '';
     const len    = formatLength(vn);
 
     return `<div class="browse-item" data-id="${escHtml(vn.id)}">
       <div class="bi-poster">
-        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse)}
+        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse, extreme)}
         ${inLib  ? `<span class="cover-badge lib">in library</span>` : ''}
         ${!inLib && inWish ? `<span class="cover-badge wish">wishlisted</span>` : ''}
         <div class="bi-overlay">
@@ -3001,6 +3025,11 @@ async function renderSettingsSection(section) {
         <div class="settings-h">Hidden from browse</div>
 
         <div class="settings-row" style="padding-top:0">
+          <div><div class="settings-label">Extreme content warnings</div><div class="settings-sub">Stronger blur + a warning label on titles tagged with extreme content (scat, guro, etc.) — still shown, never hidden outright</div></div>
+          <div class="toggle-switch ${settings.extremeContentWarnings !== false ? 'on' : ''}" id="tog-extreme-warnings"></div>
+        </div>
+
+        <div class="settings-row">
           <div><div class="settings-label">Blocked tags</div><div class="settings-sub">Turn off to temporarily allow everything, without losing your blocked list</div></div>
           <div class="toggle-switch ${settings.hiddenTagsEnabled !== false ? 'on' : ''}" id="tog-hidden-tags-enabled"></div>
         </div>
@@ -3045,6 +3074,13 @@ async function renderSettingsSection(section) {
     const refreshBrowseForTags = () => {
       if (activeView === 'browse') renderBrowseGrid(browseVns);
     };
+    document.getElementById('tog-extreme-warnings')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      const enabled = this.classList.contains('on');
+      settings.extremeContentWarnings = enabled;
+      await window.api.writeSetting('extremeContentWarnings', enabled);
+      refreshBrowseForTags();
+    });
     document.getElementById('tog-hidden-tags-enabled')?.addEventListener('click', async function() {
       this.classList.toggle('on');
       const enabled = this.classList.contains('on');
@@ -3455,6 +3491,7 @@ async function openModal(item, nav = null) {
   const pt       = formatPlaytime(entry.playtime_seconds);
   const lp       = formatLastPlayed(entry.last_played);
   const nsfw     = isNsfw(full);
+  const extreme  = settings.extremeContentWarnings !== false && isExtreme(full);
   currentNsfw    = nsfw;
 
   const reopen = async () => {
@@ -3464,7 +3501,7 @@ async function openModal(item, nav = null) {
 
   // ── Left panel ──
   left.innerHTML = `
-    <div class="modal-cover-wrap">${makePoster(url, 14, nsfw, activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary)}</div>
+    <div class="modal-cover-wrap">${makePoster(url, 14, nsfw, activeView === 'browse' ? settings.nsfwBlurBrowse : settings.nsfwBlurLibrary, extreme)}</div>
 
     <div class="modal-left-actions">
       ${inLib && onDevice && isRunning ? `<div class="btn-sm pri btn-stop" id="m-launch">■ Stop</div>` : ''}

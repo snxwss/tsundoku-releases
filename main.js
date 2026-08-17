@@ -411,6 +411,7 @@ const SETTINGS_DEFAULTS = {
   nsfwBlurLibraryImages: false, // blur 18+ character art/screenshots in the detail modal, opened from Home/Library/Wishlist
   nsfwBlurBrowseImages:  true,  // blur 18+ character art/screenshots in the detail modal, opened from Browse/Search
   browseNsfwFilter: true,    // hide 18+ in Browse lists (search still shows all)
+  extremeContentWarnings: true, // stronger blur + warning label on extreme-tagged titles
   zoom:             100,
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
@@ -471,6 +472,7 @@ const SYNC_PREF_KEYS = [
   'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
   'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
+  'extremeContentWarnings',
   'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
 const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
@@ -1432,7 +1434,12 @@ const BLOCKED_TAG_FRAGMENTS = [
   'sex involving children',
   'shotacon',
   'lolicon',
-  'rape by shota'
+  'rape by shota',
+  'bestiality',
+  'sex with animals',
+  'sex with insects',
+  'necrophilia',
+  'paraphilic infantilism',
 ];
 
 // Titles that are allowed even if they contain blocked tags.
@@ -2314,6 +2321,7 @@ ipcMain.handle('import-data', async () => {
     const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
       'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
       'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
+      'extremeContentWarnings',
       'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
     const local = readSettings();
     for (const k of PREF_KEYS) {

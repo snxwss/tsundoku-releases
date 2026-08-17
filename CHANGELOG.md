@@ -2,6 +2,12 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.3.16 — 2026-08-17
+
+- Added an "Extreme content warnings" tier: certain strongly-tagged titles still show up with 18+ allowed, but get a much heavier blur and a warning label instead of blending in as ordinary 18+ content. Toggle it off in Settings → Hidden if you don't want it.
+- A few more content categories are now hard-blocked outright, same treatment as the existing baseline blocklist — never shown regardless of settings.
+- Fixed the extreme-content check flagging titles off a single weak/low-confidence tag vote — now requires the same tag-strength bar as normal 18+ detection.
+
 ## 1.3.15 — 2026-08-09
 
 - Added a "Screenshots only" filter to Browse — hides titles that have no screenshots on VNDB.
