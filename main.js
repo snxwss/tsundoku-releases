@@ -316,6 +316,10 @@ function initAutoUpdate() {
   // Accept whatever the "latest" release points to, even a lower version — lets us
   // roll back (e.g. an accidental high version) without clients getting stuck.
   autoUpdater.allowDowngrade = true;
+  // "-beta" versions are just a naming choice, not a separate opt-in channel —
+  // existing installs (on a non-prerelease version) should still auto-update to
+  // them normally instead of silently stalling on the last stable tag.
+  autoUpdater.allowPrerelease = true;
   autoUpdater.on('checking-for-update', () => setUpdateState({ state: 'checking', error: null }));
   autoUpdater.on('update-available',     (info) => setUpdateState({ state: 'available', version: info && info.version, percent: 0 }));
   autoUpdater.on('update-not-available', ()     => setUpdateState({ state: 'current', percent: 0 }));
@@ -412,6 +416,7 @@ const SETTINGS_DEFAULTS = {
   nsfwBlurBrowseImages:  true,  // blur 18+ character art/screenshots in the detail modal, opened from Browse/Search
   browseNsfwFilter: true,    // hide 18+ in Browse lists (search still shows all)
   extremeContentWarnings: true, // hide extreme-tagged titles from Browse/Search entirely
+  extremeContentShowWarning: true, // when shown (the above is off): blur covers + require an explicit "Proceed" before opening
   zoom:             100,
   showExcluded:     false,
   minimizeOnClose:  true,    // close button hides to tray instead of quitting
@@ -469,7 +474,7 @@ const SYNC_PREF_KEYS = [
   'cardSize', 'zoom',
   'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
   'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
-  'extremeContentWarnings',
+  'extremeContentWarnings', 'extremeContentShowWarning',
   'showExcluded', 'minimizeOnClose', 'importPriority',
 ];
 const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
@@ -1192,7 +1197,13 @@ ipcMain.handle('open-external', (_e, url) => {
   } catch {}
   return true;
 });
-ipcMain.handle('get-version', () => app.getVersion());
+ipcMain.handle('get-version', () => {
+  // Display-only formatting: "1.5.0-beta" -> "Beta 1.5.0". The underlying
+  // package.json version stays valid semver for the build/update pipeline.
+  const m = app.getVersion().match(/^(.*)-beta(\.\d+)?$/i);
+  const display = m ? `Beta ${m[1]}${m[2] || ''}` : app.getVersion();
+  return display + (app.isPackaged ? '' : ' dev');
+});
 ipcMain.handle('get-install-path', () => path.dirname(app.getPath('exe')));
 ipcMain.handle('get-data-path', () => DATA_DIR);
 // Open a local folder in the OS file manager (highlights it).
@@ -2305,7 +2316,7 @@ ipcMain.handle('import-data', async () => {
     const PREF_KEYS = ['themeMode', 'palette', 'autoLight', 'autoDark', 'cardSize', 'zoom',
       'titleLang', 'nsfwHideLibrary', 'nsfwBlurLibrary', 'nsfwBlurBrowse',
       'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
-      'extremeContentWarnings',
+      'extremeContentWarnings', 'extremeContentShowWarning', 'hiddenTagsEnabled',
       'showExcluded', 'minimizeOnClose', 'importPriority', 'vndbUsername'];
     const local = readSettings();
     for (const k of PREF_KEYS) {
@@ -2571,6 +2582,12 @@ function pickMainExe(folder) {
     .sort((a, b) => b.size - a.size)[0].p;
 }
 
+function hasOwnExe(dir) {
+  let items;
+  try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch { return false; }
+  return items.some(it => it.isFile() && it.name.toLowerCase().endsWith('.exe') && !EXE_JUNK.test(it.name));
+}
+
 function cleanName(folder) {
   return folder
     .replace(/\[[^\]]*\]/g, ' ').replace(/\([^)]*\)/g, ' ')
@@ -2586,9 +2603,32 @@ async function scanDirectory(root) {
       .filter(d => d.isDirectory()).map(d => d.name);
   } catch (e) { throw new Error('Could not read folder: ' + e.message); }
 
-  const targets = subdirs.length
-    ? subdirs.map(name => ({ name, folderPath: path.join(root, name) }))
-    : [{ name: path.basename(root), folderPath: root }];
+  // A top-level folder normally IS a game (its own exe lives directly inside it).
+  // But a "collection" folder — like a Nekopara-style pack with Vol.0/1/2/3/Extra
+  // each in their own subfolder — has no exe of its own, just multiple separate
+  // games nested one level deeper. Expand those into individual scan targets
+  // instead of collapsing the whole collection into a single (wrong) match.
+  const targets = [];
+  if (subdirs.length) {
+    for (const name of subdirs) {
+      const folderPath = path.join(root, name);
+      if (hasOwnExe(folderPath)) { targets.push({ name, folderPath }); continue; }
+      let innerDirs = [];
+      try {
+        innerDirs = fs.readdirSync(folderPath, { withFileTypes: true })
+          .filter(d => d.isDirectory()).map(d => d.name);
+      } catch {}
+      const subTargets = innerDirs
+        .map(sub => ({ name: sub, folderPath: path.join(folderPath, sub) }))
+        .filter(t => pickMainExe(t.folderPath));
+      // Only treat it as a collection if there are multiple separate games inside —
+      // a single nested subfolder is just normal install-dir depth, not a collection.
+      if (subTargets.length >= 2) targets.push(...subTargets);
+      else targets.push({ name, folderPath });
+    }
+  } else {
+    targets.push({ name: path.basename(root), folderPath: root });
+  }
 
   // Find exes synchronously (fast, local disk), then fire all VNDB searches in parallel.
   const withExe = [], noExe = [];
@@ -2605,11 +2645,19 @@ async function scanDirectory(root) {
       const data = await vndbVN({
         filters: ['search', '=', query],
         fields: LIST_FIELDS,
-        results: 5,
+        results: 10,
       });
       candidates = data.results || [];
-    } catch {}
-    return { folderName: name, exePath: exe, query, candidates };
+    } catch (e) {
+      debugLog(`SCAN-VNDB-FAIL folder="${name}" query="${query}" error="${e && e.message}"`);
+    }
+    // A verified Steam App ID means this folder is a real, purchased Steam title —
+    // independent of anything VNDB's search returns. Names can still coincidentally
+    // (or deliberately, for parody/riff titles) look very close to an unrelated VN,
+    // so the renderer requires an exact name match before auto-confirming anything
+    // flagged here, instead of the normal fuzzy tolerance.
+    const steamAppId = findSteamAppId(exe);
+    return { folderName: name, exePath: exe, query, candidates, steamAppId };
   }));
 
   return { root, matches, noExe };

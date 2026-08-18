@@ -1,6 +1,33 @@
 # Changelog
 
+Tsundoku is a Windows visual novel launcher, library manager, and playtime tracker powered by VNDB. Browse and search VNDB's full catalog from inside the app, track your library and wishlist, and scan your own folders to automatically match installed VNs to their VNDB entries — no manual data entry required. Playtime is tracked automatically via process detection, regardless of how a game is launched (Steam, a shortcut, or directly). Features include: NSFW/18+ content controls (independent blur/hide settings for Browse vs. your library, plus a dedicated extreme-content safety layer), backups with cross-device merge support, shared-folder device sync, VNDB list import, an achievements system, playtime/reading stats, Steam integration, and light/dark/auto themes with multiple color palettes.
+
 All notable changes to Tsundoku are listed here. Newest first.
+
+## 1.5.0-beta — 2026-08-19
+
+Tsundoku is currently in beta. Not all features may work exactly as intended, and some manual tinkering may occasionally be necessary. Also note: VNDB's API rate limits accumulate quickly under heavy use (e.g. scanning a large folder), and timeouts or failed matches during a scan are common and expected — there's no fix for this yet on my end.
+
+This one's a large batch of fixes to folder scanning and content safety.
+
+**Content safety**
+- Extreme content is now hidden from Browse & Search by default (previously just blurred).
+- Matching for hidden/blocked content now uses VNDB's internal tag IDs instead of readable tag names, for more precise, collision-free filtering.
+- Several additional content categories are now hard-blocked outright.
+- Revealed extreme-content titles now require clicking through a "Content Warning" interstitial (with a "Don't show again" option) before opening.
+
+**Folder scanning — reliability overhaul**
+- VNDB search failures during a scan are now logged instead of silently showing as "no match."
+- Fixed the automatic background "check for new games" running at the same time as a manual scan, which doubled VNDB request traffic and could trigger rate-limit failures.
+- "Collection" folders containing multiple separate games (e.g. a multi-volume pack with each entry in its own subfolder) are now split into individual scan targets instead of being collapsed into one wrong match.
+- Matching now checks every title variant VNDB returns, catching titles whose local folder name is shorter than the full official title.
+- Fixed the scanner sometimes "reconnecting" a folder to an unrelated title you already own elsewhere in your library.
+- Increased the VNDB candidate pool per folder from 5 to 10 results.
+- Fixed false-positive matches where a short or generic folder name (e.g. a mainstream Steam game) coincidentally resembled an unrelated VN title.
+- Added a "Low confidence" tab so uncertain matches no longer get mixed into "New matches."
+- Scan Results now opens on "New matches" by default instead of "All."
+- Added a one-click "Ignore" button on each scan row.
+- New-match covers now respect the Browse blur setting (on by default) instead of the Library setting (off by default); reconnects to already-owned titles are exempt from blur.
 
 ## 1.4.1 — 2026-08-17
 

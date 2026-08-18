@@ -771,6 +771,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .scan-q:focus { border-color: var(--accent-deep); }
 .scan-q-btn { background: var(--panel); border: 2px solid var(--border); color: var(--mut); padding: 7px 14px; border-radius: 9px; font-size: 12px; cursor: pointer; font-family: 'Space Mono', monospace; font-weight: 700; }
 .scan-q-btn:hover { color: var(--ink); }
+.scan-ignore-btn { background: var(--panel); border: 2px solid var(--border); color: var(--mut); padding: 7px 14px; border-radius: 9px; font-size: 12px; cursor: pointer; font-family: 'Space Mono', monospace; font-weight: 700; }
+.scan-ignore-btn:hover { color: var(--coral-deep); border-color: var(--coral-deep); }
 .scan-exe { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); margin-top: 8px; word-break: break-all; }
 .scan-known {
   display: inline-block; margin-left: 6px;
@@ -892,6 +894,37 @@ html, body { height: 100%; background: #141714; user-select: none; }
    NSFW blur
    ===================================================================== */
 .nsfw-blur img { filter: blur(14px); transform: scale(1.05); }
+
+/* Extreme content — stronger blur + an explicit warning label, and (when opened)
+   an interstitial you must click through. Not the normal 18+ blur preference. */
+.extreme-blur img { filter: blur(26px) grayscale(0.4); transform: scale(1.1); }
+.extreme-warning {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 10px; font-family: 'Space Mono', monospace; font-size: 0.7rem;
+  font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); z-index: 2;
+  pointer-events: none;
+}
+/* While the warning gate is up, collapse the cover panel and let the message
+   panel take the whole modal so the icon + text sit centered as one block
+   instead of being split across the normal two-column layout. */
+.modal-box.gate-mode .modal-left { display: none; }
+.modal-box.gate-mode .modal-right { border-radius: 22px; align-items: center; justify-content: center; }
+.extreme-gate {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; padding: 40px 20px; margin: auto;
+}
+.extreme-gate svg { color: var(--coral-deep); }
+.extreme-gate-heading {
+  font-family: 'Space Mono', monospace; font-size: 1.15rem; font-weight: 700; color: var(--ink);
+  letter-spacing: 0.02em; margin-top: 4px;
+}
+.extreme-gate-msg { max-width: 380px; color: var(--mut); font-size: 0.92rem; line-height: 1.55; margin-bottom: 8px; }
+.extreme-gate #extreme-gate-proceed { min-width: 140px; justify-content: center; }
+.extreme-gate-dontshow {
+  font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--mut);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-top: 4px;
+}
+.extreme-gate-dontshow:hover { color: var(--ink); }
 
 /* =====================================================================
    SETTINGS — zoom picker + toggles

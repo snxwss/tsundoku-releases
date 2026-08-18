@@ -21,6 +21,7 @@ const ICONS = {
   grid:     'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   list:     'M4 6h16M4 12h16M4 18h16',
   refresh:  'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.4L23 10M20.5 15a9 9 0 0 1-14.8 3.4L1 14',
+  warning:  'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
 };
 
 function icon(name, size = 20, filled = false) {
@@ -90,6 +91,7 @@ let libSelId   = null;
 let modalToken = 0;
 let scanState  = [];
 let scanTab    = 'all'; // 'all' | 'new' | 'reconnect' — filters the Scan Results list
+let scanSubtitleBase = ''; // "Found N folder(s) in X." — notes get appended fresh each update
 let vndbImportState = [];
 let dzFlash = null;          // one-shot "✓ done" message shown after a Danger-zone action
 let browseSort = 'rating';
@@ -301,6 +303,8 @@ const EXTREME_TAG_IDS = new Set([
   'g162',
   'g2266', 'g2265',
   'g1279', 'g3219', 'g2354',
+  'g1444',
+  'g1993',
 ]);
 // Same confidence bar as isNsfw: a barely-there tag (a couple of low-confidence
 // votes) shouldn't trigger the full extreme-content treatment — only a tag the
@@ -436,11 +440,12 @@ function formatDate(ts) {
 
 // blur: whether to blur this cover if it's nsfw (caller decides per context —
 // library vs browse have independent blur settings).
-function makePoster(url, rounded = 12, nsfw = false, blur = false) {
-  return `<div class="pv2${nsfw && blur ? ' nsfw-blur' : ''}" style="border-radius:${rounded}px">
+function makePoster(url, rounded = 12, nsfw = false, blur = false, extreme = false) {
+  return `<div class="pv2${(nsfw && blur) || extreme ? ' nsfw-blur' : ''}${extreme ? ' extreme-blur' : ''}" style="border-radius:${rounded}px">
     ${url
       ? `<img src="${escHtml(url)}" loading="lazy" />`
       : `<div class="pv2-no-img">No Image</div>`}
+    ${extreme ? `<span class="extreme-warning">⚠ Extreme content</span>` : ''}
   </div>`;
 }
 
@@ -2236,12 +2241,16 @@ function renderBrowseGrid(vns) {
     const inLib  = !!(entry?.library && !entry?.excluded);
     const inWish = !!entry?.wishlist;
     const nsfw   = isNsfw(vn);
+    // Anything reaching this point already survived the extreme hide-filter above
+    // (or the toggle is off) — if it's still extreme, blur it and label it, unless
+    // the user has separately turned off extremeContentShowWarning.
+    const extreme = settings.extremeContentShowWarning !== false && isExtreme(vn);
     const yr     = vn.released ? vn.released.slice(0, 4) : '';
     const len    = formatLength(vn);
 
     return `<div class="browse-item" data-id="${escHtml(vn.id)}">
       <div class="bi-poster">
-        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse)}
+        ${makePoster(url, 12, nsfw, settings.nsfwBlurBrowse, extreme)}
         ${inLib  ? `<span class="cover-badge lib">in library</span>` : ''}
         ${!inLib && inWish ? `<span class="cover-badge wish">wishlisted</span>` : ''}
         <div class="bi-overlay">
@@ -2269,7 +2278,7 @@ function renderBrowseGrid(vns) {
     el.addEventListener('click', () => {
       const idx = vns.findIndex(v => v.id === el.dataset.id);
       const vn  = vns[idx];
-      if (vn) openModal({ ...metaOf(vn), ...(entryById(vn.id) || {}) }, { list: vns, idx });
+      if (vn) openModal({ ...metaOf(vn), tags: vn.tags, ...(entryById(vn.id) || {}) }, { list: vns, idx });
     });
   });
 
@@ -3022,6 +3031,11 @@ async function renderSettingsSection(section) {
         </div>
 
         <div class="settings-row">
+          <div><div class="settings-label">Show warning for extreme content</div><div class="settings-sub">Only matters if the above is off. Blurs covers and requires clicking "Proceed" before opening one</div></div>
+          <div class="toggle-switch ${settings.extremeContentShowWarning !== false ? 'on' : ''}" id="tog-extreme-show-warning"></div>
+        </div>
+
+        <div class="settings-row">
           <div><div class="settings-label">Blocked tags</div><div class="settings-sub">Turn off to temporarily allow everything, without losing your blocked list</div></div>
           <div class="toggle-switch ${settings.hiddenTagsEnabled !== false ? 'on' : ''}" id="tog-hidden-tags-enabled"></div>
         </div>
@@ -3071,6 +3085,13 @@ async function renderSettingsSection(section) {
       const enabled = this.classList.contains('on');
       settings.extremeContentWarnings = enabled;
       await window.api.writeSetting('extremeContentWarnings', enabled);
+      refreshBrowseForTags();
+    });
+    document.getElementById('tog-extreme-show-warning')?.addEventListener('click', async function() {
+      this.classList.toggle('on');
+      const enabled = this.classList.contains('on');
+      settings.extremeContentShowWarning = enabled;
+      await window.api.writeSetting('extremeContentShowWarning', enabled);
       refreshBrowseForTags();
     });
     document.getElementById('tog-hidden-tags-enabled')?.addEventListener('click', async function() {
@@ -3411,6 +3432,36 @@ function paintUpdateStatus() {
   if (restart) restart.style.display = (s && s.state === 'ready') ? '' : 'none';
 }
 
+// Interstitial shown before an extreme-content title's real modal renders (see
+// the gate in openModal). "Don't show again" both proceeds this once and turns
+// off extremeContentShowWarning, which also controls the Browse/Search cover blur.
+function renderExtremeWarningGate(item, onProceed) {
+  const modalBox = document.getElementById('modal');
+  const left  = document.getElementById('modal-left');
+  const right = document.getElementById('modal-right');
+  modalBox?.classList.add('gate-mode');
+  left.innerHTML = '';
+  right.innerHTML = `
+    <div class="extreme-gate">
+      ${icon('warning', 64)}
+      <div class="extreme-gate-heading">Content Warning</div>
+      <div class="extreme-gate-msg">The following content may contain highly disturbing fetish material. Proceed at your own discretion.</div>
+      <div class="btn-sm pri" id="extreme-gate-proceed">Proceed</div>
+      <div class="extreme-gate-dontshow" id="extreme-gate-dontshow">Don't show again</div>
+    </div>`;
+  document.getElementById('extreme-gate-proceed')?.addEventListener('click', () => {
+    modalBox?.classList.remove('gate-mode');
+    onProceed();
+  });
+  document.getElementById('extreme-gate-dontshow')?.addEventListener('click', async () => {
+    settings.extremeContentShowWarning = false;
+    await window.api.writeSetting('extremeContentShowWarning', false);
+    if (activeView === 'browse') renderBrowseGrid(browseVns);
+    modalBox?.classList.remove('gate-mode');
+    onProceed();
+  });
+}
+
 // ── DETAIL MODAL ──────────────────────────────────────────────────────────────
 async function openModal(item, nav = null) {
   modalNav = nav;
@@ -3418,9 +3469,22 @@ async function openModal(item, nav = null) {
   const overlay = document.getElementById('modal-overlay');
   const left    = document.getElementById('modal-left');
   const right   = document.getElementById('modal-right');
+  document.getElementById('modal')?.classList.remove('gate-mode'); // reset from any prior gate
 
   overlay.classList.remove('hidden');
 
+  // Extreme-content titles opened from Browse/Search get an interstitial you must
+  // explicitly click through before the real modal renders (Library/Wishlist/Home
+  // skip this — you already know what you added). "Don't show again" both proceeds
+  // this once AND turns off the setting, so future opens (and the cover blur, which
+  // shares the same setting) go back to normal.
+  if (activeView === 'browse' && isExtreme(item) && settings.extremeContentShowWarning !== false) {
+    renderExtremeWarningGate(item, () => renderModalContent());
+    return;
+  }
+  renderModalContent();
+
+  function renderModalContent() {
   const prevBtn = document.getElementById('modal-prev');
   const nextBtn = document.getElementById('modal-next');
   if (prevBtn) prevBtn.classList.toggle('hidden', !nav || nav.idx <= 0);
@@ -3773,6 +3837,7 @@ async function openModal(item, nav = null) {
       window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});
     }
   }).catch(() => {});
+  } // end renderModalContent
 }
 
 function navModal(dir) {
@@ -3780,7 +3845,7 @@ function navModal(dir) {
   const newIdx = modalNav.idx + dir;
   if (newIdx < 0 || newIdx >= modalNav.list.length) return;
   const raw = modalNav.list[newIdx];
-  openModal({ ...metaOf(raw), ...(entryById(raw.id) || {}) }, { list: modalNav.list, idx: newIdx });
+  openModal({ ...metaOf(raw), tags: raw.tags, ...(entryById(raw.id) || {}) }, { list: modalNav.list, idx: newIdx });
 }
 
 function closeModal() {
@@ -3866,19 +3931,72 @@ function normTitle(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function titleWords(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+}
+
+// Does any consecutive run of WHOLE words in `words`, starting at a real word
+// boundary, concatenate to exactly `target`? Rejects a match that only lines up
+// because it happens to fall mid-word (e.g. "overwatch" is a literal substring of
+// "loverwatch", but "loverwatch" isn't made of a "l" word + an "overwatch" word).
+function wordBoundaryContains(words, target) {
+  for (let start = 0; start < words.length; start++) {
+    let acc = '';
+    for (let end = start; end < words.length; end++) {
+      acc += words[end];
+      if (acc === target) return true;
+      if (acc.length > target.length) break;
+    }
+  }
+  return false;
+}
+
 // Does a scanned folder name plausibly match a VNDB candidate title? Used to avoid
 // auto-selecting loose matches (e.g. a "Dead by Daylight" game folder → the
-// "Hooked on You: A Dead by Daylight Dating Sim" VN). Confident only when the
-// normalized names are equal, or one fully contains the other AND the shorter is
-// at least 60% of the longer's length — so a short folder name buried inside a
-// much longer title does NOT count.
+// "Hooked on You: A Dead by Daylight Dating Sim" VN, or a Steam "Overwatch" folder
+// → the unrelated VN "Loverwatch"). Confident only when the normalized names are
+// equal, or one fully contains the other at an actual WORD boundary (not merely
+// as a run of matching characters) AND the shorter is at least 60% of the
+// longer's length.
 function scanNameMatches(name, title) {
   const a = normTitle(name), b = normTitle(title);
   if (!a || !b) return false;
   if (a === b) return true;
-  const shorter = a.length <= b.length ? a : b;
-  const longer  = a.length <= b.length ? b : a;
-  return longer.includes(shorter) && shorter.length / longer.length >= 0.6;
+  const aIsShorter = a.length <= b.length;
+  const shorter = aIsShorter ? a : b;
+  const longer  = aIsShorter ? b : a;
+  // A short generic word ("Portal", "Overwatch") is collision-prone even when it
+  // genuinely lines up as its own word in an unrelated title ("Xi-Portal") — so
+  // require it to be almost the WHOLE title, not just a comfortable majority of
+  // it. Longer, more specific names keep the more lenient 60% bar.
+  const minRatio = shorter.length < 10 ? 0.85 : 0.6;
+  if (shorter.length / longer.length < minRatio) return false;
+  const longerSrc = aIsShorter ? title : name;
+  return wordBoundaryContains(titleWords(longerSrc), shorter);
+}
+
+// VNDB's main `title` field often carries a full subtitle ("Neko Para Extra:
+// Koneko no Hi no Yakusoku") that a terse local folder name ("NEKOPARA Extra")
+// will never clear the 60% length bar against, even though it's clearly the
+// right match. Also try every other title variant VNDB returns (alttitle, and
+// each per-language title) — a plain official title without the added subtitle
+// is common and usually much closer to how folders actually get named.
+function scanNameMatchesAny(name, vn) {
+  const titles = [vn.title, vn.alttitle, ...(Array.isArray(vn.titles) ? vn.titles.map(t => t && t.title) : [])]
+    .filter(Boolean);
+  return titles.some(t => scanNameMatches(name, t));
+}
+
+// Exact-only version (no fuzzy ratio/word-boundary tolerance at all) — used for
+// folders confirmed to be a real Steam title (see m.steamAppId), where a name
+// that's merely CLOSE to an unrelated VN (a same-name parody/riff title, e.g. a
+// "Terraria 2" doujin VN) shouldn't be enough to auto-confirm.
+function exactNameMatchesAny(name, vn) {
+  const a = normTitle(name);
+  if (!a) return false;
+  const titles = [vn.title, vn.alttitle, ...(Array.isArray(vn.titles) ? vn.titles.map(t => t && t.title) : [])]
+    .filter(Boolean);
+  return titles.some(t => normTitle(t) === a);
 }
 
 // Annotate a scan candidate with whether its VNDB id is already a library/wishlist
@@ -3919,7 +4037,18 @@ function reconcileScanMatch(m) {
       candidates.unshift({ ...hit, image: imgUrl(hit.image), inLibrary: true });
     }
   }
-  candidates.sort((a, b) => (b.inLibrary ? 1 : 0) - (a.inLibrary ? 1 : 0));
+  // VNDB's search ranking is fuzzy full-text relevance, not name-similarity — the
+  // literal best name match can rank below an unrelated title further down the
+  // list. Re-sort with: (2) already-owned AND a real name match, (1) any real name
+  // match, (0) everything else — each tier keeping VNDB's original relative order.
+  // Blindly promoting any inLibrary hit (old behavior) risked silently "reconnecting"
+  // to a completely wrong game you happen to separately already own.
+  const nameMatches = c => scanNameMatchesAny(m.query, c) || scanNameMatchesAny(m.folderName, c);
+  const score = c => (c.inLibrary && nameMatches(c)) ? 2 : (nameMatches(c) ? 1 : 0);
+  candidates = candidates
+    .map((c, i) => ({ c, i, s: score(c) }))
+    .sort((x, y) => y.s - x.s || x.i - y.i)
+    .map(x => x.c);
   return candidates;
 }
 
@@ -3935,10 +4064,13 @@ function openScanResults(result) {
     const top = candidates[0];
     // Auto-check only confident NEW matches (or library reconnects), so the user just
     // confirms them. Weak matches stay unchecked so they opt in (avoids Steam games
-    // being added as VNs), and anything previously deselected stays deselected.
-    const confident = !!top && (top.inLibrary
-      || scanNameMatches(m.query, top.title)
-      || scanNameMatches(m.folderName, top.title));
+    // being added as VNs), and anything previously deselected stays deselected. A
+    // verified Steam title needs an EXACT name match, not just a close one — a
+    // real mainstream game can have a same-named niche VN riffing on it.
+    const nameOk = m.steamAppId
+      ? (exactNameMatchesAny(m.query, top || {}) || exactNameMatchesAny(m.folderName, top || {}))
+      : (!!top && (scanNameMatchesAny(m.query, top) || scanNameMatchesAny(m.folderName, top)));
+    const confident = !!top && (top.inLibrary || nameOk);
     // "Ignored" = either explicitly unchecked/skipped on a PRIOR scan (persisted
     // via settings.dismissedScans), or a folder with no VNDB match at all (nothing
     // actionable to review) — distinct from a fresh, real new match to confirm.
@@ -3951,43 +4083,64 @@ function openScanResults(result) {
       selectedId: top ? top.id : '',
       include:    confident && !rejected,
       ignored:    rejected,
+      // Stable classification for the tabs, independent of the checkbox toggle
+      // state below (which the user can freely flip without moving the row
+      // between tabs).
+      confident:  confident && !rejected,
     };
   });
-  const reconnects = scanState.filter(isReconnectRow).length;
-  const ignoredCnt  = scanState.filter(r => r.ignored).length;
-  const weak       = scanState.filter(r => r.candidates.length && !r.include).length;
-  const noExeNote  = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
-  const reconNote  = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
-  const weakNote   = weak ? ` ${weak} weak match(es) left unchecked — tick them if they're correct.` : '';
-  document.getElementById('scan-subtitle').textContent =
-    `Found ${scanState.length} game folder(s) in ${result.root}.${reconNote}${weakNote}${noExeNote}`;
+  const noExeNote = result.noExe.length ? ` ${result.noExe.length} folder(s) had no exe and were skipped.` : '';
+  scanSubtitleBase = `Found ${scanState.length} game folder(s) in ${result.root}.${noExeNote}`;
 
-  scanTab = 'all';
+  scanTab = 'new';
   document.querySelectorAll('#scan-tabs [data-scantab]').forEach(b =>
-    b.classList.toggle('on', b.dataset.scantab === 'all'));
-  const newCount  = scanState.length - reconnects - ignoredCnt;
-  const tabAll    = document.querySelector('#scan-tabs [data-scantab="all"]');
-  const tabNew    = document.querySelector('#scan-tabs [data-scantab="new"]');
-  const tabRecon  = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
-  const tabIgnore = document.querySelector('#scan-tabs [data-scantab="ignored"]');
-  if (tabAll)    tabAll.textContent    = `All (${scanState.length})`;
-  if (tabNew)    tabNew.textContent    = `New matches (${newCount})`;
-  if (tabRecon)  tabRecon.textContent  = `Reconnects (${reconnects})`;
-  if (tabIgnore) tabIgnore.textContent = `Ignored (${ignoredCnt})`;
+    b.classList.toggle('on', b.dataset.scantab === 'new'));
+  updateScanTabCounts();
 
   renderScanList();
   document.getElementById('scan-overlay').classList.remove('hidden');
 }
 
+// Recomputes and repaints the scan-tab counts + subtitle notes from the current
+// scanState. Called after the initial scan and again any time a row's
+// ignored/confident classification changes (e.g. the "Ignore" button).
+function updateScanTabCounts() {
+  const reconnects = scanState.filter(isReconnectRow).length;
+  const ignoredCnt = scanState.filter(r => r.ignored).length;
+  const weak       = scanState.filter(r => !r.ignored && !isReconnectRow(r) && !r.confident).length;
+  const newCount   = scanState.length - reconnects - ignoredCnt - weak;
+  const tabAll    = document.querySelector('#scan-tabs [data-scantab="all"]');
+  const tabNew    = document.querySelector('#scan-tabs [data-scantab="new"]');
+  const tabWeak   = document.querySelector('#scan-tabs [data-scantab="lowconf"]');
+  const tabRecon  = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
+  const tabIgnore = document.querySelector('#scan-tabs [data-scantab="ignored"]');
+  if (tabAll)    tabAll.textContent    = `All (${scanState.length})`;
+  if (tabNew)    tabNew.textContent    = `New matches (${newCount})`;
+  if (tabWeak)   tabWeak.textContent   = `Low confidence (${weak})`;
+  if (tabRecon)  tabRecon.textContent  = `Reconnects (${reconnects})`;
+  if (tabIgnore) tabIgnore.textContent = `Ignored (${ignoredCnt})`;
+  const reconNote = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
+  const weakNote  = weak ? ` ${weak} low-confidence match(es) — check the Low confidence tab.` : '';
+  const sub = document.getElementById('scan-subtitle');
+  if (sub) sub.textContent = scanSubtitleBase + reconNote + weakNote;
+}
+
+// Shared guard so the automatic startup check (below) never overlaps a manual
+// scan — running both at once doubles VNDB search traffic for the same folders
+// right after launch, which is exactly when a burst is most likely to get 429'd.
+let scanInFlight = false;
+
 async function runScan() {
   const btn = document.getElementById('settings-scan-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = `${icon('clock', 13)} Scanning…`; }
+  scanInFlight = true;
   try {
     const result = await window.api.scanFolder();
     openScanResults(result);
   } catch (err) {
     alert('Scan failed: ' + err.message);
   } finally {
+    scanInFlight = false;
     if (btn) { btn.disabled = false; btn.innerHTML = `${icon('scan', 13)} Scan now`; }
   }
 }
@@ -3997,6 +4150,7 @@ async function runScan() {
 // dismissible strip offering to review + add them. Covers newly installed Steam
 // games when the Steam library is one of the scan folders.
 async function checkNewGames() {
+  if (scanInFlight) return; // a manual scan is already covering the same folders
   let result;
   try { result = await window.api.scanFolderSilent(); } catch { return; }
   if (!result || !result.matches || !result.matches.length) return;
@@ -4004,7 +4158,8 @@ async function checkNewGames() {
   const fresh = result.matches.filter(m => {
     const top = reconcileScanMatch(m)[0];
     if (!top || isKnownId(top.id) || dismissed.has(m.exePath)) return false;
-    return scanNameMatches(m.query, top.title) || scanNameMatches(m.folderName, top.title);
+    if (m.steamAppId) return exactNameMatchesAny(m.query, top) || exactNameMatchesAny(m.folderName, top);
+    return scanNameMatchesAny(m.query, top) || scanNameMatchesAny(m.folderName, top);
   });
   if (fresh.length) showNewGamesStrip(fresh.length, result);
 }
@@ -4039,12 +4194,18 @@ function renderScanList() {
     if (scanTab === 'all')       return true;
     if (scanTab === 'reconnect') return isReconnectRow(row);
     if (scanTab === 'ignored')   return !!row.ignored;
-    return !isReconnectRow(row) && !row.ignored; // 'new'
+    if (scanTab === 'lowconf')   return !isReconnectRow(row) && !row.ignored && !row.confident;
+    return !isReconnectRow(row) && !row.ignored && row.confident; // 'new'
   });
   visible.forEach(row => {
     const selected = row.candidates.find(c => c.id === row.selectedId);
     const cover    = selected ? imgUrl(selected.image, selected.id) : null;
-    const blur     = selected && isNsfw(selected) && settings.nsfwBlurLibrary;
+    // These are freshly-discovered candidates being reviewed, not existing library
+    // covers — blur follows the Browse setting (on by default) so 18+ titles aren't
+    // shown in the clear before you've even decided whether to add them.
+    // A reconnect is already-known content (something you already own/added), not
+    // a new discovery — don't apply the discovery-blur treatment to it.
+    const blur     = selected && !selected.inLibrary && isNsfw(selected) && settings.nsfwBlurBrowse;
 
     const el = document.createElement('div');
     el.className = 'scan-row' + (row.include && row.selectedId ? '' : ' skipped');
@@ -4064,6 +4225,7 @@ function renderScanList() {
         <div class="scan-research">
           <input class="scan-q" placeholder="Wrong match? Search VNDB…" />
           <button class="scan-q-btn">Search</button>
+          <button class="scan-ignore-btn" title="Move to Ignored">Ignore</button>
         </div>
         <div class="scan-exe">▶ ${escHtml(row.exePath)}</div>
       </div>`;
@@ -4096,6 +4258,13 @@ function renderScanList() {
     };
     el.querySelector('.scan-q-btn').addEventListener('click', runResearch);
     qInput.addEventListener('keydown', e => { if (e.key === 'Enter') runResearch(); });
+
+    el.querySelector('.scan-ignore-btn').addEventListener('click', () => {
+      row.ignored = true;
+      row.include = false;
+      updateScanTabCounts();
+      renderScanList();
+    });
 
     scanList.appendChild(el);
   });
@@ -4233,7 +4402,7 @@ async function init() {
   // Version in top bar
   const version = await window.api.getVersion().catch(() => null);
   const vEl = document.getElementById('tbar-version');
-  if (vEl && version) vEl.textContent = `v${version}`;
+  if (vEl && version) vEl.textContent = /^beta\b/i.test(version) ? version : `v${version}`;
 
   // Settings icon
   const settingsNav = document.getElementById('settings-nav');
