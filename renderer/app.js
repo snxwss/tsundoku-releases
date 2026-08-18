@@ -291,24 +291,22 @@ const isNsfw = vn => {
   return explicit.length >= 1;
 };
 
-// Content that's legal and stays reachable with 18+ allowed, but shouldn't just
-// blend in as ordinary NSFW — flagged for a stronger blur + explicit warning
-// label instead of Tsundoku's normal "18+" cover blur, so it's never a surprise.
-const EXTREME_TAG_FRAGMENTS = [
-  'scat',
-  'vomiting',
-  'piss drinking',
-  'guro',
-  'cock and ball torture',
-  'vore',
-  'unbirth',
-];
+// Content that's legal but hidden from Browse/Search by default (Settings →
+// Hidden can reveal it). Matched by VNDB tag id (stable, opaque), including
+// every close variant of each category.
+const EXTREME_TAG_IDS = new Set([
+  'g897', 'g3494', 'g2902',
+  'g2369',
+  'g2158',
+  'g162',
+  'g2266', 'g2265',
+  'g1279', 'g3219', 'g2354',
+]);
 // Same confidence bar as isNsfw: a barely-there tag (a couple of low-confidence
 // votes) shouldn't trigger the full extreme-content treatment — only a tag the
 // community actually agrees strongly applies (VNDB tag rating out of 3).
 const isExtreme = vn => (vn.tags || []).some(t =>
-  t && Number(t.rating) >= 2.0 &&
-  EXTREME_TAG_FRAGMENTS.some(f => (t.name || '').toLowerCase().includes(f)));
+  t && Number(t.rating) >= 2.0 && EXTREME_TAG_IDS.has(String(t.id || '').trim()));
 
 function escHtml(str) {
   return String(str ?? '')
@@ -2183,12 +2181,13 @@ async function runBrowseSearch() {
 }
 
 // Tags that are never acceptable — titles carrying these are removed entirely.
-const BLOCKED_TAG_FRAGMENTS = [
-  'sex involving children',
-  'shotacon',
-  'lolicon',
-  'rape by shota'
-];
+// Matched by VNDB tag id, mirrors main.js's BLOCKED_TAG_IDS (kept as a separate
+// client-side check for defense in depth).
+const BLOCKED_TAG_IDS = new Set([
+  'g2023', 'g184', 'g2046', 'g2047', 'g1354', 'g2824', 'g3016',
+  'g156', 'g2272', 'g3159', 'g2823', 'g3015', 'g3017',
+  'g3123', 'g183', 'g3392', 'g1300', 'g747', 'g1145',
+]);
 
 const BLOCKED_TAG_EXCEPTIONS = new Set([
   'v27519',
@@ -2202,13 +2201,7 @@ function hasBlockedTag(vn) {
     return false;
   }
 
-  return (vn.tags || []).some(t => {
-    const name = String(t.name || t || '').toLowerCase();
-
-    return BLOCKED_TAG_FRAGMENTS.some(f =>
-      name.includes(f)
-    );
-  });
+  return (vn.tags || []).some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
 }
 // Lowercased set of tag names the user has chosen to auto-hide from discovery.
 // Empty when the master "Blocked tags" toggle is off, without touching the saved list.

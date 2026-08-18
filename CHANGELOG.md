@@ -2,6 +2,10 @@
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.4.1 — 2026-08-17
+
+- Internal: content-blocklist matching now uses VNDB's stable tag IDs instead of tag names, which also fixed an unrelated false-positive where a couple of unrelated character-trope tags could get mismatched due to an accidental substring collision.
+
 ## 1.4.0 — 2026-08-17
 
 **Playtime & process tracking**

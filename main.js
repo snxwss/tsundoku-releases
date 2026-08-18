@@ -442,10 +442,7 @@ function readSettings() {
     // Remove blocked tags from the user's hidden-tags list.
     if (Array.isArray(loaded.hiddenTags)) {
       const before = loaded.hiddenTags.length;
-      loaded.hiddenTags = loaded.hiddenTags.filter(t => {
-        const name = (t.name || '').toLowerCase();
-        return !BLOCKED_TAG_FRAGMENTS.some(f => name.includes(f));
-      });
+      loaded.hiddenTags = loaded.hiddenTags.filter(t => !BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
       if (loaded.hiddenTags.length !== before) writeJsonAtomic(SETTINGS_PATH, loaded);
     }
     return { ...SETTINGS_DEFAULTS, ...loaded };
@@ -1424,23 +1421,18 @@ const vndbVN = (body, opts = {}) => vndbFetch('vn', body, opts);
 // Fields we always request for list/search results.
 // tags.{name,category,rating} drive accurate 18+ detection (cover rating alone
 // misses adult titles with tame covers).
-const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.id, developers.name, length, length_minutes, tags.name, tags.category, tags.rating';
+const LIST_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, votecount, released, developers.id, developers.name, length, length_minutes, tags.id, tags.name, tags.category, tags.rating';
 // Full detail fields for single-VN fetch
-const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.id, developers.name, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name, screenshots.url, screenshots.thumbnail, screenshots.sexual';
+const DETAIL_FIELDS = 'id, title, alttitle, titles.lang, titles.title, titles.official, titles.main, image.url, image.sexual, description, rating, released, developers.id, developers.name, tags.id, tags.name, tags.category, tags.rating, length, length_minutes, extlinks.url, extlinks.label, extlinks.name, screenshots.url, screenshots.thumbnail, screenshots.sexual';
 
-// Tags whose presence makes a title completely unacceptable — never stored, never shown.
-// Matched as lowercase substrings so all variants (e.g. "Lesbian Lolicon") are caught.
-const BLOCKED_TAG_FRAGMENTS = [
-  'sex involving children',
-  'shotacon',
-  'lolicon',
-  'rape by shota',
-  'bestiality',
-  'sex with animals',
-  'sex with insects',
-  'necrophilia',
-  'paraphilic infantilism',
-];
+// Tags whose presence makes a title completely unacceptable — never stored, never
+// shown. Matched by VNDB tag id (stable, opaque) rather than name, and includes
+// every close variant of each blocked category.
+const BLOCKED_TAG_IDS = new Set([
+  'g2023', 'g184', 'g2046', 'g2047', 'g1354', 'g2824', 'g3016',
+  'g156', 'g2272', 'g3159', 'g2823', 'g3015', 'g3017',
+  'g3123', 'g183', 'g3392', 'g1300', 'g747', 'g1145',
+]);
 
 // Titles that are allowed even if they contain blocked tags.
 const BLOCKED_TAG_EXCEPTIONS = new Set([
@@ -1456,14 +1448,7 @@ function hasBlockedTag(vn) {
   }
 
   const tags = Array.isArray(vn.tags) ? vn.tags : [];
-
-  return tags.some(t => {
-    const name = String(t?.name || t || '').toLowerCase().trim();
-
-    return BLOCKED_TAG_FRAGMENTS.some(fragment =>
-      name.includes(fragment)
-    );
-  });
+  return tags.some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
 }
 
 // Developers whose catalog is excluded outright, regardless of tags/rating.
@@ -1688,7 +1673,6 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   const { nsfw = true } = opts || {};
   const raw = (name || '').trim();
   if (!raw) return null;
-  if (BLOCKED_TAG_FRAGMENTS.some(f => raw.toLowerCase().includes(f))) return null;
   const query = normalizeTagQuery(raw);
   if (!query) return null;
   const cacheKey = `${query}|${nsfw}`;
@@ -1698,7 +1682,7 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
     // is disabled while it's in flight), not a background fetch, so it should fail
     // fast under VNDB rate-limiting instead of the field looking "frozen" for ~40s.
     const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', query], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 6000, maxRetries: 1 });
-    let results = (d.results || []).filter(t => !BLOCKED_TAG_FRAGMENTS.some(f => t.name.toLowerCase().includes(f)));
+    let results = (d.results || []).filter(t => !BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
     // Prefer an exact (punctuation-insensitive) name match over the merely most-popular substring match.
@@ -2455,7 +2439,7 @@ ipcMain.handle('clear-all-offline-cache', () => {
 const ULIST_VN_FIELDS = [
   'vn.title', 'vn.alttitle', 'vn.titles.lang', 'vn.titles.title', 'vn.titles.official',
   'vn.image.url', 'vn.image.sexual', 'vn.description', 'vn.rating', 'vn.released',
-  'vn.developers.id', 'vn.developers.name', 'vn.length_minutes', 'vn.tags.name', 'vn.tags.category', 'vn.tags.rating',
+  'vn.developers.id', 'vn.developers.name', 'vn.length_minutes', 'vn.tags.id', 'vn.tags.name', 'vn.tags.category', 'vn.tags.rating',
 ].join(', ');
 
 ipcMain.handle('vndb-import-fetch', async (_e, opts = {}) => {
