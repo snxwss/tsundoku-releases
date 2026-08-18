@@ -2563,7 +2563,7 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
 // (e.g. UnityCrashHandler64.exe — which is often LARGER than the actual game, so
 // the size heuristic used to wrongly pick it); second group is installer/util
 // names that sit at a word boundary.
-const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher)/i;
+const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher|touchup|repair)/i;
 
 function findExes(dir, depth, acc) {
   if (depth < 0) return;
@@ -2591,6 +2591,17 @@ function hasOwnExe(dir) {
   let items;
   try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch { return false; }
   return items.some(it => it.isFile() && it.name.toLowerCase().endsWith('.exe') && !EXE_JUNK.test(it.name));
+}
+
+// Like pickMainExe, but never falls back to a junk exe — used to decide whether a
+// subfolder is a genuine separate game (for collection expansion). A support folder
+// that contains only installer/crash-handler helpers (e.g. an EA game's "Origin" or
+// "Engine" subfolder) must NOT count as a game just because pickMainExe's own
+// last-resort fallback would hand back one of those junk exes.
+function hasRealExe(folder) {
+  const exes = [];
+  findExes(folder, 3, exes);
+  return exes.some(p => !EXE_JUNK.test(path.basename(p)));
 }
 
 function cleanName(folder) {
@@ -2625,7 +2636,7 @@ async function scanDirectory(root) {
       } catch {}
       const subTargets = innerDirs
         .map(sub => ({ name: sub, folderPath: path.join(folderPath, sub) }))
-        .filter(t => pickMainExe(t.folderPath));
+        .filter(t => hasRealExe(t.folderPath));
       // Only treat it as a collection if there are multiple separate games inside —
       // a single nested subfolder is just normal install-dir depth, not a collection.
       if (subTargets.length >= 2) targets.push(...subTargets);
