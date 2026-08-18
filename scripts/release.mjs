@@ -29,8 +29,14 @@ const API     = `https://api.github.com/repos/${OWNER}/${REPO}`;
 const headers = { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'tsundoku-release' };
 
 const localExe = `Tsundoku-Setup-${version}.exe`;
+// electron-builder names the update manifest after the version's prerelease tag
+// (e.g. "1.5.0-beta" -> beta.yml, not latest.yml) — but the app always reads the
+// channel back as 'latest' (see main.js), so always publish under 'latest.yml'
+// regardless of what electron-builder called it locally.
+const prereleaseTag = (version.match(/-([a-zA-Z]+)/) || [])[1];
+const manifestLocal = prereleaseTag ? `${prereleaseTag}.yml` : 'latest.yml';
 const assets = [
-  { local: 'latest.yml',           name: 'latest.yml' },
+  { local: manifestLocal,          name: 'latest.yml' },
   { local: localExe,               name: localExe },
   { local: `${localExe}.blockmap`, name: `${localExe}.blockmap` },
 ];

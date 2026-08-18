@@ -320,6 +320,11 @@ function initAutoUpdate() {
   // existing installs (on a non-prerelease version) should still auto-update to
   // them normally instead of silently stalling on the last stable tag.
   autoUpdater.allowPrerelease = true;
+  // electron-updater derives the update channel from the *current* app version's
+  // prerelease tag (e.g. a running "-beta" build would look for beta.yml instead
+  // of latest.yml). Pin it to 'latest' so every install always reads the same
+  // manifest, matching release.mjs which always publishes as latest.yml.
+  autoUpdater.channel = 'latest';
   autoUpdater.on('checking-for-update', () => setUpdateState({ state: 'checking', error: null }));
   autoUpdater.on('update-available',     (info) => setUpdateState({ state: 'available', version: info && info.version, percent: 0 }));
   autoUpdater.on('update-not-available', ()     => setUpdateState({ state: 'current', percent: 0 }));
