@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.3-beta — 2026-08-18
+
+- Fixed folders whose VNDB search failed (timeout/rate-limit during a large scan) being silently dumped into the Ignored tab as if no VN existed for them. They now land in Low confidence instead of disappearing.
+
 ## 1.5.2-beta — 2026-08-18
 
 - Fixed two more installer-helper exe names (an EA "AppInstaller" and a plain "Cleanup.exe") that the previous fix's junk-exe filter didn't catch, still causing installer/support subfolders to be mismatched against unrelated VNs.
