@@ -4,6 +4,11 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.1-beta — 2026-08-18
+
+- Fixed the in-app updater failing to detect new releases.
+- Fixed the folder scanner treating a game's internal installer/support subfolders (e.g. an EA title's Origin or Engine folder) as separate games and matching them to unrelated VNs.
+
 ## 1.5.0-beta — 2026-08-19
 
 Tsundoku is currently in beta. Not all features may work exactly as intended, and some manual tinkering may occasionally be necessary. Also note: VNDB's API rate limits accumulate quickly under heavy use (e.g. scanning a large folder), and timeouts or failed matches during a scan are common and expected — there's no fix for this yet on my end.
