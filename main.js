@@ -2657,6 +2657,7 @@ async function scanDirectory(root) {
   const matches = await Promise.all(withExe.map(async ({ name, exe }) => {
     const query = cleanName(name) || name;
     let candidates = [];
+    let searchFailed = false;
     try {
       const data = await vndbVN({
         filters: ['search', '=', query],
@@ -2665,6 +2666,7 @@ async function scanDirectory(root) {
       });
       candidates = data.results || [];
     } catch (e) {
+      searchFailed = true;
       debugLog(`SCAN-VNDB-FAIL folder="${name}" query="${query}" error="${e && e.message}"`);
     }
     // A verified Steam App ID means this folder is a real, purchased Steam title —
@@ -2673,7 +2675,7 @@ async function scanDirectory(root) {
     // so the renderer requires an exact name match before auto-confirming anything
     // flagged here, instead of the normal fuzzy tolerance.
     const steamAppId = findSteamAppId(exe);
-    return { folderName: name, exePath: exe, query, candidates, steamAppId };
+    return { folderName: name, exePath: exe, query, candidates, steamAppId, searchFailed };
   }));
 
   return { root, matches, noExe };

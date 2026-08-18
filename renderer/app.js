@@ -4074,7 +4074,11 @@ function openScanResults(result) {
     // "Ignored" = either explicitly unchecked/skipped on a PRIOR scan (persisted
     // via settings.dismissedScans), or a folder with no VNDB match at all (nothing
     // actionable to review) — distinct from a fresh, real new match to confirm.
-    const rejected = (dismissed.has(m.exePath) && !(top && top.inLibrary)) || !candidates.length;
+    // A folder whose VNDB search itself failed (timeout/rate-limit, not "no such
+    // VN") is NOT the same as a genuine no-match — burying it in Ignored would
+    // make a real title silently vanish. Route it to Low confidence instead, so
+    // it stays visible and the user can hit "Search" to retry.
+    const rejected = (dismissed.has(m.exePath) && !(top && top.inLibrary)) || (!candidates.length && !m.searchFailed);
     return {
       folderName: m.folderName,
       exePath:    m.exePath,
@@ -4083,6 +4087,7 @@ function openScanResults(result) {
       selectedId: top ? top.id : '',
       include:    confident && !rejected,
       ignored:    rejected,
+      searchFailed: !!m.searchFailed,
       // Stable classification for the tabs, independent of the checkbox toggle
       // state below (which the user can freely flip without moving the row
       // between tabs).
@@ -4107,22 +4112,26 @@ function openScanResults(result) {
 function updateScanTabCounts() {
   const reconnects = scanState.filter(isReconnectRow).length;
   const ignoredCnt = scanState.filter(r => r.ignored).length;
-  const weak       = scanState.filter(r => !r.ignored && !isReconnectRow(r) && !r.confident).length;
-  const newCount   = scanState.length - reconnects - ignoredCnt - weak;
+  const failed     = scanState.filter(r => !r.ignored && r.searchFailed).length;
+  const weak       = scanState.filter(r => !r.ignored && !isReconnectRow(r) && !r.confident && !r.searchFailed).length;
+  const newCount   = scanState.length - reconnects - ignoredCnt - weak - failed;
   const tabAll    = document.querySelector('#scan-tabs [data-scantab="all"]');
   const tabNew    = document.querySelector('#scan-tabs [data-scantab="new"]');
   const tabWeak   = document.querySelector('#scan-tabs [data-scantab="lowconf"]');
+  const tabFailed = document.querySelector('#scan-tabs [data-scantab="failed"]');
   const tabRecon  = document.querySelector('#scan-tabs [data-scantab="reconnect"]');
   const tabIgnore = document.querySelector('#scan-tabs [data-scantab="ignored"]');
   if (tabAll)    tabAll.textContent    = `All (${scanState.length})`;
   if (tabNew)    tabNew.textContent    = `New matches (${newCount})`;
   if (tabWeak)   tabWeak.textContent   = `Low confidence (${weak})`;
+  if (tabFailed) tabFailed.textContent = `Search failed (${failed})`;
   if (tabRecon)  tabRecon.textContent  = `Reconnects (${reconnects})`;
   if (tabIgnore) tabIgnore.textContent = `Ignored (${ignoredCnt})`;
   const reconNote = reconnects ? ` ${reconnects} reconnect to titles already in your library.` : '';
   const weakNote  = weak ? ` ${weak} low-confidence match(es) — check the Low confidence tab.` : '';
+  const failNote  = failed ? ` ${failed} folder(s) failed to search VNDB — check the Search failed tab.` : '';
   const sub = document.getElementById('scan-subtitle');
-  if (sub) sub.textContent = scanSubtitleBase + reconNote + weakNote;
+  if (sub) sub.textContent = scanSubtitleBase + reconNote + weakNote + failNote;
 }
 
 // Shared guard so the automatic startup check (below) never overlaps a manual
@@ -4194,7 +4203,8 @@ function renderScanList() {
     if (scanTab === 'all')       return true;
     if (scanTab === 'reconnect') return isReconnectRow(row);
     if (scanTab === 'ignored')   return !!row.ignored;
-    if (scanTab === 'lowconf')   return !isReconnectRow(row) && !row.ignored && !row.confident;
+    if (scanTab === 'failed')    return !!row.searchFailed && !row.ignored;
+    if (scanTab === 'lowconf')   return !isReconnectRow(row) && !row.ignored && !row.confident && !row.searchFailed;
     return !isReconnectRow(row) && !row.ignored && row.confident; // 'new'
   });
   visible.forEach(row => {
@@ -4215,7 +4225,7 @@ function renderScanList() {
         ? `<img class="scan-cover${blur ? ' nsfw-blur' : ''}" src="${escHtml(cover)}" />`
         : `<div class="scan-cover"></div>`}
       <div class="scan-info">
-        <div class="scan-folder">📁 ${escHtml(row.folderName)}${selected && selected.inLibrary ? ` <span class="scan-known">↩ in your library</span>` : ''}</div>
+        <div class="scan-folder">📁 ${escHtml(row.folderName)}${selected && selected.inLibrary ? ` <span class="scan-known">↩ in your library</span>` : ''}${row.searchFailed ? ` <span class="scan-known" style="color:var(--coral-deep)">⚠ search failed</span>` : ''}</div>
         <select class="scan-match">
           ${row.candidates.map(c =>
             `<option value="${escHtml(c.id)}" ${c.id === row.selectedId ? 'selected' : ''}>${escHtml(displayTitle(c))}${c.rating ? ` (★${ratingStr(c.rating)})` : ''}${c.inLibrary ? ' ✓ in library' : ''}</option>`
