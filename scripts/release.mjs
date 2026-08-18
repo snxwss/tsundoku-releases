@@ -30,13 +30,16 @@ const headers = { Authorization: `token ${token}`, Accept: 'application/vnd.gith
 
 const localExe = `Tsundoku-Setup-${version}.exe`;
 // electron-builder names the update manifest after the version's prerelease tag
-// (e.g. "1.5.0-beta" -> beta.yml, not latest.yml) — but the app always reads the
-// channel back as 'latest' (see main.js), so always publish under 'latest.yml'
-// regardless of what electron-builder called it locally.
+// (e.g. "1.5.0-beta" -> beta.yml, not latest.yml) — newer clients pin
+// autoUpdater.channel to 'latest' (see main.js) so they always read latest.yml,
+// but any already-installed client built before that fix still derives its
+// channel from its own running version and will keep asking for <tag>.yml.
+// Publish under both names so both old and new clients find the update.
 const prereleaseTag = (version.match(/-([a-zA-Z]+)/) || [])[1];
 const manifestLocal = prereleaseTag ? `${prereleaseTag}.yml` : 'latest.yml';
 const assets = [
   { local: manifestLocal,          name: 'latest.yml' },
+  ...(prereleaseTag ? [{ local: manifestLocal, name: `${prereleaseTag}.yml` }] : []),
   { local: localExe,               name: localExe },
   { local: `${localExe}.blockmap`, name: `${localExe}.blockmap` },
 ];
