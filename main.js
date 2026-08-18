@@ -2563,7 +2563,7 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
 // (e.g. UnityCrashHandler64.exe — which is often LARGER than the actual game, so
 // the size heuristic used to wrongly pick it); second group is installer/util
 // names that sit at a word boundary.
-const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher|touchup|repair)/i;
+const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx|installer|cleanup)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher|touchup|repair)/i;
 
 function findExes(dir, depth, acc) {
   if (depth < 0) return;
