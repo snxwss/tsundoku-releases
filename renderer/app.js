@@ -1981,10 +1981,11 @@ function initBrowse() {
     const origPlaceholder = tagInput.placeholder;
     tagInput.disabled = true;
     tagInput.placeholder = 'Searching…';
-    const tag = await window.api.vndbTagSearch(name).catch(() => null);
+    const tag = await window.api.vndbTagSearch(name).catch(() => ({ error: true }));
     tagInput.disabled = false;
     tagInput.placeholder = origPlaceholder;
     tagInput.focus();
+    if (tag && tag.error) { showBrowseStatus(`VNDB search failed — try again.`); return; }
     if (!tag) { showBrowseStatus(`No tag matching “${name}”.`); return; }
     if (browseTagIds.some(t => t.id === tag.id)) { tagInput.value = ''; return; }
     browseTagIds.push({ id: tag.id, name: tag.name });
@@ -3042,7 +3043,7 @@ async function renderSettingsSection(section) {
 
         <div class="settings-sub" style="margin:4px 0 12px">Auto-hide any title carrying a tag you block — applies across Browse &amp; Search.</div>
         <div class="hidden-tag-row">
-          <input class="filter-input" id="hide-tag-input" type="text" placeholder="e.g. NTR, rape, pregnancy…" style="flex:1" />
+          <input class="filter-input" id="hide-tag-input" type="text" placeholder="Tag name…" style="flex:1" />
           <div class="btn-sm pri" id="hide-tag-add">${icon('plus', 12)} Block tag</div>
         </div>
         <div class="settings-sub" id="hide-tag-status" style="margin-top:8px;min-height:14px"></div>
@@ -3107,7 +3108,8 @@ async function renderSettingsSection(section) {
       const name = input.value.trim();
       if (!name) return;
       statusEl.textContent = 'Looking up tag…';
-      const tag = await window.api.vndbTagSearch(name).catch(() => null);
+      const tag = await window.api.vndbTagSearch(name).catch(() => ({ error: true }));
+      if (tag && tag.error) { statusEl.textContent = 'VNDB search failed — try again.'; return; }
       if (!tag) { statusEl.textContent = `No VNDB tag matching “${name}”.`; return; }
       const list = settings.hiddenTags || [];
       if (list.some(t => t.id === tag.id)) { statusEl.textContent = `“${tag.name}” is already blocked.`; input.value = ''; return; }
@@ -4446,9 +4448,10 @@ async function init() {
     const name = libTagInput.value.trim();
     if (!name) return;
     libTagInput.disabled = true;
-    const tag = await window.api.vndbTagSearch(name, { nsfw: settings.browseNsfwFilter ?? true }).catch(() => null);
+    const tag = await window.api.vndbTagSearch(name, { nsfw: settings.browseNsfwFilter ?? true }).catch(() => ({ error: true }));
     libTagInput.disabled = false;
     libTagInput.focus();
+    if (tag && tag.error) { libTagInput.value = ''; libTagInput.placeholder = 'VNDB search failed — try again'; return; }
     if (!tag) { libTagInput.value = ''; libTagInput.placeholder = `No tag matching “${name}”`; return; }
     libTagInput.placeholder = 'Add a tag, press Enter…';
     if (!libTagFilters.some(t => t.id === tag.id)) {

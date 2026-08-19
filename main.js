@@ -1694,10 +1694,12 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
   const cacheKey = `${query}|${nsfw}`;
   if (tagSearchCache.has(cacheKey)) return tagSearchCache.get(cacheKey);
   try {
-    // Short timeout/retry ceiling — this is an inline interactive lookup (the input
-    // is disabled while it's in flight), not a background fetch, so it should fail
-    // fast under VNDB rate-limiting instead of the field looking "frozen" for ~40s.
-    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', query], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 6000, maxRetries: 1 });
+    // Interactive inline lookup (the input is disabled while it's in flight), so
+    // this still shouldn't hang forever — but give it a real shot at surviving a
+    // brief VNDB throttle instead of failing after a single retry, which used to
+    // get misreported to the user as "no tag matching X" (looks like a typo/
+    // doesn't-exist error) when it was actually just a rate-limit hiccup.
+    const d = await vndbFetch('tag', { fields: 'id,name,vn_count,category', filters: ['search', '=', query], sort: 'vn_count', reverse: true, results: 10 }, { priority: PRI.HIGH, timeoutMs: 8000, maxRetries: 3 });
     let results = (d.results || []).filter(t => !BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
     if (!nsfw) results = results.filter(t => t.category !== 'ero');
     if (!results.length) return null;
@@ -1707,7 +1709,12 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
     const result = { id: best.id, name: best.name };
     tagSearchCache.set(cacheKey, result);
     return result;
-  } catch { return null; }
+  } catch {
+    // Distinguish "the request itself failed" (rate-limited/timed out) from a
+    // genuine zero-result search, so the UI can tell the user to retry instead
+    // of implying the tag doesn't exist.
+    return { error: true };
+  }
 });
 
 // Resolve a free-text developer name to a VNDB producer { id, name } so the browse
