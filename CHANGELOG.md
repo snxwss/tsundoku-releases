@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.4-beta — 2026-08-18
+
+- Fixed tag matching (Hidden tags, Browse filter, Library filter) reporting "no tag matching" during a brief VNDB rate-limit hit, which looked like the typed name was wrong when VNDB was just busy. Lookups now retry harder before giving up, and a real failure is now messaged distinctly from a genuine no-match.
+
 ## 1.5.3-beta — 2026-08-18
 
 - Fixed folders whose VNDB search failed (timeout/rate-limit during a large scan) being silently dumped into the Ignored tab as if no VN existed for them. They now land in Low confidence instead of disappearing.
