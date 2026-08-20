@@ -122,8 +122,9 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --paper:   linear-gradient(135deg, oklch(0.965 0.034 350) 0%, oklch(0.965 0.030 225) 100%);
   --paper-2: linear-gradient(135deg, oklch(0.972 0.029 350) 0%, oklch(0.972 0.026 225) 100%);
   --card:    oklch(0.990 0.012 300);
-  --panel:   linear-gradient(135deg, oklch(0.937 0.041 350) 0%, oklch(0.937 0.036 230) 100%);
-  --panel-2: linear-gradient(135deg, oklch(0.914 0.047 350) 0%, oklch(0.914 0.041 225) 100%);
+  /* Solid (not gradient) — small elements like buttons/pills read as a smear of
+     color at that size, so only the big background areas (--paper) get the fade. */
+  --panel:   oklch(0.937 0.038 300); --panel-2: oklch(0.914 0.044 300);
   --line:    oklch(0.855 0.032 300); --line-2:  oklch(0.790 0.036 300);
   --ink:     oklch(0.320 0.030 300); --mut:     oklch(0.502 0.024 300); --faint:   oklch(0.638 0.017 300);
   --brand:   oklch(0.855 0.094 225); --brand-deep: oklch(0.610 0.115 222); --logo-ink: oklch(0.255 0.054 232);
@@ -231,8 +232,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --paper:   linear-gradient(135deg, oklch(0.222 0.034 350) 0%, oklch(0.222 0.032 225) 100%);
   --paper-2: linear-gradient(135deg, oklch(0.254 0.036 350) 0%, oklch(0.254 0.034 225) 100%);
   --card:    oklch(0.278 0.032 300);
-  --panel:   linear-gradient(135deg, oklch(0.296 0.041 350) 0%, oklch(0.296 0.038 225) 100%);
-  --panel-2: linear-gradient(135deg, oklch(0.325 0.047 350) 0%, oklch(0.325 0.041 222) 100%);
+  --panel:   oklch(0.296 0.039 300); --panel-2: oklch(0.325 0.044 300);
   --line: oklch(0.375 0.036 300); --line-2: oklch(0.468 0.040 300);
   --border: oklch(0.418 0.054 320); --edge: oklch(0.117 0.024 320);
   --brand: oklch(0.862 0.102 225); --brand-deep: oklch(0.792 0.102 222); --logo-ink: oklch(0.222 0.055 232);
