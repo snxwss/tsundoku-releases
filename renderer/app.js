@@ -304,7 +304,6 @@ const EXTREME_TAG_IDS = new Set([
   'g2266', 'g2265',
   'g1279', 'g3219', 'g2354',
   'g1444',
-  'g1993',
 ]);
 // Same confidence bar as isNsfw: a barely-there tag (a couple of low-confidence
 // votes) shouldn't trigger the full extreme-content treatment — only a tag the
