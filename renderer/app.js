@@ -2207,7 +2207,9 @@ function hasBlockedTag(vn) {
     return false;
   }
 
-  return (vn.tags || []).some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
+  // Same strength bar as main.js: require the tag to be strongly applied
+  // (avg rating >= 2.0/3), not just present from a weak/incidental mention.
+  return (vn.tags || []).some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()) && Number(t?.rating) >= 2.0);
 }
 // Lowercased set of tag names the user has chosen to auto-hide from discovery.
 // Empty when the master "Blocked tags" toggle is off, without touching the saved list.

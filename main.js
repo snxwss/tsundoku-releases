@@ -1463,8 +1463,13 @@ function hasBlockedTag(vn) {
     return false;
   }
 
+  // Require the tag to be STRONGLY applied (avg community rating >= 2.0 out of 3),
+  // same bar used elsewhere for tag filters/extreme-content detection. Without this,
+  // a critically acclaimed title with a weakly/incidentally applied tag (e.g. one
+  // minor scene) gets wrongly nuked outright rather than merely reflecting a small
+  // part of its content.
   const tags = Array.isArray(vn.tags) ? vn.tags : [];
-  return tags.some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()));
+  return tags.some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()) && Number(t?.rating) >= 2.0);
 }
 
 // Developers whose catalog is excluded outright, regardless of tags/rating.
