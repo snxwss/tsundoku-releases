@@ -44,13 +44,7 @@ const STATUS_DOT = {
   dropped:  'oklch(0.55 0.19 18)',
 };
 const STATUS_LIST = ['unplayed', 'reading', 'paused', 'finished', 'dropped'];
-const PALETTE_MAP = {
-  banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky',
-  lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone',
-  sunset: 'pal-sunset', peachfizz: 'pal-peachfizz',
-  oceanmist: 'pal-oceanmist', bubblegum: 'pal-bubblegum', aurora: 'pal-aurora',
-  galaxy: 'pal-galaxy', lilacmist: 'pal-lilacmist',
-};
+const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone' };
 const PALETTES = [
   { k: 'banana',   color: 'oklch(0.905 0.105 97)' },
   { k: 'mint',     color: 'oklch(0.800 0.130 152)' },
@@ -60,14 +54,6 @@ const PALETTES = [
   { k: 'lavender', color: 'oklch(0.875 0.095 290)' },
   { k: 'coffee',   color: 'oklch(0.895 0.135 62)' },
   { k: 'stone',    color: 'oklch(0.700 0 0)' },
-  // Gradient palettes — experimental, being previewed in dev builds only.
-  { k: 'sunset',      color: 'linear-gradient(135deg, oklch(0.81 0.106 50), oklch(0.78 0.102 330))' },
-  { k: 'peachfizz',   color: 'linear-gradient(135deg, oklch(0.81 0.106 55), oklch(0.78 0.102 10))' },
-  { k: 'oceanmist',   color: 'linear-gradient(135deg, oklch(0.85 0.115 195), oklch(0.72 0.115 230))' },
-  { k: 'bubblegum',   color: 'linear-gradient(135deg, oklch(0.78 0.150 330), oklch(0.75 0.145 255))' },
-  { k: 'aurora',      color: 'linear-gradient(120deg, oklch(0.78 0.115 155), oklch(0.80 0.100 200), oklch(0.80 0.115 300))' },
-  { k: 'galaxy',      color: 'linear-gradient(135deg, oklch(0.74 0.130 280), oklch(0.78 0.130 250))' },
-  { k: 'lilacmist',   color: 'linear-gradient(135deg, oklch(0.82 0.060 280), oklch(0.86 0.060 200))' },
 ];
 const ZOOM_LEVELS = [75, 90, 100, 110, 125];
 
