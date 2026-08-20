@@ -1590,22 +1590,27 @@ function buildVnQuery(sort, { query, page, yearFrom, yearTo, minVotes = MIN_VOTE
   // just browsing/filtering (no query) fall back to Top Rated so it doesn't 400.
   if (cfg.sort === 'searchrank' && !query) cfg = presets.rating;
 
+  // A query that's just a VNDB id ("v17", case-insensitive) should look the title
+  // up directly instead of running it through fulltext search — "search" doesn't
+  // match ids at all, and the vote floor below would otherwise hide an obscure
+  // title even though the user already knows exactly which one they want.
+  const idMatch = query && /^v\d+$/i.test(query.trim());
+
   const filters = [];
   // Vote floor, but always allow games by well-known developers through. The dev
   // bypass is a 40-clause OR (+ developer join) that's expensive on VNDB; Top
   // Rated passes simpleFloor:true to skip it, since low-vote titles rank low after
   // weighting anyway — keeping that query cheap avoids 429 throttling.
   // Skipped entirely when the query is already scoped to a specific developer
-  // (devId/devSearch) — the whole point of a developer filter is to see that
-  // studio's catalog, including small/niche circles that will never clear a
-  // global popularity floor and aren't in the curated well-known-studio list.
-  if (minVotes > 0 && !devId && !devSearch) {
+  // (devId/devSearch) or an exact id lookup, where the vote floor makes no sense.
+  if (minVotes > 0 && !devId && !devSearch && !idMatch) {
     filters.push(simpleFloor
       ? ['votecount', '>=', minVotes]
       : ['or', ['votecount', '>=', minVotes], allowedDevFilter()]);
   }
   if (cfg.extra)    filters.push(cfg.extra);
-  if (query)        filters.push(['search', '=', query]);
+  if (idMatch)      filters.push(['id', '=', query.trim().toLowerCase()]);
+  else if (query)   filters.push(['search', '=', query]);
   if (yearFrom)     filters.push(['released', '>=', `${yearFrom}-01-01`]);
   if (yearTo)       filters.push(['released', '<=', `${yearTo}-12-31`]);
   if (ratingMin)    filters.push(['rating', '>=', ratingMin]);          // 10–100 scale
