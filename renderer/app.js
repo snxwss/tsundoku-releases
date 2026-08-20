@@ -44,7 +44,7 @@ const STATUS_DOT = {
   dropped:  'oklch(0.55 0.19 18)',
 };
 const STATUS_LIST = ['unplayed', 'reading', 'paused', 'finished', 'dropped'];
-const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone' };
+const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone', cottoncandy: 'pal-cottoncandy' };
 const PALETTES = [
   { k: 'banana',   color: 'oklch(0.905 0.105 97)' },
   { k: 'mint',     color: 'oklch(0.800 0.130 152)' },
@@ -54,6 +54,7 @@ const PALETTES = [
   { k: 'lavender', color: 'oklch(0.875 0.095 290)' },
   { k: 'coffee',   color: 'oklch(0.895 0.135 62)' },
   { k: 'stone',    color: 'oklch(0.700 0 0)' },
+  { k: 'cottoncandy', color: 'linear-gradient(135deg, oklch(0.83 0.10 350), oklch(0.80 0.10 225))' },
 ];
 const ZOOM_LEVELS = [75, 90, 100, 110, 125];
 

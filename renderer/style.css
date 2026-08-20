@@ -113,6 +113,23 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --accent:  oklch(0.800 0.110 158); --accent-deep: oklch(0.520 0.120 158); --accent-edge: oklch(0.640 0.110 158); --on-accent: oklch(0.975 0.012 158);
 }
 
+/* Cotton Candy — soft pink-to-baby-blue gradient background, with the accent
+   duty split between the two: candy pink for interactive elements (buttons,
+   toggles), baby blue for brand/logo. --card stays a SOLID color (not a
+   gradient) because it's used inside color-mix() elsewhere, which requires
+   real colors, not gradients. */
+.app2.pal-cottoncandy {
+  --paper:   linear-gradient(135deg, oklch(0.978 0.024 350) 0%, oklch(0.978 0.020 230) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.986 0.020 350) 0%, oklch(0.986 0.017 230) 100%);
+  --card:    oklch(0.996 0.008 300);
+  --panel:   linear-gradient(135deg, oklch(0.958 0.028 350) 0%, oklch(0.958 0.024 230) 100%);
+  --panel-2: linear-gradient(135deg, oklch(0.941 0.034 350) 0%, oklch(0.941 0.030 225) 100%);
+  --line:    oklch(0.890 0.024 300); --line-2:  oklch(0.828 0.028 300);
+  --ink:     oklch(0.330 0.035 300); --mut:     oklch(0.515 0.028 300); --faint:   oklch(0.648 0.020 300);
+  --brand:   oklch(0.880 0.090 225); --brand-deep: oklch(0.620 0.120 222); --logo-ink: oklch(0.260 0.060 232);
+  --accent:  oklch(0.820 0.090 350); --accent-deep: oklch(0.560 0.120 350); --accent-edge: oklch(0.670 0.100 350); --on-accent: oklch(0.980 0.010 350);
+}
+
 /* ─── dark theme ─── */
 .app2.t-dark {
   --paper:       oklch(0.214 0.030 151);
@@ -208,6 +225,18 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --border: oklch(0.422 0.040 152); --edge: oklch(0.106 0.018 152);
   --brand: oklch(0.855 0.150 152); --brand-deep: oklch(0.805 0.145 152); --logo-ink: oklch(0.210 0.058 152);
   --accent: oklch(0.845 0.145 152); --accent-deep: oklch(0.825 0.145 152); --accent-edge: oklch(0.595 0.125 152); --on-accent: oklch(0.205 0.052 152);
+}
+
+.app2.t-dark.pal-cottoncandy {
+  --paper:   linear-gradient(135deg, oklch(0.205 0.030 350) 0%, oklch(0.205 0.028 225) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.236 0.032 350) 0%, oklch(0.236 0.030 225) 100%);
+  --card:    oklch(0.260 0.030 300);
+  --panel:   linear-gradient(135deg, oklch(0.275 0.036 350) 0%, oklch(0.275 0.032 225) 100%);
+  --panel-2: linear-gradient(135deg, oklch(0.302 0.040 350) 0%, oklch(0.302 0.036 222) 100%);
+  --line: oklch(0.352 0.032 300); --line-2: oklch(0.448 0.036 300);
+  --border: oklch(0.400 0.045 320); --edge: oklch(0.110 0.020 320);
+  --brand: oklch(0.860 0.110 225); --brand-deep: oklch(0.790 0.110 222); --logo-ink: oklch(0.220 0.060 232);
+  --accent: oklch(0.870 0.110 350); --accent-deep: oklch(0.820 0.110 350); --accent-edge: oklch(0.600 0.120 350); --on-accent: oklch(0.200 0.050 350);
 }
 
 /* ─── scrollbars ─── */
