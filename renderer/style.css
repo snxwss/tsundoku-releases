@@ -130,6 +130,95 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --brand:   oklch(0.855 0.094 225); --brand-deep: oklch(0.610 0.115 222); --logo-ink: oklch(0.255 0.054 232);
   --accent:  oklch(0.800 0.094 350); --accent-deep: oklch(0.550 0.115 350); --accent-edge: oklch(0.655 0.098 350); --on-accent: oklch(0.980 0.010 350);
 }
+/* Sunset — coral orange into deep magenta/purple. */
+.app2.pal-sunset {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 50) 0%, oklch(0.965 0.030 330) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 50) 0%, oklch(0.972 0.026 330) 100%);
+  --card:    oklch(0.990 0.012 15);
+  --panel:   oklch(0.937 0.038 15); --panel-2: oklch(0.914 0.044 15);
+  --line:    oklch(0.855 0.032 15); --line-2:  oklch(0.790 0.036 15);
+  --ink:     oklch(0.320 0.030 15); --mut:     oklch(0.502 0.024 15); --faint:   oklch(0.638 0.017 15);
+  --brand:   oklch(0.855 0.094 330); --brand-deep: oklch(0.610 0.115 330); --logo-ink: oklch(0.255 0.054 330);
+  --accent:  oklch(0.800 0.094 50); --accent-deep: oklch(0.550 0.115 50); --accent-edge: oklch(0.655 0.098 50); --on-accent: oklch(0.980 0.010 50);
+}
+/* Peach Fizz — warm peach into soft rose. Close hues, so the fade reads smoother
+   than the wider-hue palettes. */
+.app2.pal-peachfizz {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 55) 0%, oklch(0.965 0.030 10) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 55) 0%, oklch(0.972 0.026 10) 100%);
+  --card:    oklch(0.990 0.012 32);
+  --panel:   oklch(0.937 0.038 32); --panel-2: oklch(0.914 0.044 32);
+  --line:    oklch(0.855 0.032 32); --line-2:  oklch(0.790 0.036 32);
+  --ink:     oklch(0.320 0.030 32); --mut:     oklch(0.502 0.024 32); --faint:   oklch(0.638 0.017 32);
+  --brand:   oklch(0.855 0.094 10); --brand-deep: oklch(0.610 0.115 10); --logo-ink: oklch(0.255 0.054 10);
+  --accent:  oklch(0.800 0.094 55); --accent-deep: oklch(0.550 0.115 55); --accent-edge: oklch(0.655 0.098 55); --on-accent: oklch(0.980 0.010 55);
+}
+/* Ocean Mist — seafoam teal into periwinkle blue. */
+.app2.pal-oceanmist {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 180) 0%, oklch(0.965 0.030 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 180) 0%, oklch(0.972 0.026 255) 100%);
+  --card:    oklch(0.990 0.012 217);
+  --panel:   oklch(0.937 0.038 217); --panel-2: oklch(0.914 0.044 217);
+  --line:    oklch(0.855 0.032 217); --line-2:  oklch(0.790 0.036 217);
+  --ink:     oklch(0.320 0.030 217); --mut:     oklch(0.502 0.024 217); --faint:   oklch(0.638 0.017 217);
+  --brand:   oklch(0.855 0.094 255); --brand-deep: oklch(0.610 0.115 255); --logo-ink: oklch(0.255 0.054 255);
+  --accent:  oklch(0.800 0.094 180); --accent-deep: oklch(0.550 0.115 180); --accent-edge: oklch(0.655 0.098 180); --on-accent: oklch(0.980 0.010 180);
+}
+/* Bubblegum — bolder magenta into periwinkle (a punchier take on Cotton Candy). */
+.app2.pal-bubblegum {
+  --paper:   linear-gradient(135deg, oklch(0.958 0.048 330) 0%, oklch(0.958 0.044 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.967 0.041 330) 0%, oklch(0.967 0.037 255) 100%);
+  --card:    oklch(0.988 0.016 292);
+  --panel:   oklch(0.928 0.052 292); --panel-2: oklch(0.902 0.060 292);
+  --line:    oklch(0.845 0.044 292); --line-2:  oklch(0.775 0.049 292);
+  --ink:     oklch(0.310 0.040 292); --mut:     oklch(0.495 0.032 292); --faint:   oklch(0.630 0.023 292);
+  --brand:   oklch(0.840 0.125 255); --brand-deep: oklch(0.590 0.150 255); --logo-ink: oklch(0.245 0.070 255);
+  --accent:  oklch(0.780 0.125 330); --accent-deep: oklch(0.530 0.150 330); --accent-edge: oklch(0.635 0.130 330); --on-accent: oklch(0.980 0.010 330);
+}
+/* Aurora — violet into teal, a cooler/moodier duo. */
+.app2.pal-aurora {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 300) 0%, oklch(0.965 0.030 180) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 300) 0%, oklch(0.972 0.026 180) 100%);
+  --card:    oklch(0.990 0.012 240);
+  --panel:   oklch(0.937 0.038 240); --panel-2: oklch(0.914 0.044 240);
+  --line:    oklch(0.855 0.032 240); --line-2:  oklch(0.790 0.036 240);
+  --ink:     oklch(0.320 0.030 240); --mut:     oklch(0.502 0.024 240); --faint:   oklch(0.638 0.017 240);
+  --brand:   oklch(0.855 0.094 180); --brand-deep: oklch(0.610 0.115 180); --logo-ink: oklch(0.255 0.054 180);
+  --accent:  oklch(0.800 0.094 300); --accent-deep: oklch(0.550 0.115 300); --accent-edge: oklch(0.655 0.098 300); --on-accent: oklch(0.980 0.010 300);
+}
+/* Citrus — lemon yellow into lime green. */
+.app2.pal-citrus {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 95) 0%, oklch(0.965 0.030 130) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 95) 0%, oklch(0.972 0.026 130) 100%);
+  --card:    oklch(0.990 0.012 112);
+  --panel:   oklch(0.937 0.038 112); --panel-2: oklch(0.914 0.044 112);
+  --line:    oklch(0.855 0.032 112); --line-2:  oklch(0.790 0.036 112);
+  --ink:     oklch(0.320 0.030 112); --mut:     oklch(0.502 0.024 112); --faint:   oklch(0.638 0.017 112);
+  --brand:   oklch(0.855 0.094 130); --brand-deep: oklch(0.610 0.115 130); --logo-ink: oklch(0.255 0.054 130);
+  --accent:  oklch(0.800 0.094 95); --accent-deep: oklch(0.550 0.115 95); --accent-edge: oklch(0.655 0.098 95); --on-accent: oklch(0.980 0.010 95);
+}
+/* Galaxy — violet into indigo/navy. */
+.app2.pal-galaxy {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 290) 0%, oklch(0.965 0.030 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 290) 0%, oklch(0.972 0.026 255) 100%);
+  --card:    oklch(0.990 0.012 272);
+  --panel:   oklch(0.937 0.038 272); --panel-2: oklch(0.914 0.044 272);
+  --line:    oklch(0.855 0.032 272); --line-2:  oklch(0.790 0.036 272);
+  --ink:     oklch(0.320 0.030 272); --mut:     oklch(0.502 0.024 272); --faint:   oklch(0.638 0.017 272);
+  --brand:   oklch(0.855 0.094 255); --brand-deep: oklch(0.610 0.115 255); --logo-ink: oklch(0.255 0.054 255);
+  --accent:  oklch(0.800 0.094 290); --accent-deep: oklch(0.550 0.115 290); --accent-edge: oklch(0.655 0.098 290); --on-accent: oklch(0.980 0.010 290);
+}
+/* Lilac Mist — lavender into dusty blue-gray, a muted/neutral pastel duo. */
+.app2.pal-lilacmist {
+  --paper:   linear-gradient(135deg, oklch(0.965 0.028 290) 0%, oklch(0.965 0.024 245) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.024 290) 0%, oklch(0.972 0.021 245) 100%);
+  --card:    oklch(0.990 0.010 267);
+  --panel:   oklch(0.937 0.031 267); --panel-2: oklch(0.914 0.036 267);
+  --line:    oklch(0.855 0.026 267); --line-2:  oklch(0.790 0.029 267);
+  --ink:     oklch(0.320 0.024 267); --mut:     oklch(0.502 0.019 267); --faint:   oklch(0.638 0.014 267);
+  --brand:   oklch(0.855 0.075 245); --brand-deep: oklch(0.610 0.092 245); --logo-ink: oklch(0.255 0.043 245);
+  --accent:  oklch(0.800 0.075 290); --accent-deep: oklch(0.550 0.092 290); --accent-edge: oklch(0.655 0.078 290); --on-accent: oklch(0.980 0.010 290);
+}
 
 /* ─── dark theme ─── */
 .app2.t-dark {
@@ -237,6 +326,86 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --border: oklch(0.418 0.054 320); --edge: oklch(0.117 0.024 320);
   --brand: oklch(0.862 0.102 225); --brand-deep: oklch(0.792 0.102 222); --logo-ink: oklch(0.222 0.055 232);
   --accent: oklch(0.872 0.102 350); --accent-deep: oklch(0.822 0.102 350); --accent-edge: oklch(0.602 0.111 350); --on-accent: oklch(0.200 0.050 350);
+}
+.app2.t-dark.pal-sunset {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 50) 0%, oklch(0.222 0.032 330) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 50) 0%, oklch(0.254 0.034 330) 100%);
+  --card:    oklch(0.278 0.032 15);
+  --panel:   oklch(0.296 0.039 15); --panel-2: oklch(0.325 0.044 15);
+  --line: oklch(0.375 0.036 15); --line-2: oklch(0.468 0.040 15);
+  --border: oklch(0.418 0.054 15); --edge: oklch(0.117 0.024 15);
+  --brand: oklch(0.862 0.102 330); --brand-deep: oklch(0.792 0.102 330); --logo-ink: oklch(0.222 0.055 330);
+  --accent: oklch(0.872 0.102 50); --accent-deep: oklch(0.822 0.102 50); --accent-edge: oklch(0.602 0.111 50); --on-accent: oklch(0.200 0.050 50);
+}
+.app2.t-dark.pal-peachfizz {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 55) 0%, oklch(0.222 0.032 10) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 55) 0%, oklch(0.254 0.034 10) 100%);
+  --card:    oklch(0.278 0.032 32);
+  --panel:   oklch(0.296 0.039 32); --panel-2: oklch(0.325 0.044 32);
+  --line: oklch(0.375 0.036 32); --line-2: oklch(0.468 0.040 32);
+  --border: oklch(0.418 0.054 32); --edge: oklch(0.117 0.024 32);
+  --brand: oklch(0.862 0.102 10); --brand-deep: oklch(0.792 0.102 10); --logo-ink: oklch(0.222 0.055 10);
+  --accent: oklch(0.872 0.102 55); --accent-deep: oklch(0.822 0.102 55); --accent-edge: oklch(0.602 0.111 55); --on-accent: oklch(0.200 0.050 55);
+}
+.app2.t-dark.pal-oceanmist {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 180) 0%, oklch(0.222 0.032 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 180) 0%, oklch(0.254 0.034 255) 100%);
+  --card:    oklch(0.278 0.032 217);
+  --panel:   oklch(0.296 0.039 217); --panel-2: oklch(0.325 0.044 217);
+  --line: oklch(0.375 0.036 217); --line-2: oklch(0.468 0.040 217);
+  --border: oklch(0.418 0.054 217); --edge: oklch(0.117 0.024 217);
+  --brand: oklch(0.862 0.102 255); --brand-deep: oklch(0.792 0.102 255); --logo-ink: oklch(0.222 0.055 255);
+  --accent: oklch(0.872 0.102 180); --accent-deep: oklch(0.822 0.102 180); --accent-edge: oklch(0.602 0.111 180); --on-accent: oklch(0.200 0.050 180);
+}
+.app2.t-dark.pal-bubblegum {
+  --paper:   linear-gradient(135deg, oklch(0.215 0.048 330) 0%, oklch(0.215 0.044 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.248 0.051 330) 0%, oklch(0.248 0.047 255) 100%);
+  --card:    oklch(0.272 0.045 292);
+  --panel:   oklch(0.290 0.055 292); --panel-2: oklch(0.319 0.062 292);
+  --line: oklch(0.370 0.051 292); --line-2: oklch(0.463 0.056 292);
+  --border: oklch(0.412 0.076 292); --edge: oklch(0.114 0.034 292);
+  --brand: oklch(0.850 0.145 255); --brand-deep: oklch(0.780 0.145 255); --logo-ink: oklch(0.215 0.078 255);
+  --accent: oklch(0.860 0.145 330); --accent-deep: oklch(0.810 0.145 330); --accent-edge: oklch(0.590 0.155 330); --on-accent: oklch(0.195 0.070 330);
+}
+.app2.t-dark.pal-aurora {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 300) 0%, oklch(0.222 0.032 180) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 300) 0%, oklch(0.254 0.034 180) 100%);
+  --card:    oklch(0.278 0.032 240);
+  --panel:   oklch(0.296 0.039 240); --panel-2: oklch(0.325 0.044 240);
+  --line: oklch(0.375 0.036 240); --line-2: oklch(0.468 0.040 240);
+  --border: oklch(0.418 0.054 240); --edge: oklch(0.117 0.024 240);
+  --brand: oklch(0.862 0.102 180); --brand-deep: oklch(0.792 0.102 180); --logo-ink: oklch(0.222 0.055 180);
+  --accent: oklch(0.872 0.102 300); --accent-deep: oklch(0.822 0.102 300); --accent-edge: oklch(0.602 0.111 300); --on-accent: oklch(0.200 0.050 300);
+}
+.app2.t-dark.pal-citrus {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 95) 0%, oklch(0.222 0.032 130) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 95) 0%, oklch(0.254 0.034 130) 100%);
+  --card:    oklch(0.278 0.032 112);
+  --panel:   oklch(0.296 0.039 112); --panel-2: oklch(0.325 0.044 112);
+  --line: oklch(0.375 0.036 112); --line-2: oklch(0.468 0.040 112);
+  --border: oklch(0.418 0.054 112); --edge: oklch(0.117 0.024 112);
+  --brand: oklch(0.862 0.102 130); --brand-deep: oklch(0.792 0.102 130); --logo-ink: oklch(0.222 0.055 130);
+  --accent: oklch(0.872 0.102 95); --accent-deep: oklch(0.822 0.102 95); --accent-edge: oklch(0.602 0.111 95); --on-accent: oklch(0.200 0.050 95);
+}
+.app2.t-dark.pal-galaxy {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 290) 0%, oklch(0.222 0.032 255) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 290) 0%, oklch(0.254 0.034 255) 100%);
+  --card:    oklch(0.278 0.032 272);
+  --panel:   oklch(0.296 0.039 272); --panel-2: oklch(0.325 0.044 272);
+  --line: oklch(0.375 0.036 272); --line-2: oklch(0.468 0.040 272);
+  --border: oklch(0.418 0.054 272); --edge: oklch(0.117 0.024 272);
+  --brand: oklch(0.862 0.102 255); --brand-deep: oklch(0.792 0.102 255); --logo-ink: oklch(0.222 0.055 255);
+  --accent: oklch(0.872 0.102 290); --accent-deep: oklch(0.822 0.102 290); --accent-edge: oklch(0.602 0.111 290); --on-accent: oklch(0.200 0.050 290);
+}
+.app2.t-dark.pal-lilacmist {
+  --paper:   linear-gradient(135deg, oklch(0.222 0.028 290) 0%, oklch(0.222 0.025 245) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.030 290) 0%, oklch(0.254 0.027 245) 100%);
+  --card:    oklch(0.278 0.026 267);
+  --panel:   oklch(0.296 0.032 267); --panel-2: oklch(0.325 0.036 267);
+  --line: oklch(0.375 0.029 267); --line-2: oklch(0.468 0.032 267);
+  --border: oklch(0.418 0.043 267); --edge: oklch(0.117 0.019 267);
+  --brand: oklch(0.862 0.082 245); --brand-deep: oklch(0.792 0.082 245); --logo-ink: oklch(0.222 0.044 245);
+  --accent: oklch(0.872 0.082 290); --accent-deep: oklch(0.822 0.082 290); --accent-edge: oklch(0.602 0.089 290); --on-accent: oklch(0.200 0.040 290);
 }
 
 /* ─── scrollbars ─── */
