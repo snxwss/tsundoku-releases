@@ -3892,6 +3892,13 @@ function openLightbox(shots, idx, blurFlags) {
       <div class="lb-next" id="lb-next">&#8250;</div>
       <div class="lb-counter" id="lb-counter"></div>`;
     lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+    // .lb-img-wrap fills the whole lightbox (so nav arrows/counter can sit on it),
+    // which means the letterboxed padding around a narrower image is technically
+    // inside the wrap, not the backdrop — so the click-outside check above alone
+    // never fires there. Catch that area too.
+    lb.querySelector('.lb-img-wrap').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeLightbox();
+    });
     lb.querySelector('#lb-close').addEventListener('click', closeLightbox);
     lb.querySelector('#lb-prev').addEventListener('click', e => { e.stopPropagation(); lbNav(-1); });
     lb.querySelector('#lb-next').addEventListener('click', e => { e.stopPropagation(); lbNav(1); });
