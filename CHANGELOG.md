@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.6-beta — 2026-08-18
+
+- Fixed clicking outside the image (screenshot/character art) viewer not closing it in some cases.
+
 ## 1.5.5-beta — 2026-08-18
 
 - You can now search by VNDB id (e.g. "v17") directly in the existing Browse search bar.
