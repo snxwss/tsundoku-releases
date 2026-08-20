@@ -676,6 +676,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-desc { font-size: 13px; line-height: 1.65; color: var(--mut); margin-top: 16px; flex-shrink: 0; }
 .modal-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .modal-tag  { font-family: 'Space Mono', monospace; font-size: 10.5px; color: color-mix(in oklch, var(--accent-deep) 68%, var(--ink)); background: color-mix(in oklch, var(--accent) 30%, var(--card)); border: 1px solid color-mix(in oklch, var(--accent) 45%, var(--card)); padding: 4px 9px; border-radius: 7px; }
+.modal-tag[data-url] { cursor: pointer; }
+.modal-tag[data-url]:hover { background: color-mix(in oklch, var(--accent) 50%, var(--card)); }
 /* The tag you filtered Browse by — filled accent so it stands out among the rest. */
 .modal-tag.on { background: var(--accent-deep); border-color: var(--accent-deep); color: oklch(0.98 0.01 154); font-weight: 700; }
 .modal-links-row { margin-top: 16px; }

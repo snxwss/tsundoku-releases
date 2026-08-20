@@ -3530,7 +3530,7 @@ async function openModal(item, nav = null) {
     if (filterTagNames.has((t.name || '').toLowerCase())) shownTags.push(t);
   }
   const tags = shownTags
-    .map(t => `<span class="modal-tag${filterTagNames.has((t.name || '').toLowerCase()) ? ' on' : ''}">${escHtml(t.name || t)}</span>`)
+    .map(t => `<span class="modal-tag${filterTagNames.has((t.name || '').toLowerCase()) ? ' on' : ''}"${t.id ? ` data-url="https://vndb.org/${escHtml(t.id)}"` : ''}>${escHtml(t.name || t)}</span>`)
     .join('');
   // External links: VNDB page (always) + only English Wikipedia and
   // HowLongToBeat when present — one of each, no duplicates.
@@ -3667,6 +3667,8 @@ async function openModal(item, nav = null) {
     await loadEntries();
   });
   right.querySelectorAll('.modal-link[data-url]').forEach(el =>
+    el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
+  right.querySelectorAll('.modal-tag[data-url]').forEach(el =>
     el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
 
   renderChars();
