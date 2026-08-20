@@ -919,7 +919,10 @@ html, body { height: 100%; background: #141714; user-select: none; }
   letter-spacing: 0.02em; margin-top: 4px;
 }
 .extreme-gate-msg { max-width: 380px; color: var(--mut); font-size: 0.92rem; line-height: 1.55; margin-bottom: 8px; }
-.extreme-gate #extreme-gate-proceed { min-width: 140px; justify-content: center; }
+.extreme-gate #extreme-gate-proceed {
+  min-width: 200px; justify-content: center;
+  font-size: 15px; padding: 14px 22px; border-radius: 11px;
+}
 .extreme-gate-dontshow {
   font-family: 'Space Mono', monospace; font-size: 0.72rem; color: var(--mut);
   cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-top: 4px;
