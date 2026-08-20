@@ -54,7 +54,7 @@ const PALETTES = [
   { k: 'lavender', color: 'oklch(0.875 0.095 290)' },
   { k: 'coffee',   color: 'oklch(0.895 0.135 62)' },
   { k: 'stone',    color: 'oklch(0.700 0 0)' },
-  { k: 'cottoncandy', color: 'linear-gradient(135deg, oklch(0.80 0.125 350), oklch(0.77 0.12 225))' },
+  { k: 'cottoncandy', color: 'linear-gradient(135deg, oklch(0.81 0.106 350), oklch(0.78 0.102 225))' },
 ];
 const ZOOM_LEVELS = [75, 90, 100, 110, 125];
 

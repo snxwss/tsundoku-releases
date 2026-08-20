@@ -119,15 +119,15 @@ html, body { height: 100%; background: #141714; user-select: none; }
    gradient) because it's used inside color-mix() elsewhere, which requires
    real colors, not gradients. */
 .app2.pal-cottoncandy {
-  --paper:   linear-gradient(135deg, oklch(0.960 0.045 350) 0%, oklch(0.960 0.040 225) 100%);
-  --paper-2: linear-gradient(135deg, oklch(0.970 0.038 350) 0%, oklch(0.970 0.034 225) 100%);
-  --card:    oklch(0.988 0.016 300);
-  --panel:   linear-gradient(135deg, oklch(0.930 0.055 350) 0%, oklch(0.930 0.048 230) 100%);
-  --panel-2: linear-gradient(135deg, oklch(0.905 0.062 350) 0%, oklch(0.905 0.055 225) 100%);
-  --line:    oklch(0.845 0.042 300); --line-2:  oklch(0.775 0.048 300);
-  --ink:     oklch(0.315 0.040 300); --mut:     oklch(0.498 0.032 300); --faint:   oklch(0.634 0.023 300);
-  --brand:   oklch(0.850 0.110 225); --brand-deep: oklch(0.600 0.135 222); --logo-ink: oklch(0.250 0.063 232);
-  --accent:  oklch(0.790 0.110 350); --accent-deep: oklch(0.540 0.135 350); --accent-edge: oklch(0.650 0.115 350); --on-accent: oklch(0.980 0.010 350);
+  --paper:   linear-gradient(135deg, oklch(0.965 0.034 350) 0%, oklch(0.965 0.030 225) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.972 0.029 350) 0%, oklch(0.972 0.026 225) 100%);
+  --card:    oklch(0.990 0.012 300);
+  --panel:   linear-gradient(135deg, oklch(0.937 0.041 350) 0%, oklch(0.937 0.036 230) 100%);
+  --panel-2: linear-gradient(135deg, oklch(0.914 0.047 350) 0%, oklch(0.914 0.041 225) 100%);
+  --line:    oklch(0.855 0.032 300); --line-2:  oklch(0.790 0.036 300);
+  --ink:     oklch(0.320 0.030 300); --mut:     oklch(0.502 0.024 300); --faint:   oklch(0.638 0.017 300);
+  --brand:   oklch(0.855 0.094 225); --brand-deep: oklch(0.610 0.115 222); --logo-ink: oklch(0.255 0.054 232);
+  --accent:  oklch(0.800 0.094 350); --accent-deep: oklch(0.550 0.115 350); --accent-edge: oklch(0.655 0.098 350); --on-accent: oklch(0.980 0.010 350);
 }
 
 /* ─── dark theme ─── */
@@ -228,15 +228,15 @@ html, body { height: 100%; background: #141714; user-select: none; }
 }
 
 .app2.t-dark.pal-cottoncandy {
-  --paper:   linear-gradient(135deg, oklch(0.218 0.045 350) 0%, oklch(0.218 0.042 225) 100%);
-  --paper-2: linear-gradient(135deg, oklch(0.250 0.048 350) 0%, oklch(0.250 0.045 225) 100%);
-  --card:    oklch(0.275 0.042 300);
-  --panel:   linear-gradient(135deg, oklch(0.292 0.055 350) 0%, oklch(0.292 0.050 225) 100%);
-  --panel-2: linear-gradient(135deg, oklch(0.321 0.062 350) 0%, oklch(0.321 0.055 222) 100%);
-  --line: oklch(0.371 0.048 300); --line-2: oklch(0.464 0.053 300);
-  --border: oklch(0.415 0.067 320); --edge: oklch(0.115 0.030 320);
-  --brand: oklch(0.860 0.120 225); --brand-deep: oklch(0.790 0.120 222); --logo-ink: oklch(0.220 0.065 232);
-  --accent: oklch(0.870 0.120 350); --accent-deep: oklch(0.820 0.120 350); --accent-edge: oklch(0.600 0.130 350); --on-accent: oklch(0.200 0.050 350);
+  --paper:   linear-gradient(135deg, oklch(0.222 0.034 350) 0%, oklch(0.222 0.032 225) 100%);
+  --paper-2: linear-gradient(135deg, oklch(0.254 0.036 350) 0%, oklch(0.254 0.034 225) 100%);
+  --card:    oklch(0.278 0.032 300);
+  --panel:   linear-gradient(135deg, oklch(0.296 0.041 350) 0%, oklch(0.296 0.038 225) 100%);
+  --panel-2: linear-gradient(135deg, oklch(0.325 0.047 350) 0%, oklch(0.325 0.041 222) 100%);
+  --line: oklch(0.375 0.036 300); --line-2: oklch(0.468 0.040 300);
+  --border: oklch(0.418 0.054 320); --edge: oklch(0.117 0.024 320);
+  --brand: oklch(0.862 0.102 225); --brand-deep: oklch(0.792 0.102 222); --logo-ink: oklch(0.222 0.055 232);
+  --accent: oklch(0.872 0.102 350); --accent-deep: oklch(0.822 0.102 350); --accent-edge: oklch(0.602 0.111 350); --on-accent: oklch(0.200 0.050 350);
 }
 
 /* ─── scrollbars ─── */
