@@ -1151,7 +1151,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .vndb-row-name { font-weight: 700; font-size: 14px; color: var(--ink); margin-bottom: 5px; word-break: break-word; }
 .vndb-badge { display: inline-block; font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px; color: var(--accent-deep); border: 1.5px solid var(--accent-edge); border-radius: 6px; padding: 1px 7px; }
 .vndb-badge-hidden { color: var(--faint); border-color: var(--line-2); }
-.scan-cover.nsfw-blur { filter: blur(8px); }
+.scan-cover.nsfw-blur { filter: blur(8px); cursor: pointer; }
 
 /* Danger zone (Settings → System): red-marked, but rows stay the same width and
    height as every other settings section. Negative L/R margins offset the padding so

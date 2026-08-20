@@ -4245,6 +4245,11 @@ function renderScanList() {
       el.classList.toggle('skipped', !(row.include && row.selectedId));
       updateScanCount();
     });
+    // Click a blurred cover to reveal it — you're actively reviewing this match,
+    // not idly browsing, so a deliberate click is enough to see what it actually is.
+    el.querySelector('.scan-cover.nsfw-blur')?.addEventListener('click', function() {
+      this.classList.remove('nsfw-blur');
+    });
     el.querySelector('.scan-match').addEventListener('change', e => {
       row.selectedId = e.target.value;
       row.include = row.selectedId !== '';
