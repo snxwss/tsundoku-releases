@@ -3540,8 +3540,11 @@ async function openModal(item, nav = null) {
   const filterTagNames = activeView === 'browse'
     ? new Set(browseTagIds.map(t => (t.name || '').toLowerCase()))
     : new Set();
+  // The tech-category drop must NOT exclude a tag you actively filtered by (e.g.
+  // "Otome Game" is category 'tech') — otherwise it can never appear or highlight
+  // at all, defeating the "always included" guarantee below before it even runs.
   const contentTags = (full.tags || [])
-    .filter(t => t && t.category !== 'tech')
+    .filter(t => t && (t.category !== 'tech' || filterTagNames.has((t.name || '').toLowerCase())))
     .sort((a, b) => (b.rating || 0) - (a.rating || 0));
   const shownTags = contentTags.slice(0, 26);
   for (const t of contentTags.slice(26)) {
