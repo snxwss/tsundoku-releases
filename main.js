@@ -1650,13 +1650,29 @@ function hasScreenshot(vn) {
   return Array.isArray(vn.screenshots) && vn.screenshots.length > 0;
 }
 
+// VNDB's tag filter also matches via its own internal parent/child tag hierarchy
+// (e.g. a query for "Sexual Content" matches a title that only carries the more
+// specific child tag "Rape") — the API doesn't expose that hierarchy, so there's
+// no way to show the user WHY it matched. Require the filtered tag(s) to be
+// literally present (>=2.0 rating, matching the strength already required by the
+// query itself) on the title, so a result is only ever shown for a tag reason
+// that can actually be displayed/highlighted.
+const normalizeTagIds = (tagId, tagIds) =>
+  (Array.isArray(tagIds) ? tagIds : []).concat(tagId ? [tagId] : []).filter(Boolean);
+function hasAllTags(vn, tagIds) {
+  if (!tagIds || !tagIds.length) return true;
+  const vnTagIds = new Set((vn.tags || []).filter(t => Number(t?.rating) >= 2.0).map(t => String(t?.id || '').trim()));
+  return tagIds.every(id => vnTagIds.has(id));
+}
+
 // Search: 1000-vote floor + active browse sort + year filters. Pass
 // opts.minVotes = 0 to bypass the floor (used by the folder-scan matcher).
-function filterBlockedFromResults(data, { screenshotsOnly } = {}) {
+function filterBlockedFromResults(data, { screenshotsOnly, tagIds } = {}) {
   if (!data || !data.results) return data;
   return {
     ...data,
-    results: data.results.filter(vn => !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn))),
+    results: data.results.filter(vn =>
+      !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn)) && hasAllTags(vn, tagIds)),
   };
 }
 
@@ -1696,7 +1712,7 @@ ipcMain.handle('vndb-search', async (_e, query, sort = 'rating', opts = {}) =>
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
     screenshotsOnly: opts.screenshotsOnly,
-  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly }));
+  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly, tagIds: normalizeTagIds(opts.tagId, opts.tagIds) }));
 
 // Resolve a free-text tag name to its VNDB tag id (most-used match) so it can be
 // used as a filter. Returns { id, name } or null.
@@ -1890,7 +1906,7 @@ ipcMain.handle('vndb-browse', async (_e, sort, opts = {}) =>
     yearFrom: opts.yearFrom, yearTo: opts.yearTo,
     ratingMin: opts.ratingMin, length: opts.length, devSearch: opts.devSearch, devId: opts.devId, tagId: opts.tagId, tagIds: opts.tagIds,
     screenshotsOnly: opts.screenshotsOnly,
-  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly }));
+  }), { priority: PRI.HIGH }), { screenshotsOnly: opts.screenshotsOnly, tagIds: normalizeTagIds(opts.tagId, opts.tagIds) }));
 
 // "Top Rated" uses an IMDb-style weighted ranking instead of raw average, so a
 // 9.0 with 16k votes outranks a 9.0 with 141 votes. We fetch a pool of the
@@ -1922,7 +1938,8 @@ ipcMain.handle('vndb-top-rated', async (_e, opts = {}) => {
     try { data = await vndbVN(body, { priority: PRI.HIGH }); }
     catch (e) { if (page === 1) throw e; break; }
     const raw = data.results || [];
-    const r = raw.filter(vn => !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn)));
+    const r = raw.filter(vn =>
+      !isBlockedVn(vn) && (!screenshotsOnly || hasScreenshot(vn)) && hasAllTags(vn, normalizeTagIds(tagId, tagIds)));
     pool.push(...r);
     if (raw.length < 100 || !data.more) break;
   }
