@@ -410,6 +410,7 @@ function writeExePaths(map) {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 const SETTINGS_DEFAULTS = {
+  palette:          'banana', // without an explicit default, a fresh profile applied no pal-* class at all and fell through to the base unstyled .app2 colors (not one of the real palette options)
   scanDir:          null,    // legacy single dir (migrated into scanDirs)
   scanDirs:         [],      // multiple folders scanned for VN executables
   nsfwHide:         false,   // legacy (unused; superseded by nsfwHideLibrary)
