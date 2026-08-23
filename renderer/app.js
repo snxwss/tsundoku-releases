@@ -167,6 +167,13 @@ let browsePage     = 1;
 let browseMore     = true;  // whether more pages exist
 let browseLoading  = false;
 let browseVns      = [];    // current result set
+// Bumped by resetBrowse() (i.e. any filter/sort/search change). A loadBrowse()
+// call captures this at start and discards its results if it changed by the
+// time the request resolves — otherwise a slow request under the OLD filters
+// (e.g. during a VNDB rate-limit) can resolve after a newer one was supposed
+// to replace it, silently repainting the grid with results that don't match
+// the filters currently shown as active.
+let browseLoadGen  = 0;
 let browseIsSearch = false;
 let browseNsfwOn   = false; // local filter toggle (from settings)
 let browseYearFrom = null;
@@ -2084,6 +2091,7 @@ function initBrowse() {
 }
 
 function resetBrowse() {
+  browseLoadGen++; // invalidate any in-flight load — its results no longer match current filters
   browsePage = 1; browseMore = true; browseVns = [];
   document.getElementById('browse-grid').innerHTML = '';
   document.getElementById('browse-status').classList.add('hidden');
@@ -2142,11 +2150,17 @@ function updateLoadMoreBtn() {
 async function loadBrowse(append = false) {
   if (browseLoading) return;
   browseLoading = true;
+  const myGen = browseLoadGen;
   updateLoadMoreBtn();
   if (!append) showBrowseStatus('Loading…');
+  let stale = false;
   try {
     const opts = { page: browsePage, ...currentFilterOpts() };
     const data = await window.api.vndbBrowse(browseSort, opts);
+    // Filters/sort/search changed while this request was in flight (e.g. it was
+    // slow under a VNDB rate-limit) — its results are for the OLD filter set, so
+    // discard them instead of repainting the grid with a mismatched list.
+    if (myGen !== browseLoadGen) { stale = true; return; }
     document.getElementById('browse-status').classList.add('hidden');
     const results = data.results || [];
     if (!data.more && results.length < 30) browseMore = false;
@@ -2156,10 +2170,14 @@ async function loadBrowse(append = false) {
     if (!results.length && !append) showBrowseStatus('Nothing to show.');
     setTimeout(requestBrowseFill, 0); // top up if the page didn't fill the view
   } catch (err) {
+    if (myGen !== browseLoadGen) { stale = true; return; }
     showBrowseStatus('Error: ' + err.message);
   } finally {
     browseLoading = false;
     updateLoadMoreBtn();
+    // A discarded stale response means the freshest reload never actually ran
+    // (it bailed out earlier via the browseLoading guard) — run it now.
+    if (stale) loadBrowse(false);
   }
 }
 
