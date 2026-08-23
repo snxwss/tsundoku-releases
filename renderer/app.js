@@ -1984,7 +1984,7 @@ function initBrowse() {
     tagInput.disabled = false;
     tagInput.placeholder = origPlaceholder;
     tagInput.focus();
-    if (tag && tag.error) { showBrowseStatus(`VNDB search failed — try again.`); return; }
+    if (tag && tag.error) { showBrowseStatus(`VNDB search failed (${tag.message || 'unknown error'}) — try again.`); return; }
     if (!tag) { showBrowseStatus(`No tag matching “${name}”.`); return; }
     if (browseTagIds.some(t => t.id === tag.id)) { tagInput.value = ''; return; }
     browseTagIds.push({ id: tag.id, name: tag.name });
@@ -3110,7 +3110,7 @@ async function renderSettingsSection(section) {
       if (!name) return;
       statusEl.textContent = 'Looking up tag…';
       const tag = await window.api.vndbTagSearch(name).catch(() => ({ error: true }));
-      if (tag && tag.error) { statusEl.textContent = 'VNDB search failed — try again.'; return; }
+      if (tag && tag.error) { statusEl.textContent = `VNDB search failed (${tag.message || 'unknown error'}) — try again.`; return; }
       if (!tag) { statusEl.textContent = `No VNDB tag matching “${name}”.`; return; }
       const list = settings.hiddenTags || [];
       if (list.some(t => t.id === tag.id)) { statusEl.textContent = `“${tag.name}” is already blocked.`; input.value = ''; return; }
@@ -4421,6 +4421,15 @@ async function init() {
     }
   }, 15000);
 
+  // Surface VNDB rate-limit state proactively (Browse sidebar badge) instead of
+  // the user only finding out after a search/match silently fails somewhere.
+  setInterval(async () => {
+    const badge = document.getElementById('vndb-status-badge');
+    if (!badge) return;
+    const status = await window.api.vndbStatus().catch(() => null);
+    badge.classList.toggle('hidden', !status || !status.throttled);
+  }, 4000);
+
   // Version in top bar
   const version = await window.api.getVersion().catch(() => null);
   const vEl = document.getElementById('tbar-version');
@@ -4466,7 +4475,7 @@ async function init() {
     const tag = await window.api.vndbTagSearch(name, { nsfw: settings.browseNsfwFilter ?? true }).catch(() => ({ error: true }));
     libTagInput.disabled = false;
     libTagInput.focus();
-    if (tag && tag.error) { libTagInput.value = ''; libTagInput.placeholder = 'VNDB search failed — try again'; return; }
+    if (tag && tag.error) { libTagInput.value = ''; libTagInput.placeholder = `VNDB search failed (${tag.message || 'unknown error'})`; return; }
     if (!tag) { libTagInput.value = ''; libTagInput.placeholder = `No tag matching “${name}”`; return; }
     libTagInput.placeholder = 'Add a tag, press Enter…';
     if (!libTagFilters.some(t => t.id === tag.id)) {

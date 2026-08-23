@@ -527,6 +527,13 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .bchip { font-family: 'Space Mono', monospace; font-size: 11.5px; font-weight: 700; padding: 7px 14px; border-radius: 9px; border: 2px solid var(--line-2); color: var(--mut); background: var(--card); cursor: default; user-select: none; transition: all .12s; }
 .bchip.on    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--panel); }
 .bchip:hover:not(.on) { border-color: var(--line); color: var(--ink); background: var(--panel); }
+.vndb-status-badge {
+  font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700;
+  color: var(--coral-deep); background: color-mix(in oklch, var(--coral) 22%, var(--card));
+  border: 1.5px solid var(--coral-deep); border-radius: 8px; padding: 6px 10px; margin: 8px 0 0;
+  cursor: default;
+}
+.vndb-status-badge::before { content: '⚠ VNDB is rate-limiting right now — searches may be slow or fail.'; }
 .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 200px), 1fr)); gap: 22px 18px; }
 .browse-refresh-btn { flex-shrink: 0; display: inline-grid; place-items: center; padding: 0; width: 38px; aspect-ratio: 1; }
 .browse-wrap.browse-side-mode .browse-refresh-btn { width: 32px; }

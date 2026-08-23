@@ -1680,6 +1680,15 @@ async function fetchFilteredBrowse_UNUSED(sort, opts = {}) {
   return { ...(last || {}), results, more, nextPage: page };
 }
 
+// Lets the renderer show "VNDB is slow right now" proactively instead of the
+// user only finding out after something times out and fails.
+ipcMain.handle('vndb-status', () => ({
+  throttled: vndbGap > VNDB_GAP_MIN,
+  gapMs: vndbGap,
+  queued: vndbQueue.length,
+  active: vndbActive,
+}));
+
 ipcMain.handle('vndb-search', async (_e, query, sort = 'rating', opts = {}) =>
   filterBlockedFromResults(await vndbVN(buildVnQuery(sort, {
     query, minVotes: opts.minVotes, simpleFloor: opts.simpleFloor,
@@ -1719,11 +1728,13 @@ ipcMain.handle('vndb-tag-search', async (_e, name, opts) => {
     const result = { id: best.id, name: best.name };
     tagSearchCache.set(cacheKey, result);
     return result;
-  } catch {
+  } catch (e) {
     // Distinguish "the request itself failed" (rate-limited/timed out) from a
     // genuine zero-result search, so the UI can tell the user to retry instead
-    // of implying the tag doesn't exist.
-    return { error: true };
+    // of implying the tag doesn't exist. Pass the underlying reason through
+    // (e.g. "VNDB timeout" / "VNDB 429") so it shows up in the UI instead of a
+    // generic, unexplained "search failed."
+    return { error: true, message: (e && e.message) || 'unknown error' };
   }
 });
 
