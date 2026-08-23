@@ -4,6 +4,14 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.7-beta — 2026-08-23
+
+- Fixed Browse sometimes showing results left over from before a filter change, if a slow VNDB request from the old filters resolved after a newer one.
+- Tag filters now require the tag to be literally present on a title, instead of also matching through VNDB's own broader tag relationships — results (and which tags are highlighted on a title) are now always explainable.
+- Fixed a filtered tag sometimes never appearing or highlighting on a title's page at all.
+- Fresh installs now always start on an intentional default look instead of occasionally falling back to an unstyled one.
+- Added a small warning in Browse that appears when VNDB itself is currently rate-limiting requests, and failure messages now say why a search failed instead of just "try again."
+
 ## 1.5.6-beta — 2026-08-18
 
 - Fixed clicking outside the image (screenshot/character art) viewer not closing it in some cases.
