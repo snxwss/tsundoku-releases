@@ -878,7 +878,7 @@ function openSessionDetail(skey) {
       <div class="sm-headtext">
         <div class="mk">READING SESSION</div>
         <h2 class="sm-title">${escHtml(title)}</h2>
-        <div class="sm-dur">${escHtml(formatPlaytime(s.durationSeconds) || '')}</div>
+        ${e && e.status ? `<span class="session-status">${escHtml(capitalize(e.status))}</span>` : ''}
       </div>
     </div>
     ${renderSessionDetail(s)}`;
@@ -889,44 +889,52 @@ function openSessionDetail(skey) {
 
 function renderSessionDetail(s) {
   const e = entryById(s.vnId);
-  const rows = [];
-  const row = (k, v) => rows.push(`<div class="sd-row"><span class="sd-k">${escHtml(k)}</span><span class="sd-v">${v}</span></div>`);
+  const cells = [];
+  // Matches the title modal's meta grid: a small mono label over a bold value.
+  const cell = (k, v, sub, span) => cells.push(
+    `<div class="modal-meta-cell"${span ? ' style="grid-column:1/-1"' : ''}>
+       <div class="mk">${escHtml(k)}</div>
+       <div class="mv">${escHtml(v)}</div>
+       ${sub ? `<div class="mv-sub">${escHtml(sub)}</div>` : ''}
+     </div>`);
 
-  row('When', `${escHtml(longDate(s.startedAt))} · ${escHtml(timeOfDay(s.startedAt))}`);
-  row('Clock', `${escHtml(clockTime(s.startedAt))} → ${escHtml(clockTime(s.endedAt))}`);
-  row('Duration', escHtml(formatPlaytime(s.durationSeconds) || '—'));
+  cell('DURATION', formatPlaytime(s.durationSeconds) || '—');
+  cell('CLOCK', `${clockTime(s.startedAt)} → ${clockTime(s.endedAt)}`);
 
   // Position within this title's own history, and the gap before it.
   const mine = (settings.sessions || [])
     .filter(x => x.vnId === s.vnId)
     .sort((a, b) => a.startedAt - b.startedAt);
   const idx = mine.findIndex(x => sessionKey(x) === sessionKey(s));
-  if (mine.length > 1) row('Session', `${idx + 1} of ${mine.length} for this title`);
+  cell('SESSION', mine.length > 1 ? `${idx + 1} of ${mine.length}` : 'only one');
+  cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt), true);
+
   if (idx > 0) {
     const gap = s.startedAt - mine[idx - 1].endedAt;
-    if (gap > 0) row('Gap', `${escHtml(formatGap(gap))} after the previous session`);
+    if (gap > 0) cell('GAP', formatGap(gap), 'since previous session');
   }
-
   if (e) {
     const total = e.playtime_seconds || 0;
     if (total > 0) {
-      const pct = Math.round((s.durationSeconds / total) * 100);
-      row('Share', `${escHtml(formatPlaytime(s.durationSeconds) || '')} of ${escHtml(formatPlaytime(total) || '')} total · ${pct}%`);
+      cell('SHARE', `${Math.round((s.durationSeconds / total) * 100)}%`, `of ${formatPlaytime(total)} total`);
     }
     const avgSec = (e.length_minutes || 0) * 60;
     if (avgSec > 0 && total > 0) {
-      const pct = Math.round((total / avgSec) * 100);
-      row('Progress', `${escHtml(formatPlaytime(total) || '')} of ~${Math.round(avgSec / 3600)}h average · ${pct}%`);
+      cell('PROGRESS', `${Math.round((total / avgSec) * 100)}%`, `of ~${Math.round(avgSec / 3600)}h average`);
     }
-    if (e.status) row('Status', escHtml(capitalize(e.status)));
-    // Only claim a session finished the title when the recorded finish actually
-    // falls inside it; otherwise just note it was the last one.
-    const fin = e.finished_at;
-    if (fin && fin >= s.startedAt && fin <= s.endedAt) row('', `<span class="sd-flag">Finished in this session</span>`);
-    else if (e.status === 'finished' && idx === mine.length - 1) row('', `<span class="sd-flag">Last session before finishing</span>`);
   }
 
-  return `${rows.join('')}
+  // Only claim a session finished the title when the recorded finish actually
+  // falls inside it; otherwise just note it was the last one.
+  let flag = '';
+  if (e) {
+    const fin = e.finished_at;
+    if (fin && fin >= s.startedAt && fin <= s.endedAt) flag = 'Finished in this session';
+    else if (e.status === 'finished' && idx === mine.length - 1) flag = 'Last session before finishing';
+  }
+
+  return `<div class="modal-meta-grid">${cells.join('')}</div>
+    ${flag ? `<div class="sd-flag">${escHtml(flag)}</div>` : ''}
     <div class="sd-actions">
       <div class="btn-sm sec session-edit">Edit</div>
       <div class="btn-sm danger session-delete">Delete</div>

@@ -1264,30 +1264,33 @@ html, body { height: 100%; background: #141714; user-select: none; }
 #session-modal {
   background: var(--paper); border: 2px solid var(--border); border-radius: 22px;
   box-shadow: 0 28px 64px oklch(0.1 0.01 160 / 0.26), 0 6px 0 var(--edge);
-  width: 480px; max-width: calc(100% - 48px); max-height: 85vh; overflow-y: auto;
-  position: relative; padding: 28px;
+  width: 560px; max-width: calc(100% - 48px); max-height: 85vh; overflow-y: auto;
+  position: relative; padding: 30px;
 }
-.sm-head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; padding-right: 34px; }
+.sm-head { display: flex; gap: 18px; align-items: flex-start; padding-right: 44px; }
 .sm-cover {
-  width: 64px; height: 92px; border-radius: 9px; overflow: hidden; flex-shrink: 0;
+  width: 68px; height: 98px; border-radius: 9px; overflow: hidden; flex-shrink: 0;
   background: var(--panel); border: 1.5px solid var(--line-2);
 }
 .sm-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.sm-headtext { min-width: 0; }
+.sm-headtext { min-width: 0; padding-top: 2px; }
 .sm-title {
-  font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 800;
-  color: var(--ink); margin: 4px 0 6px; line-height: 1.25; word-break: break-word;
+  font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800;
+  color: var(--ink); margin: 6px 0 10px; line-height: 1.3; word-break: break-word;
 }
-.sm-dur { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: var(--accent-deep); }
-.sd-row { display: flex; gap: 12px; padding: 5px 0; font-size: 12.5px; border-top: 1px solid var(--line); }
-.sd-row:first-of-type { border-top: none; }
-.sd-k {
-  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px;
-  text-transform: uppercase; color: var(--faint); width: 78px; flex-shrink: 0; padding-top: 1px;
+/* Secondary line under a meta value ("of 1h 16m total") — keeps the bold number
+   as the thing you read first. */
+.modal-meta-cell .mv-sub {
+  font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint);
+  margin-top: 2px; line-height: 1.35;
 }
-.sd-v { color: var(--ink); }
-.sd-flag { font-weight: 700; color: var(--accent-deep); }
-.sd-actions { display: flex; gap: 8px; margin-top: 12px; }
+.sd-flag {
+  font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700;
+  color: var(--accent-deep); background: color-mix(in oklch, var(--accent) 26%, var(--card));
+  border: 1.5px solid var(--accent-edge); border-radius: 8px;
+  padding: 8px 12px; margin-top: 16px;
+}
+.sd-actions { display: flex; gap: 8px; margin-top: 18px; }
 /* Manual add/edit form */
 .session-form {
   background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
