@@ -1818,14 +1818,15 @@ const STEAM_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 // instead. JAST rebranded jastusa.com -> jaststore.com at some point, so match
 // broadly (any hostname containing "jast") rather than one fixed domain.
 async function storeLinksForVn(vnId) {
-  let d;
-  try {
-    d = await vndbFetch('release', {
-      filters: ['vn', '=', ['id', '=', vnId]],
-      fields: 'extlinks.url, extlinks.name, extlinks.label',
-      results: 100, // VNDB page max; most VNs have far fewer releases than this
-    }, { priority: PRI.HIGH });
-  } catch { return { steamAppId: null, jastUrl: null }; }
+  // Let a genuine VNDB fetch failure (timeout/rate-limit) propagate instead of
+  // swallowing it here — otherwise it's indistinguishable from "this title
+  // legitimately has no Steam/JAST link", and callers can never tell the two
+  // apart to show a real error instead of an empty result.
+  const d = await vndbFetch('release', {
+    filters: ['vn', '=', ['id', '=', vnId]],
+    fields: 'extlinks.url, extlinks.name, extlinks.label',
+    results: 100, // VNDB page max; most VNs have far fewer releases than this
+  }, { priority: PRI.HIGH });
   let steamAppId = null, jastUrl = null;
   for (const rel of (d.results || [])) {
     for (const l of (rel.extlinks || [])) {
@@ -1857,22 +1858,22 @@ ipcMain.handle('vndb-characters', async (_e, vnId) => {
   if (!vnId) return [];
   const hit = charCache.get(vnId);
   if (hit && Date.now() - hit.ts < STEAM_TTL_MS) return hit.data;
-  let chars = [];
-  try {
-    const d = await vndbFetch('character', {
-      filters: ['vn', '=', ['id', '=', vnId]],
-      fields: 'id, name, image.url, image.sexual, vns.role, vns.id',
-      results: 100,
-    }, { priority: PRI.HIGH });
-    // Show the whole cast, ordered by importance (main → primary → side → appears).
-    const rank = { main: 0, primary: 1, side: 2, appears: 3 };
-    chars = (d.results || [])
-      .map(c => {
-        const v = (c.vns || []).find(x => x.id === vnId) || {};
-        return { id: c.id, name: c.name, image: c.image?.url || null, sexual: c.image?.sexual || 0, role: v.role || '' };
-      })
-      .sort((a, b) => (rank[a.role] ?? 4) - (rank[b.role] ?? 4));
-  } catch {}
+  // A genuine fetch failure (timeout/rate-limit) is left to propagate/reject —
+  // swallowing it here made it indistinguishable from "this title genuinely has
+  // no characters", so the renderer could never show a real retry state.
+  const d = await vndbFetch('character', {
+    filters: ['vn', '=', ['id', '=', vnId]],
+    fields: 'id, name, image.url, image.sexual, vns.role, vns.id',
+    results: 100,
+  }, { priority: PRI.HIGH });
+  // Show the whole cast, ordered by importance (main → primary → side → appears).
+  const rank = { main: 0, primary: 1, side: 2, appears: 3 };
+  const chars = (d.results || [])
+    .map(c => {
+      const v = (c.vns || []).find(x => x.id === vnId) || {};
+      return { id: c.id, name: c.name, image: c.image?.url || null, sexual: c.image?.sexual || 0, role: v.role || '' };
+    })
+    .sort((a, b) => (rank[a.role] ?? 4) - (rank[b.role] ?? 4));
   charCache.set(vnId, { data: chars, ts: Date.now() });
   return chars;
 });
@@ -1883,12 +1884,15 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
   if (cached && (Date.now() - cached.ts) < STEAM_TTL_MS) return cached.data;
 
   let data = null;
-  let jastUrl = null;
-  try {
-    const links = await storeLinksForVn(vnId);
-    jastUrl = links.jastUrl;
-    const appId = links.steamAppId;
-    if (appId) {
+  // A genuine VNDB failure here (via storeLinksForVn) is left to propagate/reject —
+  // it means the request itself failed, not that this title has no Steam page.
+  const links = await storeLinksForVn(vnId);
+  const jastUrl = links.jastUrl;
+  const appId = links.steamAppId;
+  if (appId) {
+    // Steam's OWN API having a hiccup is a separate, non-fatal concern (VNDB
+    // already succeeded above) — still fall back gracefully here, don't reject.
+    try {
       const r = await fetchWithTimeout(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`, {}, 12000);
       if (r.ok) {
         const j = await r.json();
@@ -1905,11 +1909,11 @@ ipcMain.handle('steam-appdetails', async (_e, vnId) => {
           };
         }
       }
-      // A link existed but Steam returned nothing usable (e.g. age-gated adult
-      // page): still expose the store link so the button shows.
-      if (!data) data = { appId, storeUrl: `https://store.steampowered.com/app/${appId}/`, name: null, screenshots: [] };
-    }
-  } catch { data = null; }
+    } catch {}
+    // A link existed but Steam returned nothing usable (e.g. age-gated adult
+    // page): still expose the store link so the button shows.
+    if (!data) data = { appId, storeUrl: `https://store.steampowered.com/app/${appId}/`, name: null, screenshots: [] };
+  }
 
   if (data) data.jastUrl = jastUrl;
   else if (jastUrl) data = { appId: null, storeUrl: null, name: null, screenshots: [], jastUrl };
