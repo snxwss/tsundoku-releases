@@ -1433,10 +1433,18 @@ async function vndbPump() {
 // Fetch with a hard timeout. Without this, a single stalled socket would block the
 // entire serialized queue forever (every later request — modal, characters, steam,
 // next browse page — hangs behind it). AbortController guarantees the slot frees up.
+// Uses net.fetch (Chromium's network stack) rather than the global fetch (Node's
+// undici). api.vndb.org publishes both an AAAA and an A record, and on a
+// connection where IPv6 resolves but stalls, undici can hang on the v6 address
+// until the timeout fires — surfacing as a constant "VNDB timeout" even though
+// the API is perfectly healthy. Chromium does Happy Eyeballs (fast fallback to
+// IPv4) and honours system proxy settings, which is why cached covers kept
+// loading fine through net.fetch while every API call timed out. Same reason to
+// prefer it generally in the main process.
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  try { return await net.fetch(url, { ...opts, signal: ctrl.signal }); }
   finally { clearTimeout(t); }
 }
 
@@ -2592,7 +2600,7 @@ ipcMain.handle('vndb-import-fetch', async (_e, opts = {}) => {
   let userId, username;
   if (token) {
     try {
-      const ar = await fetch('https://api.vndb.org/kana/authinfo', { headers: authHeaders });
+      const ar = await net.fetch('https://api.vndb.org/kana/authinfo', { headers: authHeaders });
       if (ar.status === 401) return { ok: false, error: 'VNDB rejected that token (it needs “List read” permission).' };
       if (!ar.ok) return { ok: false, error: `VNDB auth failed (${ar.status}).` };
       const aj = await ar.json();
@@ -2604,7 +2612,7 @@ ipcMain.handle('vndb-import-fetch', async (_e, opts = {}) => {
     if (!rawUser) return { ok: false, error: 'Enter a VNDB username, or paste a token for a private list.' };
     // Resolve username (or "u123") → canonical user id via the GET /user endpoint.
     try {
-      const ur = await fetch(`https://api.vndb.org/kana/user?q=${encodeURIComponent(rawUser)}`);
+      const ur = await net.fetch(`https://api.vndb.org/kana/user?q=${encodeURIComponent(rawUser)}`);
       if (!ur.ok) return { ok: false, error: `VNDB user lookup failed (${ur.status}).` };
       const uj = await ur.json();
       const hit = uj && uj[rawUser];
