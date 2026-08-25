@@ -2625,10 +2625,8 @@ function cachedImagePath(dir, url) {
   return path.join(dir, crypto.createHash('sha1').update(url).digest('hex'));
 }
 
-async function prefetchImage(dir, url) {
-  if (!url) return;
-  const dest = cachedImagePath(dir, url);
-  if (fs.existsSync(dest)) return;
+async function prefetchToPath(dest, url) {
+  if (!url || fs.existsSync(dest)) return;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12000);
   let res;
@@ -2636,13 +2634,20 @@ async function prefetchImage(dir, url) {
   finally { clearTimeout(t); }
   if (!res.ok) return;
   const buf = Buffer.from(await res.arrayBuffer());
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, buf);
 }
 
+const prefetchImage = (dir, url) => url ? prefetchToPath(cachedImagePath(dir, url), url) : Promise.resolve();
+
 // Returns false if the network looks down, so the caller can stop early instead
 // of grinding through the whole library failing on every entry.
-async function warmOneTitle(id) {
+async function warmOneTitle(entry) {
+  const id = entry.id;
+  // Cover first — it's the one image every grid shows, and it's a single small
+  // file. Keyed by vn id (not a URL hash) to match the cover:// handler.
+  try { await prefetchToPath(path.join(COVERS_DIR, id), entry.image); } catch {}
+
   // Characters + their portraits.
   const charPath = path.join(CHARS_DIR, `${id}.json`);
   let chars = null;
@@ -2706,16 +2711,17 @@ async function warmOfflineCache() {
       .filter(e => e && e.id && (e.library || e.wishlist || e.wishlistPrivate));
     for (const e of owned) {
       // Everything already on disk? Skip without touching the network at all.
+      const coverDone = !e.image || fs.existsSync(path.join(COVERS_DIR, e.id));
       const charsDone = fs.existsSync(path.join(CHARS_DIR, `${e.id}.json`));
       let shotsDone = false;
       try {
         const p = path.join(DETAIL_DIR, `${e.id}.json`);
         shotsDone = fs.existsSync(p) && Array.isArray(JSON.parse(fs.readFileSync(p, 'utf8')).screenshots);
       } catch {}
-      if (charsDone && shotsDone) continue;
+      if (coverDone && charsDone && shotsDone) continue;
 
       try {
-        await warmOneTitle(e.id);
+        await warmOneTitle(e);
         consecutiveFailures = 0;
       } catch {
         // Almost certainly offline (or VNDB is refusing). Give up for this run
