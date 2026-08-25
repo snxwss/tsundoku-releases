@@ -1306,7 +1306,7 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
 // Reset appearance/behavior preferences to defaults. Keeps the library, reading
 // stats and config (scan folders, collections, VNDB account, blocked tags).
 ipcMain.handle('restore-default-settings', () => {
-  const KEEP = ['sessions', 'achievements', 'achSeenCount', 'collections',
+  const KEEP = ['sessions', 'deletedSessions', 'achievements', 'achSeenCount', 'collections',
     'scanDirs', 'scanDir', 'hiddenTags', 'dismissedScans', 'vndbUsername', 'vndbToken',
     'syncFolder', 'syncOptions', 'lastSyncAt',
     'privacyLockEnabled', 'privacyPinHash', 'privacyUnlockMins'];

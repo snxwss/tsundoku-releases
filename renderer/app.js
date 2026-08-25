@@ -795,6 +795,9 @@ function renderSessionsLog() {
         <span class="sub">none logged yet</span>
       </div>
       <div class="sessions-empty">No sessions yet — play a visual novel for 30+ minutes and it'll show up here.</div>`;
+    // Still render the recycle list here: deleting your only session must not
+    // strand it somewhere unreachable.
+    renderDeletedBin(section);
     wrap.appendChild(section);
     return;
   }
@@ -823,11 +826,45 @@ function renderSessionsLog() {
         </div>`;
       }).join('')}
     </div>`;
+  renderDeletedBin(section);
+
   wrap.appendChild(section);
 
   section.querySelectorAll('.session-item').forEach(el =>
     el.addEventListener('click', () => openSessionDetail(el.dataset.skey)));
   section.querySelector('#session-add-btn')?.addEventListener('click', () => openSessionForm(null));
+}
+
+// Recycle list for deleted sessions — restore or permanently discard.
+function renderDeletedBin(section) {
+  const binned = settings.deletedSessions || [];
+  if (binned.length) {
+    const bin = document.createElement('div');
+    bin.className = 'deleted-sessions';
+    bin.innerHTML = `
+      <div class="ds-toggle" id="ds-toggle">Recently deleted (${binned.length})</div>
+      <div class="ds-list hidden" id="ds-list">
+        ${binned.map(s => `
+          <div class="ds-row">
+            <div class="ds-info">
+              <span class="ds-title">${escHtml(sessionTitle(s))}</span>
+              <span class="ds-meta">${escHtml(longDate(s.startedAt))} · ${escHtml(formatPlaytime(s.durationSeconds) || '')}</span>
+            </div>
+            <div class="btn-sm sec ds-restore" data-skey="${escHtml(sessionKey(s))}">Restore</div>
+            <div class="btn-sm danger ds-discard" data-skey="${escHtml(sessionKey(s))}">Discard</div>
+          </div>`).join('')}
+      </div>`;
+    section.appendChild(bin);
+    bin.querySelector('#ds-toggle').addEventListener('click', () => {
+      const list = bin.querySelector('#ds-list');
+      list.classList.toggle('hidden');
+      bin.querySelector('#ds-toggle').classList.toggle('on', !list.classList.contains('hidden'));
+    });
+    bin.querySelectorAll('.ds-restore').forEach(el =>
+      el.addEventListener('click', () => restoreSession(el.dataset.skey)));
+    bin.querySelectorAll('.ds-discard').forEach(el =>
+      el.addEventListener('click', () => discardSession(el.dataset.skey)));
+  }
 }
 
 // Stable identity for a session — the stored objects have no id, and the list is
@@ -920,10 +957,6 @@ function renderSessionDetail(s) {
   cell('SESSION', `${idx + 1} of ${mine.length}`, 'for this title');
   cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt));
 
-  if (idx > 0) {
-    const gap = s.startedAt - mine[idx - 1].endedAt;
-    if (gap > 0) cell('GAP', formatGap(gap), 'since previous session');
-  }
   if (e) {
     const total = e.playtime_seconds || 0;
     if (total > 0) {
@@ -944,7 +977,17 @@ function renderSessionDetail(s) {
     else if (e.status === 'finished' && idx === mine.length - 1) flag = 'Last session before finishing';
   }
 
+  // The gap reads as a fact about your reading, not a statistic, so it belongs in
+  // a sentence under the grid rather than as another number in it.
+  let note = '';
+  if (idx === 0 && mine.length > 1) note = 'Your first session of this title.';
+  else if (idx > 0) {
+    const gap = s.startedAt - mine[idx - 1].endedAt;
+    if (gap > 0) note = `Picked back up ${formatGap(gap)} after the previous session.`;
+  }
+
   return `<div class="modal-meta-grid">${cells.join('')}</div>
+    ${note ? `<div class="sd-note">${escHtml(note)}</div>` : ''}
     ${flag ? `<div class="sd-flag">${escHtml(flag)}</div>` : ''}
     <div class="sd-actions">
       <div class="btn-sm sec session-edit">Edit</div>
@@ -960,10 +1003,36 @@ async function writeSessions(list) {
   renderStats();
 }
 
+// Deleting keeps a copy in a small recycle list rather than dropping it — a
+// mistaken delete used to be unrecoverable, with only a confirm dialog in the way.
+const DELETED_SESSION_LIMIT = 20;
+
 async function deleteSession(s) {
-  if (!confirm('Delete this reading session? Your total playtime is not affected.')) return;
+  if (!confirm('Delete this reading session? You can restore it afterwards from "Recently deleted".')) return;
   closeSessionModal();
+  const kept = [{ ...s, deletedAt: Date.now() }, ...(settings.deletedSessions || [])]
+    .slice(0, DELETED_SESSION_LIMIT);
+  settings.deletedSessions = kept;
+  await window.api.writeSetting('deletedSessions', kept);
   await writeSessions((settings.sessions || []).filter(x => sessionKey(x) !== sessionKey(s)));
+}
+
+async function restoreSession(key) {
+  const item = (settings.deletedSessions || []).find(x => sessionKey(x) === key);
+  if (!item) return;
+  const { deletedAt, ...clean } = item; // drop the bookkeeping field on the way back
+  const rest = (settings.deletedSessions || []).filter(x => sessionKey(x) !== key);
+  settings.deletedSessions = rest;
+  await window.api.writeSetting('deletedSessions', rest);
+  await writeSessions([...(settings.sessions || []), clean]);
+}
+
+async function discardSession(key) {
+  if (!confirm('Permanently discard this session? This one cannot be undone.')) return;
+  const rest = (settings.deletedSessions || []).filter(x => sessionKey(x) !== key);
+  settings.deletedSessions = rest;
+  await window.api.writeSetting('deletedSessions', rest);
+  renderStats();
 }
 
 // Manual add/edit — for sessions the tracker missed (or got wrong).
