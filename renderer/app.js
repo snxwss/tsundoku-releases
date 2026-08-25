@@ -1049,8 +1049,15 @@ function renderSessionDetail(s) {
     if (gap > 0) note = gapSentence(gap, sessionKey(s));
   }
 
+  // A hand-added session that was left out of the playtime total is otherwise
+  // indistinguishable from one that counted, so say which it was.
+  const ptNote = s.manual
+    ? (s.countsPlaytime ? 'Counted toward this title’s playtime.' : 'Not counted toward this title’s playtime.')
+    : '';
+
   return `<div class="modal-meta-grid">${cells.join('')}</div>
     ${note ? `<div class="sd-note">${escHtml(note)}</div>` : ''}
+    ${ptNote ? `<div class="sd-sub">${escHtml(ptNote)}</div>` : ''}
     ${flag ? `<div class="sd-flag">${escHtml(flag)}</div>` : ''}
     <div class="sd-actions">
       <div class="btn-sm sec session-edit">Edit</div>
@@ -1070,6 +1077,16 @@ async function writeSessions(list) {
 // mistaken delete used to be unrecoverable, with only a confirm dialog in the way.
 const DELETED_SESSION_LIMIT = 20;
 
+// A session only ever contributed playtime if it was saved with the box ticked.
+// Anything the tracker logged itself is already counted, so it must never be
+// adjusted here or the time would be double-counted.
+const sessionPlaytime = s => (s && s.countsPlaytime ? (s.durationSeconds || 0) : 0);
+async function adjustPlaytime(vnId, deltaSeconds, playedAt) {
+  if (!deltaSeconds) return;
+  try { await window.api.libraryAdjustPlaytime(vnId, deltaSeconds, playedAt || null); } catch (_) {}
+  await loadEntries();
+}
+
 async function deleteSession(s) {
   if (!confirm('Delete this reading session? You can restore it afterwards from "Recently deleted".')) return;
   closeSessionModal();
@@ -1078,6 +1095,7 @@ async function deleteSession(s) {
   settings.deletedSessions = kept;
   await window.api.writeSetting('deletedSessions', kept);
   await writeSessions((settings.sessions || []).filter(x => sessionKey(x) !== sessionKey(s)));
+  await adjustPlaytime(s.vnId, -sessionPlaytime(s));
 }
 
 async function restoreSession(key) {
@@ -1088,6 +1106,7 @@ async function restoreSession(key) {
   settings.deletedSessions = rest;
   await window.api.writeSetting('deletedSessions', rest);
   await writeSessions([...(settings.sessions || []), clean]);
+  await adjustPlaytime(clean.vnId, sessionPlaytime(clean), clean.endedAt);
 }
 
 async function discardSession(key) {
@@ -1117,6 +1136,9 @@ function openSessionForm(existing) {
 
   // Titles are picked by typing rather than hunting through a long dropdown, and
   // the end time is entered directly instead of making you work out the minutes.
+  // A session the tracker logged itself is already in the title's playtime, so
+  // the box is shown ticked but locked — offering it would double-count the time.
+  const autoLogged = !!(existing && !existing.manual);
   const titleOf = e => displayTitle(e);
   const currentTitle = existing ? (entryById(existing.vnId) ? titleOf(entryById(existing.vnId)) : existing.vnTitle) : '';
 
@@ -1133,6 +1155,10 @@ function openSessionForm(existing) {
         <label>Ended<input type="time" id="sf-end" value="${hhmm(end)}" /></label>
       </div>
       <div class="sf-hint" id="sf-hint"></div>
+      <label class="sf-check">
+        <input type="checkbox" id="sf-playtime" ${autoLogged || (existing ? existing.countsPlaytime : true) ? 'checked' : ''} ${autoLogged ? 'disabled' : ''} />
+        <span>${autoLogged ? 'Already counted — this session was tracked automatically' : "Add this to the title's total playtime"}</span>
+      </label>
       <div class="sf-actions">
         <div class="btn-sm pri" id="sf-save">Save</div>
         <div class="btn-sm sec" id="sf-cancel">Cancel</div>
@@ -1181,6 +1207,7 @@ function openSessionForm(existing) {
     const startedAt = new Date(`${date}T${time}`).getTime();
     if (!Number.isFinite(startedAt)) { err.textContent = 'That date/time is not valid.'; return; }
     const endedAt = startedAt + minutes * 60000;
+    const countsPlaytime = autoLogged ? false : host.querySelector('#sf-playtime').checked;
     // Reject a session that overlaps one already logged for the same title —
     // otherwise you get two near-identical rows that are impossible to tell apart.
     const clash = (settings.sessions || []).some(x =>
@@ -1196,10 +1223,22 @@ function openSessionForm(existing) {
       startedAt,
       endedAt,
       durationSeconds: minutes * 60,
-      manual: true,
+      manual: existing ? (existing.manual || !autoLogged) : true,
+      countsPlaytime,
     });
     closeSessionModal();
     await writeSessions(next);
+    // Editing has to move by the difference: the old contribution comes off and
+    // the new one goes on, which also covers ticking or unticking the box.
+    if (autoLogged) return; // its time is the tracker's; leave the total alone
+    const before = existing ? sessionPlaytime(existing) : 0;
+    const after  = countsPlaytime ? minutes * 60 : 0;
+    if (existing && existing.vnId !== vnId) {
+      await adjustPlaytime(existing.vnId, -before);
+      await adjustPlaytime(vnId, after, endedAt);
+    } else {
+      await adjustPlaytime(vnId, after - before, endedAt);
+    }
   });
 }
 

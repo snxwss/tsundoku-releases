@@ -2181,6 +2181,26 @@ ipcMain.handle('library-update-status', (_e, id, status) => {
   return true;
 });
 
+// Manual reading sessions can opt into counting toward a title's playtime. The
+// two numbers are stored separately (playtime is accrued in ticks by the poller,
+// sessions live in settings), so the adjustment has to be applied as a delta —
+// adding on create, the difference on edit, subtracting on delete.
+ipcMain.handle('library-adjust-playtime', (_e, id, deltaSeconds, playedAt) => {
+  const store = readStore();
+  const e = store[id];
+  if (!e) return false;
+  const delta = Math.round(Number(deltaSeconds) || 0);
+  if (!delta) return true;
+  // Never let a subtraction push a title's total below zero.
+  e.playtime_seconds = Math.max(0, (e.playtime_seconds || 0) + delta);
+  // Only move "last played" forward — a backfilled old session shouldn't make a
+  // title look less recently read than it actually is.
+  if (delta > 0 && Number.isFinite(playedAt) && playedAt > (e.last_played || 0)) e.last_played = playedAt;
+  if (delta > 0 && !e.started_at) e.started_at = playedAt || Date.now();
+  writeStore(store);
+  return true;
+});
+
 ipcMain.handle('library-update-exe', (_e, id, exePath) => {
   const store = readStore();
   if (store[id]) { store[id].exe_path = exePath || null; writeStore(store); }

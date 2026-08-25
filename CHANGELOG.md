@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.1-beta — 2026-08-25
+
+- Adding a reading session by hand can now count toward the title's total playtime, via a checkbox on the form (on by default). Editing or deleting the session adjusts the total to match, and sessions the tracker logged itself are left alone so nothing is counted twice.
+
 ## 1.6.0-beta — 2026-08-25
 
 - Reading sessions can now be clicked to expand. Each one shows when it ran (start and end time, day, time of day), where it falls in that title's history, how long since your previous session, its share of your total time on the title, how far that puts you against the title's average length, and whether it was the session you finished on.

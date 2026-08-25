@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('api', {
   libraryAddScanned:   (meta, exePath) => ipcRenderer.invoke('library-add-scanned', meta, exePath),
   libraryUpdateStatus: (id, status)    => ipcRenderer.invoke('library-update-status', id, status),
   libraryUpdateExe:    (id, exePath)   => ipcRenderer.invoke('library-update-exe', id, exePath),
+  libraryAdjustPlaytime: (id, deltaSeconds, playedAt) => ipcRenderer.invoke('library-adjust-playtime', id, deltaSeconds, playedAt),
   libraryExclude:      (id)            => ipcRenderer.invoke('library-exclude', id),
   libraryUnexclude:    (id)            => ipcRenderer.invoke('library-unexclude', id),
 
