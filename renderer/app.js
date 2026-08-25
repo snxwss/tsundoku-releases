@@ -910,14 +910,14 @@ function renderSessionDetail(s) {
      </div>`);
 
   cell('DURATION', formatPlaytime(s.durationSeconds) || '—');
-  cell('CLOCK', `${clockTime(s.startedAt)} → ${clockTime(s.endedAt)}`);
+  cell('CLOCK', `${clockTime(s.startedAt)} – ${clockTime(s.endedAt)}`);
 
   // Position within this title's own history, and the gap before it.
   const mine = (settings.sessions || [])
     .filter(x => x.vnId === s.vnId)
     .sort((a, b) => a.startedAt - b.startedAt);
   const idx = mine.findIndex(x => sessionKey(x) === sessionKey(s));
-  cell('SESSION', mine.length > 1 ? `${idx + 1} of ${mine.length}` : 'only one');
+  cell('SESSION', `${idx + 1} of ${mine.length}`);
   cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt));
 
   if (idx > 0) {
