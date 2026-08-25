@@ -1329,10 +1329,12 @@ function renderHome() {
   lib.sort(byNewest);
   homeVisible = lib;
 
+  // Shelves scroll horizontally and show everything — capping at a fixed count
+  // left large gaps on a wide window while hiding titles that would have fit.
   const reading    = lib.filter(e => (e.status || 'unplayed') === 'reading');
   const allPile    = lib.filter(e => (e.status || 'unplayed') === 'unplayed');
-  const pile       = allPile.slice(0, 6);
-  const finished   = lib.filter(e => e.status === 'finished').slice(0, 6);
+  const pile       = allPile;
+  const finished   = lib.filter(e => e.status === 'finished');
   const cur = getBestHeroEntry(lib);
 
   // hero
@@ -1406,26 +1408,32 @@ function renderHome() {
     </div>`;
   };
 
-  const makeShelf = (label, cnt, items, color) => {
+  // Arrows appear only when the row actually overflows (see wireShelfArrows).
+  const makeShelf = (label, cnt, items, color, filter) => {
     if (!items.length) return '';
     return `<section class="shelf" style="--acc:${color}">
       <div class="shelf-head">
         <span class="sq" style="background:${color}"></span>
         <span class="lbl">${escHtml(label)}</span>
         <span class="cnt">${escHtml(cnt)}</span>
-        <span class="more" data-goto="library">see all →</span>
+        <span class="more" data-goto="library" data-filter="${escHtml(filter)}">see all →</span>
       </div>
-      <div class="shelf-row">${items.map(makeShelfCard).join('')}</div>
+      <div class="shelf-strip">
+        <button class="shelf-arrow shelf-arrow-l" hidden>&#8249;</button>
+        <div class="shelf-row">${items.map(makeShelfCard).join('')}</div>
+        <button class="shelf-arrow shelf-arrow-r" hidden>&#8250;</button>
+      </div>
     </section>`;
   };
 
-  // "Now playing" lists all reading titles EXCEPT the one featured in the hero,
-  // so the count matches what's shown (no off-by-one vs. the hero spotlight).
-  const nowPlaying = reading.filter(e => e.id !== (cur && cur.id));
+  // Every reading title belongs here, including the one spotlighted in the hero —
+  // leaving it out made the most recently played title look absent from its own
+  // section. The hero is a shortcut, not a substitute for the list.
+  const nowPlaying = reading;
   const shelvesHtml = [
-    allPile.length > 0    && makeShelf('The pile',          `${allPile.length} unplayed`, pile,              'var(--blue-deep)'),
-    nowPlaying.length > 0 && makeShelf('Now playing',       `${nowPlaying.length} more`,  nowPlaying,        'var(--read-deep)'),
-    finished.length > 0   && makeShelf('Recently finished', `${finished.length} done`,    finished,          'oklch(0.58 0.17 305)'),
+    allPile.length > 0    && makeShelf('The pile',          `${allPile.length} unplayed`, pile,       'var(--blue-deep)',      'unplayed'),
+    nowPlaying.length > 0 && makeShelf('Now playing',       `${nowPlaying.length} total`, nowPlaying, 'var(--read-deep)',      'reading'),
+    finished.length > 0   && makeShelf('Recently finished', `${finished.length} done`,    finished,   'oklch(0.58 0.17 305)',  'finished'),
   ].filter(Boolean).join('');
 
   scroll.innerHTML = `
@@ -1469,8 +1477,53 @@ function renderHome() {
         openModal(e, idx >= 0 ? { list: homeVisible, idx } : null);
       }
     }));
+  // "See all" now lands on the matching status filter — it used to just switch to
+  // Library and leave whatever filter happened to be selected last.
   document.querySelectorAll('.more[data-goto]').forEach(el =>
-    el.addEventListener('click', () => switchView(el.dataset.goto)));
+    el.addEventListener('click', () => {
+      const filter = el.dataset.filter;
+      if (filter) {
+        libFilter = filter;
+        libCollFilter = null; // status filters and collections are exclusive views
+        libSelId = null;
+        document.querySelectorAll('.fitem[data-filter]').forEach(f =>
+          f.classList.toggle('on', f.dataset.filter === filter));
+        renderCollectionsSidebar();
+        renderLibrary();
+      }
+      switchView(el.dataset.goto);
+    }));
+
+  wireShelfArrows();
+}
+
+// Shelves hold every title in their category and scroll sideways; the arrows show
+// only when there's actually more than fits, so a wide window just shows more.
+function wireShelfArrows() {
+  document.querySelectorAll('.shelf-strip').forEach(strip => {
+    const row = strip.querySelector('.shelf-row');
+    const left = strip.querySelector('.shelf-arrow-l');
+    const right = strip.querySelector('.shelf-arrow-r');
+    if (!row || !left || !right) return;
+    const sync = () => {
+      const overflow = row.scrollWidth - row.clientWidth > 4;
+      left.hidden  = !overflow || row.scrollLeft <= 2;
+      right.hidden = !overflow || row.scrollLeft >= row.scrollWidth - row.clientWidth - 2;
+    };
+    const step = () => Math.max(row.clientWidth * 0.8, 200);
+    left.addEventListener('click', () => row.scrollBy({ left: -step(), behavior: 'smooth' }));
+    right.addEventListener('click', () => row.scrollBy({ left: step(), behavior: 'smooth' }));
+    row.addEventListener('scroll', sync);
+    // Re-check when the window resizes, so arrows appear/disappear as space changes.
+    if (!wireShelfArrows._resizeHooked) {
+      window.addEventListener('resize', () => document.querySelectorAll('.shelf-strip').forEach(s => {
+        s.dispatchEvent(new Event('shelf-resync'));
+      }));
+      wireShelfArrows._resizeHooked = true;
+    }
+    strip.addEventListener('shelf-resync', sync);
+    requestAnimationFrame(sync);
+  });
 }
 
 // ── LIBRARY ───────────────────────────────────────────────────────────────────
