@@ -825,7 +825,7 @@ function renderSessionsLog() {
   wrap.appendChild(section);
 
   section.querySelectorAll('.session-item').forEach(el =>
-    el.addEventListener('click', () => toggleSessionDetail(el)));
+    el.addEventListener('click', () => openSessionDetail(el.dataset.skey)));
   section.querySelector('#session-add-btn')?.addEventListener('click', () => openSessionForm(null));
 }
 
@@ -858,25 +858,33 @@ function formatGap(ms) {
   return `${months} month${months !== 1 ? 's' : ''}`;
 }
 
-function toggleSessionDetail(el) {
-  const existing = el.nextElementSibling;
-  if (existing && existing.classList.contains('session-detail')) {
-    existing.remove(); el.classList.remove('on');
-    return;
-  }
-  // Only one open at a time — keeps the list scannable.
-  document.querySelectorAll('.session-detail').forEach(d => d.remove());
-  document.querySelectorAll('.session-item.on').forEach(i => i.classList.remove('on'));
+function closeSessionModal() {
+  document.getElementById('session-overlay')?.classList.add('hidden');
+}
 
-  const s = (settings.sessions || []).find(x => sessionKey(x) === el.dataset.skey);
+function openSessionDetail(skey) {
+  const s = (settings.sessions || []).find(x => sessionKey(x) === skey);
   if (!s) return;
-  el.classList.add('on');
-  const panel = document.createElement('div');
-  panel.className = 'session-detail';
-  panel.innerHTML = renderSessionDetail(s);
-  el.after(panel);
-  panel.querySelector('.session-edit')?.addEventListener('click', () => openSessionForm(s));
-  panel.querySelector('.session-delete')?.addEventListener('click', () => deleteSession(s));
+  const overlay = document.getElementById('session-overlay');
+  const body = document.getElementById('session-modal-body');
+  if (!overlay || !body) return;
+
+  const e = entryById(s.vnId);
+  const url = e ? imgUrl(e.image, e.id) : null;
+  const title = s.vnTitle || (e && e.title) || s.vnId;
+  body.innerHTML = `
+    <div class="sm-head">
+      <div class="sm-cover">${url ? `<img src="${escHtml(url)}" alt="" />` : ''}</div>
+      <div class="sm-headtext">
+        <div class="mk">READING SESSION</div>
+        <h2 class="sm-title">${escHtml(title)}</h2>
+        <div class="sm-dur">${escHtml(formatPlaytime(s.durationSeconds) || '')}</div>
+      </div>
+    </div>
+    ${renderSessionDetail(s)}`;
+  body.querySelector('.session-edit')?.addEventListener('click', () => { closeSessionModal(); openSessionForm(s); });
+  body.querySelector('.session-delete')?.addEventListener('click', () => deleteSession(s));
+  overlay.classList.remove('hidden');
 }
 
 function renderSessionDetail(s) {
@@ -935,6 +943,7 @@ async function writeSessions(list) {
 
 async function deleteSession(s) {
   if (!confirm('Delete this reading session? Your total playtime is not affected.')) return;
+  closeSessionModal();
   await writeSessions((settings.sessions || []).filter(x => sessionKey(x) !== sessionKey(s)));
 }
 
@@ -4916,6 +4925,10 @@ async function init() {
       if (e.key === 'ArrowLeft')  { lbNav(-1); e.preventDefault(); }
       if (e.key === 'ArrowRight') { lbNav(1); e.preventDefault(); }
     } else {
+      const sessOverlay = document.getElementById('session-overlay');
+      if (e.key === 'Escape' && sessOverlay && !sessOverlay.classList.contains('hidden')) {
+        closeSessionModal(); e.preventDefault(); return;
+      }
       const overlay = document.getElementById('modal-overlay');
       const modalOpen = overlay && !overlay.classList.contains('hidden');
       if (e.key === 'Escape' && modalOpen) { closeModal(); e.preventDefault(); }
@@ -4938,6 +4951,10 @@ async function init() {
   document.getElementById('scan-overlay')?.addEventListener('click', e => {
     if (e.target === document.getElementById('scan-overlay'))
       document.getElementById('scan-overlay').classList.add('hidden');
+  });
+  document.getElementById('session-close')?.addEventListener('click', closeSessionModal);
+  document.getElementById('session-overlay')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('session-overlay')) closeSessionModal();
   });
   document.getElementById('scan-add')?.addEventListener('click', async () => {
     const btn = document.getElementById('scan-add');
