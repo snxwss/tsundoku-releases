@@ -4,6 +4,11 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.5.8-beta — 2026-08-25
+
+- Character art and screenshots are now cached for offline viewing for titles in your Library or Wishlist, the same way covers already were.
+- Browse now shows a "Connection error" placeholder instead of a blank/broken image when one fails to load.
+
 ## 1.5.7-beta — 2026-08-23
 
 - Fixed Browse sometimes showing results left over from before a filter change, if a slow VNDB request from the old filters resolved after a newer one.
