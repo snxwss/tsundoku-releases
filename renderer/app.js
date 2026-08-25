@@ -816,6 +816,7 @@ function renderSessionsLog() {
         return `<div class="session-item" data-skey="${escHtml(sessionKey(s))}" title="Click for details">
           <div class="session-thumb">${url ? `<img src="${escHtml(url)}" loading="lazy" />` : ''}</div>
           <div class="session-title">${escHtml(title)}</div>
+          ${s.manual ? `<div class="session-manual">Added by hand</div>` : ''}
           ${status ? `<div class="session-status">${escHtml(capitalize(status))}</div>` : ''}
           ${when ? `<div class="session-when">${escHtml(when)}</div>` : ''}
           ${dur   ? `<div class="session-dur">${escHtml(dur)}</div>` : ''}
@@ -883,9 +884,12 @@ function openSessionDetail(skey) {
     <div class="sm-head">
       <div class="sm-cover">${url ? `<img src="${escHtml(url)}" alt="" />` : ''}</div>
       <div class="sm-headtext">
-        <div class="mk">READING SESSION</div>
+        <div class="modal-kicker">Reading Session</div>
         <h2 class="sm-title">${escHtml(title)}</h2>
-        ${e && e.status ? `<span class="session-status">${escHtml(capitalize(e.status))}</span>` : ''}
+        <div class="sm-badges">
+          ${e && e.status ? `<span class="session-status">${escHtml(capitalize(e.status))}</span>` : ''}
+          ${s.manual ? `<span class="session-manual">Added by hand</span>` : ''}
+        </div>
       </div>
     </div>
     ${renderSessionDetail(s)}`;
@@ -1005,13 +1009,21 @@ function openSessionForm(existing) {
     }
     const startedAt = new Date(`${date}T${time}`).getTime();
     if (!Number.isFinite(startedAt)) { err.textContent = 'That date/time is not valid.'; return; }
+    const endedAt = startedAt + minutes * 60000;
+    // Reject a session that overlaps one already logged for the same title —
+    // otherwise you get two near-identical rows that are impossible to tell apart.
+    const clash = (settings.sessions || []).some(x =>
+      x.vnId === vnId &&
+      (!existing || sessionKey(x) !== sessionKey(existing)) &&
+      startedAt < x.endedAt && endedAt > x.startedAt);
+    if (clash) { err.textContent = 'That overlaps a session already logged for this title.'; return; }
     const e = entryById(vnId);
     const next = (settings.sessions || []).filter(x => !existing || sessionKey(x) !== sessionKey(existing));
     next.push({
       vnId,
       vnTitle: (e && e.title) || vnId,
       startedAt,
-      endedAt: startedAt + minutes * 60000,
+      endedAt,
       durationSeconds: minutes * 60,
       manual: true,
     });

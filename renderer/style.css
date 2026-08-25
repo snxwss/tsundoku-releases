@@ -1278,6 +1278,14 @@ html, body { height: 100%; background: #141714; user-select: none; }
   font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800;
   color: var(--ink); margin: 6px 0 10px; line-height: 1.3; word-break: break-word;
 }
+.sm-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Marks a hand-entered session — without it a manual entry and a tracked one
+   for the same title look identical and you can't tell which to remove. */
+.session-manual {
+  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.4px;
+  color: var(--faint); border: 1.5px solid var(--line-2); border-radius: 6px;
+  padding: 1px 7px; flex-shrink: 0;
+}
 /* Secondary line under a meta value ("of 1h 16m total") — keeps the bold number
    as the thing you read first. */
 .modal-meta-cell .mv-sub {
