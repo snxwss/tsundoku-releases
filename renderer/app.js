@@ -3756,16 +3756,25 @@ async function openModal(item, nav = null) {
   }
 
   function loadChars() {
+    // Cache-first: anything viewed online before renders immediately from disk and
+    // keeps working while offline / rate-limited. The live fetch below only
+    // refreshes it, so a failed request never blanks out content we already have.
+    window.api.getCachedChars(item.id).then(cached => {
+      if (token !== modalToken || charsData || !cached || !cached.length) return;
+      charsData = cached; renderChars();
+    }).catch(() => {});
+
     window.api.vndbCharacters(item.id)
       .then(c => {
         if (token !== modalToken) return;
-        charsData = c; renderChars();
+        if (c && c.length) { charsData = c; renderChars(); }
         const e = entryById(item.id);
         if (e && (e.library || e.wishlist || e.wishlistPrivate)) {
           window.api.cacheChars(item.id, c).catch(() => {});
         }
       })
       .catch(async () => {
+        if (token !== modalToken || (charsData && charsData.length)) return; // cached copy already shown
         const cached = await window.api.getCachedChars(item.id).catch(() => null);
         if (token !== modalToken) return;
         if (cached && cached.length) { charsData = cached; renderChars(); }
@@ -3885,13 +3894,46 @@ async function openModal(item, nav = null) {
     if ((vndbShots && vndbShots.length) || (steamData && steamData.screenshots?.length)) return;
     renderFetchError('m-steam', 'SCREENSHOTS', () => { steamFailed = false; shotsFailed = false; loadSteam(); loadVndbDetail(); });
   }
+  // Persist the screenshot list / store links for titles you own, so a later
+  // failure (or just being offline) can still render them — the image FILES are
+  // already cached, but without this metadata we wouldn't know what to render.
+  const cacheDetail = patch => {
+    if (!cacheImages) return; // library/wishlist only, same rule as the image cache
+    window.api.cacheDetail(item.id, patch).catch(() => {});
+  };
+
+  // Cache-first, same as characters: render what we already have on disk right
+  // away so a slow/failed refresh never leaves these sections empty.
+  function loadCachedDetail() {
+    window.api.getCachedDetail(item.id).then(cached => {
+      if (token !== modalToken || !cached) return;
+      let changed = false;
+      if (!vndbShots && Array.isArray(cached.screenshots) && cached.screenshots.length) {
+        vndbShots = cached.screenshots; changed = true;
+      }
+      if (!steamData && cached.steam) { steamData = cached.steam; changed = true; }
+      if (changed) { renderSteam(); renderStoreLinks(); }
+    }).catch(() => {});
+  }
+
   function loadSteam() {
     window.api.steamAppDetails(item.id).then(s => {
       if (token !== modalToken) return;
       steamData = s;
       renderSteam();
       renderStoreLinks();
-    }).catch(() => { steamFailed = true; maybeRenderShotsError(); });
+      if (s) cacheDetail({ steam: s });
+    }).catch(async () => {
+      const cached = await window.api.getCachedDetail(item.id).catch(() => null);
+      if (token !== modalToken) return;
+      if (cached && cached.steam) {
+        steamData = cached.steam;
+        renderSteam();
+        renderStoreLinks();
+        return;
+      }
+      steamFailed = true; maybeRenderShotsError();
+    });
   }
   // Background enrich: full VNDB detail (external links + meta + screenshots).
   // Store extlinks in the entry so the modal can show them offline next time.
@@ -3907,13 +3949,26 @@ async function openModal(item, nav = null) {
           .filter(s => s && s.url)
           .map(s => ({ thumb: s.thumbnail || s.url, full: s.url, sexual: Number(s.sexual || 0) }));
         renderSteam();
+        cacheDetail({ screenshots: vndbShots });
       }
       const e = entryById(item.id);
       if (e && (e.library || e.wishlist || e.wishlistPrivate) && Array.isArray(full.extlinks)) {
         window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});
       }
-    }).catch(() => { shotsFailed = true; maybeRenderShotsError(); });
+    }).catch(async () => {
+      const cached = await window.api.getCachedDetail(item.id).catch(() => null);
+      if (token !== modalToken) return;
+      // A cached entry that legitimately has zero screenshots is still a real
+      // answer — render it as an empty section rather than a failure.
+      if (cached && Array.isArray(cached.screenshots)) {
+        vndbShots = cached.screenshots;
+        renderSteam();
+        return;
+      }
+      shotsFailed = true; maybeRenderShotsError();
+    });
   }
+  loadCachedDetail();
   loadSteam();
   loadVndbDetail();
   } // end renderModalContent

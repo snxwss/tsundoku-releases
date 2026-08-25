@@ -95,6 +95,8 @@ contextBridge.exposeInMainWorld('api', {
   // Offline cache
   getCachedChars:      (id)        => ipcRenderer.invoke('get-cached-chars', id),
   cacheChars:          (id, chars) => ipcRenderer.invoke('cache-chars', id, chars),
+  getCachedDetail:     (id)        => ipcRenderer.invoke('get-cached-detail', id),
+  cacheDetail:         (id, patch) => ipcRenderer.invoke('cache-detail', id, patch),
   clearOfflineCache:   (id)        => ipcRenderer.invoke('clear-offline-cache', id),
   clearAllOfflineCache: ()         => ipcRenderer.invoke('clear-all-offline-cache'),
 

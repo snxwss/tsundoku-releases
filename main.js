@@ -369,6 +369,7 @@ const COVERS_DIR    = path.join(DATA_DIR, 'covers');
 const CHARS_DIR     = path.join(DATA_DIR, 'chars'); // character LIST metadata (json), not the portrait images themselves
 const CHAR_IMG_DIR  = path.join(DATA_DIR, 'char-images'); // cached character portrait image files
 const SHOTS_DIR     = path.join(DATA_DIR, 'screenshots'); // cached screenshot image files
+const DETAIL_DIR    = path.join(DATA_DIR, 'details'); // screenshot list + store links (the metadata naming those images)
 const DEBUG_LOG_PATH = path.join(DATA_DIR, 'process-debug.log');
 
 // Diagnostic log for the process-detection poller (launch, poll ticks, stop
@@ -2505,31 +2506,68 @@ ipcMain.handle('sync-clear-folder', () => {
 
 ipcMain.handle('sync-now', () => { writeSyncFile(); return { ok: true }; });
 
-// ── Offline cache (characters + covers) ───────────────────────────────────────
+// ── Offline cache (characters + covers + detail metadata) ─────────────────────
 ipcMain.handle('get-cached-chars', (_e, id) => {
   try {
     const p = path.join(CHARS_DIR, `${id}.json`);
-    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!fs.existsSync(p)) return null;
+    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Self-heal: an older build cached the empty array a FAILED fetch returned,
+    // which then looked like a valid "this title has no characters" answer
+    // forever. Drop those so the next online view re-caches for real.
+    if (!Array.isArray(data) || !data.length) {
+      try { fs.unlinkSync(p); } catch {}
+      return null;
+    }
+    return data;
   } catch {}
   return null;
 });
 
 ipcMain.handle('cache-chars', (_e, id, chars) => {
+  // Never persist an empty result — see the self-heal note above.
+  if (!Array.isArray(chars) || !chars.length) return;
   try {
     fs.mkdirSync(CHARS_DIR, { recursive: true });
     fs.writeFileSync(path.join(CHARS_DIR, `${id}.json`), JSON.stringify(chars));
   } catch {}
 });
 
+// Detail metadata (screenshot list + resolved store links). The screenshot IMAGE
+// files were already cached to disk, but WHICH screenshots exist only lived in
+// memory — so after a restart or a failed refetch there was no way to know what
+// to render, and the cached image files were unreachable. Persist that list too.
+ipcMain.handle('get-cached-detail', (_e, id) => {
+  try {
+    const p = path.join(DETAIL_DIR, `${id}.json`);
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {}
+  return null;
+});
+
+// Merged, not overwritten: screenshots and store links resolve from two separate
+// requests that finish independently, so a plain write would race and clobber.
+ipcMain.handle('cache-detail', (_e, id, patch) => {
+  if (!patch || typeof patch !== 'object') return;
+  try {
+    const p = path.join(DETAIL_DIR, `${id}.json`);
+    let cur = {};
+    try { if (fs.existsSync(p)) cur = JSON.parse(fs.readFileSync(p, 'utf8')) || {}; } catch {}
+    fs.mkdirSync(DETAIL_DIR, { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({ ...cur, ...patch }));
+  } catch {}
+});
+
 function deleteEntryCache(id) {
   try { fs.unlinkSync(path.join(COVERS_DIR, id)); } catch {}
   try { fs.unlinkSync(path.join(CHARS_DIR, `${id}.json`)); } catch {}
+  try { fs.unlinkSync(path.join(DETAIL_DIR, `${id}.json`)); } catch {}
 }
 
 ipcMain.handle('clear-offline-cache', (_e, id) => { deleteEntryCache(id); });
 
 ipcMain.handle('clear-all-offline-cache', () => {
-  for (const dir of [COVERS_DIR, CHARS_DIR, CHAR_IMG_DIR, SHOTS_DIR]) {
+  for (const dir of [COVERS_DIR, CHARS_DIR, CHAR_IMG_DIR, SHOTS_DIR, DETAIL_DIR]) {
     try { for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f)); } catch {}
   }
 });
