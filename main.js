@@ -1188,6 +1188,9 @@ if (!gotLock) {
     // Begin automatic playtime detection.
     pollRunningGames();
     pollTimer = setInterval(pollRunningGames, POLL_INTERVAL_MS);
+    // Fill in missing offline data (characters/screenshots) for owned titles, well
+    // after launch so it never competes with the first screen the user looks at.
+    setTimeout(warmOfflineCache, 20000);
     // Check for updates (installed build only).
     initAutoUpdate();
   });
@@ -1450,6 +1453,7 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
 
 function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {}, timeoutMs = 10000, maxRetries = 5 } = {}) {
   return vndbEnqueue(async () => {
+    const startedAt = Date.now();
     for (let attempt = 0; ; attempt++) {
       let res;
       try {
@@ -1459,10 +1463,17 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {}, timeou
           body: JSON.stringify(body),
         }, timeoutMs);
       } catch (e) {
-        // Timeout / network drop. One quick retry, then give up so the slot frees
-        // up instead of wedging on a dead request.
+        // Network drop / abort / anything the request layer threw. One quick retry,
+        // then give up so the slot frees up instead of wedging on a dead request.
         if (attempt < 1) { await new Promise(r => setTimeout(r, 700)); continue; }
-        throw new Error('VNDB timeout');
+        // Report what ACTUALLY failed. This used to hard-code "VNDB timeout" and
+        // discard the real error, so every failure mode — DNS, TLS, a bad request
+        // option, an abort — was indistinguishable from an actual timeout, and
+        // sent debugging in the wrong direction.
+        const cause = e && e.cause ? ` cause="${e.cause.code || e.cause.message || e.cause}"` : '';
+        const detail = `${(e && e.name) || 'Error'}: ${(e && e.message) || String(e)}`;
+        debugLog(`VNDB-FAIL endpoint=${endpoint} elapsed=${Date.now() - startedAt}ms detail="${detail}"${cause}`);
+        throw new Error(`VNDB request failed — ${detail}`);
       }
       if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
         vndbGap = Math.min(VNDB_GAP_MAX, vndbGap + 250); // back off globally
@@ -1471,7 +1482,12 @@ function vndbFetch(endpoint, body, { priority = PRI.NORMAL, headers = {}, timeou
         await new Promise(r => setTimeout(r, ms));
         continue;
       }
-      if (!res.ok) throw new Error(`VNDB ${res.status}`);
+      if (!res.ok) {
+        let bodyText = '';
+        try { bodyText = (await res.text()).slice(0, 200); } catch {}
+        debugLog(`VNDB-HTTP endpoint=${endpoint} status=${res.status} elapsed=${Date.now() - startedAt}ms body="${bodyText}"`);
+        throw new Error(`VNDB ${res.status}${bodyText ? ` — ${bodyText}` : ''}`);
+      }
       vndbGap = Math.max(VNDB_GAP_MIN, vndbGap - 120); // healthy — speed back up
       return res.json();
     }
@@ -1863,6 +1879,24 @@ async function storeLinksForVn(vnId) {
 // Main/primary characters for a VN (portrait + name), cached per VN. Lazy-loaded by
 // the detail modal so it never blocks the initial render.
 const charCache = new Map(); // vnId -> { data, ts }
+// Shared by the modal (HIGH, user is waiting) and the offline cache warmer (LOW,
+// background) so both build the character list identically.
+async function fetchCharacters(vnId, priority = PRI.HIGH) {
+  const d = await vndbFetch('character', {
+    filters: ['vn', '=', ['id', '=', vnId]],
+    fields: 'id, name, image.url, image.sexual, vns.role, vns.id',
+    results: 100,
+  }, { priority });
+  // Show the whole cast, ordered by importance (main → primary → side → appears).
+  const rank = { main: 0, primary: 1, side: 2, appears: 3 };
+  return (d.results || [])
+    .map(c => {
+      const v = (c.vns || []).find(x => x.id === vnId) || {};
+      return { id: c.id, name: c.name, image: c.image?.url || null, sexual: c.image?.sexual || 0, role: v.role || '' };
+    })
+    .sort((a, b) => (rank[a.role] ?? 4) - (rank[b.role] ?? 4));
+}
+
 ipcMain.handle('vndb-characters', async (_e, vnId) => {
   if (!vnId) return [];
   const hit = charCache.get(vnId);
@@ -2579,6 +2613,120 @@ ipcMain.handle('clear-all-offline-cache', () => {
     try { for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f)); } catch {}
   }
 });
+
+// ── Offline cache warming ─────────────────────────────────────────────────────
+// Covers already cache on sight, but characters and screenshots only cached if
+// you happened to open that particular title while online — so with no
+// connection most of your library showed nothing. Fill those gaps in the
+// background for titles you own, well spaced and at LOW priority so it yields to
+// anything you're actively looking at. Runs once per title: anything already
+// cached is skipped, so repeat launches are nearly free.
+function cachedImagePath(dir, url) {
+  return path.join(dir, crypto.createHash('sha1').update(url).digest('hex'));
+}
+
+async function prefetchImage(dir, url) {
+  if (!url) return;
+  const dest = cachedImagePath(dir, url);
+  if (fs.existsSync(dest)) return;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  let res;
+  try { res = await net.fetch(url, { signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+  if (!res.ok) return;
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(dest, buf);
+}
+
+// Returns false if the network looks down, so the caller can stop early instead
+// of grinding through the whole library failing on every entry.
+async function warmOneTitle(id) {
+  // Characters + their portraits.
+  const charPath = path.join(CHARS_DIR, `${id}.json`);
+  let chars = null;
+  try {
+    if (fs.existsSync(charPath)) {
+      const d = JSON.parse(fs.readFileSync(charPath, 'utf8'));
+      if (Array.isArray(d) && d.length) chars = d;
+    }
+  } catch {}
+  if (!chars) {
+    chars = await fetchCharacters(id, PRI.LOW);
+    if (chars.length) {
+      fs.mkdirSync(CHARS_DIR, { recursive: true });
+      fs.writeFileSync(charPath, JSON.stringify(chars));
+    }
+  }
+  for (const c of chars) {
+    if (!c.image) continue;
+    try { await prefetchImage(CHAR_IMG_DIR, c.image); } catch {}
+    await new Promise(r => setTimeout(r, 60));
+  }
+
+  // Screenshot list + thumbnails. Full-size images stay on demand — they're much
+  // larger and only needed if the lightbox is actually opened.
+  const detPath = path.join(DETAIL_DIR, `${id}.json`);
+  let shots = null;
+  try {
+    if (fs.existsSync(detPath)) {
+      const d = JSON.parse(fs.readFileSync(detPath, 'utf8'));
+      if (d && Array.isArray(d.screenshots)) shots = d.screenshots;
+    }
+  } catch {}
+  if (!shots) {
+    const data = await vndbVN({ filters: ['id', '=', id], fields: DETAIL_FIELDS, results: 1 }, { priority: PRI.LOW });
+    const full = data?.results?.[0];
+    if (!full) return true;
+    shots = (full.screenshots || [])
+      .filter(s => s && s.url)
+      .map(s => ({ thumb: s.thumbnail || s.url, full: s.url, sexual: Number(s.sexual || 0) }));
+    let cur = {};
+    try { if (fs.existsSync(detPath)) cur = JSON.parse(fs.readFileSync(detPath, 'utf8')) || {}; } catch {}
+    fs.mkdirSync(DETAIL_DIR, { recursive: true });
+    fs.writeFileSync(detPath, JSON.stringify({ ...cur, screenshots: shots }));
+  }
+  for (const s of shots) {
+    if (!s.thumb) continue;
+    try { await prefetchImage(SHOTS_DIR, s.thumb); } catch {}
+    await new Promise(r => setTimeout(r, 60));
+  }
+  return true;
+}
+
+let warmingCache = false;
+async function warmOfflineCache() {
+  if (warmingCache) return;
+  warmingCache = true;
+  let consecutiveFailures = 0;
+  try {
+    const store = readStore();
+    const owned = Object.values(store)
+      .filter(e => e && e.id && (e.library || e.wishlist || e.wishlistPrivate));
+    for (const e of owned) {
+      // Everything already on disk? Skip without touching the network at all.
+      const charsDone = fs.existsSync(path.join(CHARS_DIR, `${e.id}.json`));
+      let shotsDone = false;
+      try {
+        const p = path.join(DETAIL_DIR, `${e.id}.json`);
+        shotsDone = fs.existsSync(p) && Array.isArray(JSON.parse(fs.readFileSync(p, 'utf8')).screenshots);
+      } catch {}
+      if (charsDone && shotsDone) continue;
+
+      try {
+        await warmOneTitle(e.id);
+        consecutiveFailures = 0;
+      } catch {
+        // Almost certainly offline (or VNDB is refusing). Give up for this run
+        // rather than hammering a dead connection for the whole library.
+        if (++consecutiveFailures >= 3) { debugLog('WARM-CACHE aborted — network unavailable'); return; }
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+  } catch {}
+  finally { warmingCache = false; }
+}
 
 // ── VNDB list import ──────────────────────────────────────────────────────────
 // Fetch a VNDB user's public list and return the raw ulist items (with each VN's
