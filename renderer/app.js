@@ -809,7 +809,7 @@ function renderSessionsLog() {
       ${sessions.map(s => {
         const e = entryById(s.vnId);
         const url = e ? imgUrl(e.image, e.id) : null;
-        const title = s.vnTitle || (e && e.title) || s.vnId;
+        const title = sessionTitle(s);
         const when  = formatLastPlayed(s.endedAt);
         const dur   = formatPlaytime(s.durationSeconds);
         const status = e && e.status ? e.status : null;
@@ -834,7 +834,14 @@ function renderSessionsLog() {
 const sessionKey = s => `${s.vnId}|${s.startedAt}`;
 
 const clockTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const longDate  = ts => new Date(ts).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+const longDate  = ts => new Date(ts).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+// Prefer the live entry's display title (respects the title-language setting) over
+// the name frozen into the session at write time — the tracker and manual entry
+// captured different title variants, so the same VN could appear under two names.
+const sessionTitle = s => {
+  const e = entryById(s.vnId);
+  return e ? displayTitle(e) : (s.vnTitle || s.vnId);
+};
 
 function timeOfDay(ts) {
   const h = new Date(ts).getHours();
@@ -871,7 +878,7 @@ function openSessionDetail(skey) {
 
   const e = entryById(s.vnId);
   const url = e ? imgUrl(e.image, e.id) : null;
-  const title = s.vnTitle || (e && e.title) || s.vnId;
+  const title = sessionTitle(s);
   body.innerHTML = `
     <div class="sm-head">
       <div class="sm-cover">${url ? `<img src="${escHtml(url)}" alt="" />` : ''}</div>
@@ -907,7 +914,7 @@ function renderSessionDetail(s) {
     .sort((a, b) => a.startedAt - b.startedAt);
   const idx = mine.findIndex(x => sessionKey(x) === sessionKey(s));
   cell('SESSION', mine.length > 1 ? `${idx + 1} of ${mine.length}` : 'only one');
-  cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt), true);
+  cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt));
 
   if (idx > 0) {
     const gap = s.startedAt - mine[idx - 1].endedAt;
