@@ -3742,6 +3742,37 @@ async function openModal(item, nav = null) {
   });
   } // end paint
 
+  // Fetch failed AND there's no cached fallback to fall back to — previously this
+  // just left the section silently empty (no error, no retry), indistinguishable
+  // from "this title genuinely has no characters/screenshots". Now it says so.
+  function renderFetchError(boxId, label, retry) {
+    if (token !== modalToken) return;
+    const box = document.getElementById(boxId);
+    if (!box) return;
+    box.innerHTML = `
+      <div class="mk">${escHtml(label)}</div>
+      <div class="modal-fetch-error">Couldn't load — <span class="modal-retry-link">retry</span></div>`;
+    box.querySelector('.modal-retry-link')?.addEventListener('click', () => { box.innerHTML = ''; retry(); });
+  }
+
+  function loadChars() {
+    window.api.vndbCharacters(item.id)
+      .then(c => {
+        if (token !== modalToken) return;
+        charsData = c; renderChars();
+        const e = entryById(item.id);
+        if (e && (e.library || e.wishlist || e.wishlistPrivate)) {
+          window.api.cacheChars(item.id, c).catch(() => {});
+        }
+      })
+      .catch(async () => {
+        const cached = await window.api.getCachedChars(item.id).catch(() => null);
+        if (token !== modalToken) return;
+        if (cached && cached.length) { charsData = cached; renderChars(); }
+        else renderFetchError('m-characters', 'CHARACTERS', loadChars);
+      });
+  }
+
   // ── Characters: main/primary cast strip (lazy, cached in main) ──
   function renderChars() {
     if (token !== modalToken || !charsData || !charsData.length) return;
@@ -3825,20 +3856,7 @@ async function openModal(item, nav = null) {
   paint(item); // instant render with the data already on hand
 
   // Lazy extras (cached in main): fetch once, re-apply on every paint.
-  // Characters — fetch live, cache for library/wishlist, fall back to cache when offline.
-  window.api.vndbCharacters(item.id)
-    .then(c => {
-      if (token !== modalToken) return;
-      charsData = c; renderChars();
-      const e = entryById(item.id);
-      if (e && (e.library || e.wishlist || e.wishlistPrivate)) {
-        window.api.cacheChars(item.id, c).catch(() => {});
-      }
-    })
-    .catch(async () => {
-      const cached = await window.api.getCachedChars(item.id).catch(() => null);
-      if (cached && token === modalToken) { charsData = cached; renderChars(); }
-    });
+  loadChars(); // fetch live, cache for library/wishlist, fall back to cache when offline
 
   // Idempotent — reads from steamData rather than a one-shot argument, so it can
   // safely be re-run after paint() regenerates #m-store-links (paint() runs again
@@ -3857,31 +3875,47 @@ async function openModal(item, nav = null) {
       el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
   }
 
-  window.api.steamAppDetails(item.id).then(s => {
-    steamData = s;
-    renderSteam();
-    renderStoreLinks();
-  }).catch(() => {});
-
-  // Background enrich: full VNDB detail (external links + meta). Store extlinks in the
-  // entry so the modal can show them offline next time.
-  window.api.vndbGet(item.id).then(data => {
-    if (token !== modalToken) return;
-    if (!data.results?.length) return;
-    const full = data.results[0];
-    paint({ ...item, ...full });
-    renderStoreLinks();
-    if (Array.isArray(full.screenshots)) {
-      vndbShots = full.screenshots
-        .filter(s => s && s.url)
-        .map(s => ({ thumb: s.thumbnail || s.url, full: s.url, sexual: Number(s.sexual || 0) }));
+  // Screenshots come from two independent sources (Steam gallery, VNDB screenshots
+  // via the detail fetch) — a title can legitimately have neither, so "both failed
+  // to even respond" needs to be distinguished from "responded, just nothing there"
+  // before showing a retry state instead of a normal empty section.
+  let steamFailed = false, shotsFailed = false;
+  function maybeRenderShotsError() {
+    if (!steamFailed || !shotsFailed) return;
+    if ((vndbShots && vndbShots.length) || (steamData && steamData.screenshots?.length)) return;
+    renderFetchError('m-steam', 'SCREENSHOTS', () => { steamFailed = false; shotsFailed = false; loadSteam(); loadVndbDetail(); });
+  }
+  function loadSteam() {
+    window.api.steamAppDetails(item.id).then(s => {
+      if (token !== modalToken) return;
+      steamData = s;
       renderSteam();
-    }
-    const e = entryById(item.id);
-    if (e && (e.library || e.wishlist || e.wishlistPrivate) && Array.isArray(full.extlinks)) {
-      window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});
-    }
-  }).catch(() => {});
+      renderStoreLinks();
+    }).catch(() => { steamFailed = true; maybeRenderShotsError(); });
+  }
+  // Background enrich: full VNDB detail (external links + meta + screenshots).
+  // Store extlinks in the entry so the modal can show them offline next time.
+  function loadVndbDetail() {
+    window.api.vndbGet(item.id).then(data => {
+      if (token !== modalToken) return;
+      if (!data.results?.length) return;
+      const full = data.results[0];
+      paint({ ...item, ...full });
+      renderStoreLinks();
+      if (Array.isArray(full.screenshots)) {
+        vndbShots = full.screenshots
+          .filter(s => s && s.url)
+          .map(s => ({ thumb: s.thumbnail || s.url, full: s.url, sexual: Number(s.sexual || 0) }));
+        renderSteam();
+      }
+      const e = entryById(item.id);
+      if (e && (e.library || e.wishlist || e.wishlistPrivate) && Array.isArray(full.extlinks)) {
+        window.api.entryEnrich({ id: item.id, extlinks: full.extlinks }).catch(() => {});
+      }
+    }).catch(() => { shotsFailed = true; maybeRenderShotsError(); });
+  }
+  loadSteam();
+  loadVndbDetail();
   } // end renderModalContent
 }
 
