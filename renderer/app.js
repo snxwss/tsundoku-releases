@@ -1100,7 +1100,11 @@ function openSessionForm(existing) {
   const host = document.getElementById('session-modal-body');
   if (!overlay || !host) return;
 
-  const owned = entries.filter(e => e.library || e.wishlist || e.wishlistPrivate)
+  // Only titles you actually own can have reading sessions — wishlist entries
+  // aren't things you've read. An existing session's title is kept selectable
+  // even if it has since left the library, so editing it still resolves.
+  const owned = entries
+    .filter(e => e.library || (existing && e.id === existing.vnId))
     .sort((a, b) => displayTitle(a).localeCompare(displayTitle(b)));
   const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const start = existing ? new Date(existing.startedAt) : new Date();
