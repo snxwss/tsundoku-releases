@@ -4,6 +4,18 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.0-beta — 2026-08-25
+
+- Reading sessions can now be clicked to expand. Each one shows when it ran (start and end time, day, time of day), where it falls in that title's history, how long since your previous session, its share of your total time on the title, how far that puts you against the title's average length, and whether it was the session you finished on.
+- A title's status now shows on the session row itself.
+- Sessions can be added, edited and deleted by hand, for anything the tracker missed or recorded wrong.
+- Deleted sessions now go to a “Recently deleted” list at the bottom of the sessions log, so an accidental delete can be undone instead of being gone for good.
+- The add/edit session form now lets you type to find a title instead of scrolling a long list, and asks for the end time rather than making you work out the duration yourself. Sessions running past midnight are handled properly.
+- The session title picker no longer offers wishlist titles — only ones in your library.
+- Fixed the “time since last session” message contradicting the number it was showing.
+- Home shelves no longer hide titles that would fit: they scroll with arrows when the window is too narrow, and “see all” now opens the category you clicked instead of whichever you last viewed.
+- Fixed the last-played title missing from “Now playing”.
+
 ## 1.5.9-beta — 2026-08-25
 
 - Your library and wishlist now work offline. Covers, character art and screenshots are filled in automatically in the background, so titles you own stay viewable with no connection instead of only the ones you happened to open online.
