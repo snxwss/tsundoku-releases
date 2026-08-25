@@ -1358,6 +1358,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
 }
 .sf-grid select { min-width: 220px; cursor: pointer; }
 .sf-grid input[type="number"] { width: 90px; }
+.sf-hint { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--faint); margin-top: 12px; }
 .sf-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
 .sf-err { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--coral-deep); margin-top: 10px; }
 

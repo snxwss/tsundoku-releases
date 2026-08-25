@@ -933,30 +933,34 @@ function stableIndex(str, n) {
 }
 
 function gapSentence(ms, key) {
-  const mins = Math.round(ms / 60000);
-  const days = mins / 1440;
-  let bucket;
-  if (days < 1)       bucket = 'hours';
-  else if (days < 2)  bucket = 'day';
-  else if (days < 7)  bucket = 'days';
-  else if (days < 30) bucket = 'weeks';
-  else                bucket = 'long';
+  // Derive the bucket from the SAME rounding formatGap uses. Bucketing on the raw
+  // value independently meant a 1.9-day gap rendered as "2 days" but picked the
+  // one-day phrasing, which then flatly contradicted the number.
+  const { text, bucket } = gapParts(ms);
   const options = GAP_PHRASES[bucket];
-  return options[stableIndex(key, options.length)].replace('{g}', formatGap(ms));
+  return options[stableIndex(key, options.length)].replace('{g}', text);
 }
 
 // Coarse gap between two sessions ("5 days", "3 hours") — enough to spot a
-// stalled read without pretending to precision.
-function formatGap(ms) {
+// stalled read without pretending to precision. Returns the phrasing bucket
+// alongside the text so wording and number are always derived from one rounding.
+function gapParts(ms) {
   const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return { text: `${mins}m`, bucket: 'hours' };
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  if (hours < 24) return { text: `${hours} hour${hours !== 1 ? 's' : ''}`, bucket: 'hours' };
   const days = Math.round(hours / 24);
-  if (days < 30) return `${days} day${days !== 1 ? 's' : ''}`;
+  if (days < 30) {
+    return {
+      text: `${days} day${days !== 1 ? 's' : ''}`,
+      bucket: days === 1 ? 'day' : (days < 7 ? 'days' : 'weeks'),
+    };
+  }
   const months = Math.round(days / 30);
-  return `${months} month${months !== 1 ? 's' : ''}`;
+  return { text: `${months} month${months !== 1 ? 's' : ''}`, bucket: 'long' };
 }
+
+const formatGap = ms => gapParts(ms).text;
 
 function closeSessionModal() {
   document.getElementById('session-overlay')?.classList.add('hidden');
@@ -1098,21 +1102,29 @@ function openSessionForm(existing) {
 
   const owned = entries.filter(e => e.library || e.wishlist || e.wishlistPrivate)
     .sort((a, b) => displayTitle(a).localeCompare(displayTitle(b)));
+  const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const start = existing ? new Date(existing.startedAt) : new Date();
+  const end   = existing ? new Date(existing.endedAt) : new Date(start.getTime() + 3600000);
   const dateVal = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-  const timeVal = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
-  const mins = existing ? Math.round(existing.durationSeconds / 60) : 60;
+
+  // Titles are picked by typing rather than hunting through a long dropdown, and
+  // the end time is entered directly instead of making you work out the minutes.
+  const titleOf = e => displayTitle(e);
+  const currentTitle = existing ? (entryById(existing.vnId) ? titleOf(entryById(existing.vnId)) : existing.vnTitle) : '';
 
   host.innerHTML = `
     <div class="modal-kicker">${existing ? 'Edit Session' : 'Add Session'}</div>
     <div class="session-form">
       <div class="sf-grid">
-        <label class="sf-wide">Title<select id="sf-vn">${owned.map(e =>
-          `<option value="${escHtml(e.id)}" ${existing && existing.vnId === e.id ? 'selected' : ''}>${escHtml(displayTitle(e))}</option>`).join('')}</select></label>
+        <label class="sf-wide">Title
+          <input list="sf-vn-list" id="sf-vn" autocomplete="off" placeholder="Start typing a title from your library…" value="${escHtml(currentTitle)}" />
+          <datalist id="sf-vn-list">${owned.map(e => `<option value="${escHtml(titleOf(e))}"></option>`).join('')}</datalist>
+        </label>
         <label>Date<input type="date" id="sf-date" value="${dateVal}" /></label>
-        <label>Start<input type="time" id="sf-time" value="${timeVal}" /></label>
-        <label>Minutes<input type="number" id="sf-mins" min="1" step="1" value="${mins}" /></label>
+        <label>Started<input type="time" id="sf-time" value="${hhmm(start)}" /></label>
+        <label>Ended<input type="time" id="sf-end" value="${hhmm(end)}" /></label>
       </div>
+      <div class="sf-hint" id="sf-hint"></div>
       <div class="sf-actions">
         <div class="btn-sm pri" id="sf-save">Save</div>
         <div class="btn-sm sec" id="sf-cancel">Cancel</div>
@@ -1121,15 +1133,42 @@ function openSessionForm(existing) {
     </div>`;
   overlay.classList.remove('hidden');
 
+  // Reading past midnight is normal, so an end time earlier than the start is
+  // treated as the next day rather than rejected as invalid.
+  const durationMins = () => {
+    const [sh, sm] = (host.querySelector('#sf-time').value || '').split(':').map(Number);
+    const [eh, em] = (host.querySelector('#sf-end').value || '').split(':').map(Number);
+    if ([sh, sm, eh, em].some(n => !Number.isFinite(n))) return null;
+    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins <= 0) mins += 1440;
+    return mins;
+  };
+  const syncHint = () => {
+    const m = durationMins();
+    const hint = host.querySelector('#sf-hint');
+    if (m == null) { hint.textContent = ''; return; }
+    const crosses = ((host.querySelector('#sf-end').value || '') <= (host.querySelector('#sf-time').value || ''));
+    hint.textContent = `Duration: ${formatPlaytime(m * 60)}${crosses ? ' · ends the next day' : ''}`;
+  };
+  host.querySelector('#sf-time').addEventListener('input', syncHint);
+  host.querySelector('#sf-end').addEventListener('input', syncHint);
+  syncHint();
+
   host.querySelector('#sf-cancel').addEventListener('click', closeSessionModal);
   host.querySelector('#sf-save').addEventListener('click', async () => {
-    const vnId = host.querySelector('#sf-vn').value;
+    const typed = (host.querySelector('#sf-vn').value || '').trim();
     const date = host.querySelector('#sf-date').value;
     const time = host.querySelector('#sf-time').value;
-    const minutes = parseInt(host.querySelector('#sf-mins').value, 10);
+    const minutes = durationMins();
     const err = host.querySelector('#sf-err');
-    if (!vnId || !date || !time || !Number.isFinite(minutes) || minutes < 1) {
-      err.textContent = 'Fill in every field.'; return;
+    if (!typed) { err.textContent = 'Pick a title from your library.'; return; }
+    // Resolve the typed name back to an entry (case-insensitive, so it doesn't
+    // punish you for not matching the datalist exactly).
+    const match = owned.find(e => titleOf(e).toLowerCase() === typed.toLowerCase());
+    if (!match) { err.textContent = `No title in your library matches “${typed}”.`; return; }
+    const vnId = match.id;
+    if (!date || !time || minutes == null || minutes < 1) {
+      err.textContent = 'Fill in the date, start and end times.'; return;
     }
     const startedAt = new Date(`${date}T${time}`).getTime();
     if (!Number.isFinite(startedAt)) { err.textContent = 'That date/time is not valid.'; return; }
