@@ -366,7 +366,9 @@ const DATA_DIR      = path.join(process.env.ProgramData || 'C:\\ProgramData', 'T
 const DB_PATH       = path.join(DATA_DIR, 'entries.json');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
 const COVERS_DIR    = path.join(DATA_DIR, 'covers');
-const CHARS_DIR     = path.join(DATA_DIR, 'chars');
+const CHARS_DIR     = path.join(DATA_DIR, 'chars'); // character LIST metadata (json), not the portrait images themselves
+const CHAR_IMG_DIR  = path.join(DATA_DIR, 'char-images'); // cached character portrait image files
+const SHOTS_DIR     = path.join(DATA_DIR, 'screenshots'); // cached screenshot image files
 const DEBUG_LOG_PATH = path.join(DATA_DIR, 'process-debug.log');
 
 // Diagnostic log for the process-detection poller (launch, poll ticks, stop
@@ -383,9 +385,11 @@ function debugLog(line) {
   } catch {}
 }
 
-// cover:// scheme must be registered before app is ready
+// cover:// / charimg:// / shot:// schemes must be registered before app is ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'cover', privileges: { bypassCSP: true, supportFetchAPI: true } },
+  { scheme: 'cover',  privileges: { bypassCSP: true, supportFetchAPI: true } },
+  { scheme: 'charimg', privileges: { bypassCSP: true, supportFetchAPI: true } },
+  { scheme: 'shot',   privileges: { bypassCSP: true, supportFetchAPI: true } },
 ]);
 
 // Per-machine launch paths (exe_path) live HERE, in a local-only file under
@@ -1134,6 +1138,39 @@ if (!gotLock) {
         return new Response(buf, { headers: { 'Content-Type': res.headers.get('content-type') || 'image/jpeg' } });
       } catch { return new Response(null, { status: 502 }); }
     });
+
+    // charimg:// / shot:// — same caching pattern as cover://, for character
+    // portraits and screenshots. Unlike covers there's no natural short id to key
+    // the cache file on, so the (hashed) source URL is the key instead. Only used
+    // for titles in your Library/Wishlist (see renderer's imgUrlCached) — Browse
+    // stays on the raw remote URL so casually looking at titles you don't own
+    // doesn't grow the cache unbounded.
+    const cachedImageHandler = dir => async (request) => {
+      const u = new URL(request.url);
+      const src = u.searchParams.get('src');
+      if (!src) return new Response(null, { status: 404 });
+      const decoded = decodeURIComponent(src);
+      const key = crypto.createHash('sha1').update(decoded).digest('hex');
+      const cached = path.join(dir, key);
+      if (fs.existsSync(cached)) {
+        return new Response(fs.readFileSync(cached), { headers: { 'Content-Type': 'image/jpeg' } });
+      }
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12000);
+        let res;
+        try { res = await net.fetch(decoded, { signal: ctrl.signal }); }
+        finally { clearTimeout(t); }
+        if (!res.ok) return new Response(null, { status: res.status });
+        const buf = Buffer.from(await res.arrayBuffer());
+        try { fs.writeFileSync(cached, buf); } catch {}
+        return new Response(buf, { headers: { 'Content-Type': res.headers.get('content-type') || 'image/jpeg' } });
+      } catch { return new Response(null, { status: 502 }); }
+    };
+    fs.mkdirSync(CHAR_IMG_DIR, { recursive: true });
+    fs.mkdirSync(SHOTS_DIR, { recursive: true });
+    protocol.handle('charimg', cachedImageHandler(CHAR_IMG_DIR));
+    protocol.handle('shot', cachedImageHandler(SHOTS_DIR));
 
     // Distinct AppUserModelID so Windows shows OUR icon, not electron.exe's, in dev.
     try { app.setAppUserModelId('com.tsundoku.launcher'); } catch {}
@@ -2488,7 +2525,7 @@ function deleteEntryCache(id) {
 ipcMain.handle('clear-offline-cache', (_e, id) => { deleteEntryCache(id); });
 
 ipcMain.handle('clear-all-offline-cache', () => {
-  for (const dir of [COVERS_DIR, CHARS_DIR]) {
+  for (const dir of [COVERS_DIR, CHARS_DIR, CHAR_IMG_DIR, SHOTS_DIR]) {
     try { for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f)); } catch {}
   }
 });

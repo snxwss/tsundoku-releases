@@ -720,6 +720,13 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-char:hover .modal-char-name { color: var(--accent-deep); }
 .modal-char-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .modal-char-img.nsfw-blur img { filter: blur(12px); }
+/* Browse (uncached) art that failed to load — say so instead of a blank/broken image. */
+.modal-char-img.img-load-error { display: flex; align-items: center; justify-content: center; }
+.modal-char-img.img-load-error img { display: none; }
+.modal-char-img.img-load-error::after {
+  content: 'Connection error'; font-family: 'Space Mono', monospace; font-size: 8.5px;
+  color: var(--faint); text-align: center; padding: 4px; line-height: 1.3;
+}
 .modal-char-name { font-size: 10.5px; color: var(--mut); margin-top: 5px; text-align: center; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .modal-steam:empty { display: none; }
@@ -730,6 +737,13 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .modal-steam-shot { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--line-2); cursor: pointer; transition: border-color .12s, transform .1s; background: var(--panel); display: block; }
 .modal-steam-shot:hover { border-color: var(--accent-edge); transform: translateY(-1px); }
 .modal-steam-shot.nsfw-blur { filter: blur(14px); }
+/* Browse (uncached) screenshot that failed to load — swapped in for the <img> via
+   JS, since generated content (::after) doesn't render on replaced elements
+   like <img>. */
+.modal-steam-shot.img-load-error {
+  display: flex; align-items: center; justify-content: center; cursor: default;
+  font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint);
+}
 
 /* Full-screenshot lightbox */
 .img-lightbox { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); padding: 4vh 4vw; }

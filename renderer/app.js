@@ -264,6 +264,11 @@ const imgUrl = (img, id) => {
   if (id) return `cover://${id}?src=${encodeURIComponent(url)}`;
   return url;
 };
+// Character portraits / screenshots: only cache-and-serve-offline for titles
+// you actually own (Library/Wishlist) — Browse stays on the live remote URL so
+// casually looking at titles you don't own doesn't grow the cache unbounded.
+const charImgUrl = (url, cache) => (cache && url) ? `charimg://x?src=${encodeURIComponent(url)}` : url;
+const shotImgUrl  = (url, cache) => (cache && url) ? `shot://x?src=${encodeURIComponent(url)}`    : url;
 const entryById   = id => entries.find(e => e.id === id);
 const capitalize  = s  => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 const stripBBCode = s  => String(s || '').replace(/\[\/?[a-z]+(=[^\]]+)?\]/gi, '').trim();
@@ -3515,13 +3520,14 @@ async function openModal(item, nav = null) {
   // title, cover, rating, year, tags, length, usually description). Enrich with the
   // full VNDB detail — mainly external links — in the background, so the modal no
   // longer sits on a blank "Loading…" while a serialized request resolves.
-  let charsData = null, steamData = null, vndbShots = null, currentNsfw = false;
+  let charsData = null, steamData = null, vndbShots = null, currentNsfw = false, cacheImages = false;
 
   function paint(full) {
     if (token !== modalToken) return;
     const entry      = entryById(full.id) || {};
   const inLib      = !!entry.library;
   const inWish     = !!entry.wishlist;
+  cacheImages       = inLib || inWish; // own it → cache portraits/shots for offline viewing
   const inWishPriv = !!entry.wishlistPrivate;
   const onDevice   = !!entry.exe_path;
   const isExcluded = !!entry.excluded;
@@ -3749,7 +3755,7 @@ async function openModal(item, nav = null) {
         <div class="modal-chars-row">
           ${charsData.map(c => `
             <div class="modal-char char-link" data-url="https://vndb.org/${escHtml(c.id)}" title="Open on VNDB">
-              <div class="modal-char-img${(blur && c.sexual >= 1) ? ' nsfw-blur' : ''}">${c.image ? `<img src="${escHtml(c.image)}" loading="lazy" alt="" />` : ''}</div>
+              <div class="modal-char-img${(blur && c.sexual >= 1) ? ' nsfw-blur' : ''}">${c.image ? `<img src="${escHtml(charImgUrl(c.image, cacheImages))}" loading="lazy" alt="" />` : ''}</div>
               <div class="modal-char-name">${escHtml(c.name)}</div>
             </div>`).join('')}
         </div>
@@ -3757,6 +3763,9 @@ async function openModal(item, nav = null) {
       </div>`;
     box.querySelectorAll('.char-link[data-url]').forEach(el =>
       el.addEventListener('click', () => window.api.openExternal(el.dataset.url)));
+    // Not cached (Browse) and offline/unreachable → say so instead of a blank/broken image.
+    box.querySelectorAll('.modal-char-img img').forEach(img =>
+      img.addEventListener('error', () => img.closest('.modal-char-img')?.classList.add('img-load-error'), { once: true }));
     // Arrow controls: scroll the strip and show/hide arrows at the edges.
     const row    = box.querySelector('.modal-chars-row');
     const arrowL = box.querySelector('.char-arrow-l');
@@ -3793,14 +3802,24 @@ async function openModal(item, nav = null) {
         ${onSteam ? `<span class="modal-link modal-steam-link" data-url="${escHtml(steamData.storeUrl)}">${icon('browse', 11)} View on Steam</span>` : ''}
       </div>
       ${shots.length ? `<div class="modal-steam-shots">${shots.map(s =>
-        `<img class="modal-steam-shot${blur && s.sexual >= 1 ? ' nsfw-blur' : ''}" src="${escHtml(s.thumb)}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
+        `<img class="modal-steam-shot${blur && s.sexual >= 1 ? ' nsfw-blur' : ''}" src="${escHtml(shotImgUrl(s.thumb, cacheImages))}" data-full="${escHtml(s.full)}" alt="" loading="lazy" />`
       ).join('')}</div>` : ''}`;
     box.querySelector('.modal-steam-link')?.addEventListener('click', () =>
       window.api.openExternal(steamData.storeUrl));
-    const fullUrls  = shots.map(s => s.full);
+    const fullUrls  = shots.map(s => shotImgUrl(s.full, cacheImages));
     const blurFlags = shots.map(s => blur && s.sexual >= 1);
-    box.querySelectorAll('.modal-steam-shot').forEach((img, i) =>
-      img.addEventListener('click', () => openLightbox(fullUrls, i, blurFlags)));
+    box.querySelectorAll('.modal-steam-shot').forEach((img, i) => {
+      img.addEventListener('click', () => openLightbox(fullUrls, i, blurFlags));
+      // Not cached (Browse) and offline/unreachable → say so instead of a blank/broken
+      // image. ::after generated content doesn't render on <img> (a replaced element),
+      // so swap it for a placeholder div instead of just toggling a class.
+      img.addEventListener('error', () => {
+        const ph = document.createElement('div');
+        ph.className = 'modal-steam-shot img-load-error';
+        ph.textContent = 'Connection error';
+        img.replaceWith(ph);
+      }, { once: true });
+    });
   }
 
   paint(item); // instant render with the data already on hand
