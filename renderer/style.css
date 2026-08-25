@@ -1318,13 +1318,11 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .ds-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ds-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12.5px; color: var(--mut); }
 .ds-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); }
-/* Manual add/edit form */
-.session-form {
-  background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
-  padding: 16px; margin-top: 14px;
-}
-.sf-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 12px; }
+/* Manual add/edit form — lives inside the session modal. */
+.session-form { margin-top: 16px; }
 .sf-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.sf-grid .sf-wide { flex: 1 1 100%; }
+.sf-grid .sf-wide select { width: 100%; }
 .sf-grid label {
   display: flex; flex-direction: column; gap: 5px;
   font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px;
@@ -1337,8 +1335,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 }
 .sf-grid select { min-width: 220px; cursor: pointer; }
 .sf-grid input[type="number"] { width: 90px; }
-.sf-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.sf-err { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--coral-deep); }
+.sf-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.sf-err { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--coral-deep); margin-top: 10px; }
 
 /* =====================================================================
    REUSABLE APP DIALOG (name input · confirm · picker)

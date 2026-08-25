@@ -807,7 +807,6 @@ function renderSessionsLog() {
       <span class="sub">${sessions.length} session${sessions.length !== 1 ? 's' : ''} logged</span>
       <div class="btn-sm sec" id="session-add-btn" style="margin-left:auto">+ Add session</div>
     </div>
-    <div id="session-form-host"></div>
     <div class="sessions-list">
       ${sessions.map(s => {
         const e = entryById(s.vnId);
@@ -888,6 +887,62 @@ function timeOfDay(ts) {
   if (h < 17) return 'afternoon';
   if (h < 22) return 'evening';
   return 'night';
+}
+
+// Phrasings for the gap between sessions, bucketed by how long the break was.
+// Several per bucket so the same sentence doesn't repeat down the list, picked
+// by a hash of the session so it stays put instead of changing on every render.
+const GAP_PHRASES = {
+  hours: [
+    'Back to it {g} later, the same day.',
+    'Only {g} away from the previous session.',
+    'A short break — {g} — then straight back in.',
+    'Returned after {g}.',
+  ],
+  day: [
+    'Continued the next day.',
+    'Back the following day.',
+    'One day between this and the last session.',
+    'Picked it up again a day later.',
+  ],
+  days: [
+    'Picked back up {g} later.',
+    'Returned after {g} away.',
+    '{g} passed between sessions.',
+    'Back to it {g} after the last time.',
+  ],
+  weeks: [
+    'Back after {g} away.',
+    'Resumed following a {g} break.',
+    '{g} went by before this session.',
+    'Returned to it {g} later.',
+  ],
+  long: [
+    'Back to it after {g} away.',
+    'A long pause — {g} since the previous session.',
+    'Returned after {g} on the shelf.',
+    '{g} passed before picking this up again.',
+  ],
+};
+
+// Stable index from a string, so a given session always gets the same phrasing.
+function stableIndex(str, n) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h) % n;
+}
+
+function gapSentence(ms, key) {
+  const mins = Math.round(ms / 60000);
+  const days = mins / 1440;
+  let bucket;
+  if (days < 1)       bucket = 'hours';
+  else if (days < 2)  bucket = 'day';
+  else if (days < 7)  bucket = 'days';
+  else if (days < 30) bucket = 'weeks';
+  else                bucket = 'long';
+  const options = GAP_PHRASES[bucket];
+  return options[stableIndex(key, options.length)].replace('{g}', formatGap(ms));
 }
 
 // Coarse gap between two sessions ("5 days", "3 hours") — enough to spot a
@@ -983,7 +1038,7 @@ function renderSessionDetail(s) {
   if (idx === 0 && mine.length > 1) note = 'Your first session of this title.';
   else if (idx > 0) {
     const gap = s.startedAt - mine[idx - 1].endedAt;
-    if (gap > 0) note = `Picked back up ${formatGap(gap)} after the previous session.`;
+    if (gap > 0) note = gapSentence(gap, sessionKey(s));
   }
 
   return `<div class="modal-meta-grid">${cells.join('')}</div>
@@ -1037,10 +1092,9 @@ async function discardSession(key) {
 
 // Manual add/edit — for sessions the tracker missed (or got wrong).
 function openSessionForm(existing) {
-  const host = document.getElementById('session-form-host');
-  if (!host) return;
-  if (host.dataset.open === (existing ? sessionKey(existing) : 'new')) { host.innerHTML = ''; host.dataset.open = ''; return; }
-  host.dataset.open = existing ? sessionKey(existing) : 'new';
+  const overlay = document.getElementById('session-overlay');
+  const host = document.getElementById('session-modal-body');
+  if (!overlay || !host) return;
 
   const owned = entries.filter(e => e.library || e.wishlist || e.wishlistPrivate)
     .sort((a, b) => displayTitle(a).localeCompare(displayTitle(b)));
@@ -1050,10 +1104,10 @@ function openSessionForm(existing) {
   const mins = existing ? Math.round(existing.durationSeconds / 60) : 60;
 
   host.innerHTML = `
+    <div class="modal-kicker">${existing ? 'Edit Session' : 'Add Session'}</div>
     <div class="session-form">
-      <div class="sf-title">${existing ? 'Edit session' : 'Add session'}</div>
       <div class="sf-grid">
-        <label>Title<select id="sf-vn">${owned.map(e =>
+        <label class="sf-wide">Title<select id="sf-vn">${owned.map(e =>
           `<option value="${escHtml(e.id)}" ${existing && existing.vnId === e.id ? 'selected' : ''}>${escHtml(displayTitle(e))}</option>`).join('')}</select></label>
         <label>Date<input type="date" id="sf-date" value="${dateVal}" /></label>
         <label>Start<input type="time" id="sf-time" value="${timeVal}" /></label>
@@ -1062,11 +1116,12 @@ function openSessionForm(existing) {
       <div class="sf-actions">
         <div class="btn-sm pri" id="sf-save">Save</div>
         <div class="btn-sm sec" id="sf-cancel">Cancel</div>
-        <span class="sf-err" id="sf-err"></span>
       </div>
+      <div class="sf-err" id="sf-err"></div>
     </div>`;
+  overlay.classList.remove('hidden');
 
-  host.querySelector('#sf-cancel').addEventListener('click', () => { host.innerHTML = ''; host.dataset.open = ''; });
+  host.querySelector('#sf-cancel').addEventListener('click', closeSessionModal);
   host.querySelector('#sf-save').addEventListener('click', async () => {
     const vnId = host.querySelector('#sf-vn').value;
     const date = host.querySelector('#sf-date').value;
@@ -1096,7 +1151,7 @@ function openSessionForm(existing) {
       durationSeconds: minutes * 60,
       manual: true,
     });
-    host.innerHTML = ''; host.dataset.open = '';
+    closeSessionModal();
     await writeSessions(next);
   });
 }
