@@ -841,7 +841,11 @@ function renderDeletedBin(section) {
     const bin = document.createElement('div');
     bin.className = 'deleted-sessions';
     bin.innerHTML = `
-      <div class="ds-toggle" id="ds-toggle">Recently deleted (${binned.length})</div>
+      <div class="ds-toggle" id="ds-toggle">
+        <span class="ds-chev">›</span>
+        <span>Recently deleted</span>
+        <span class="ds-count">${binned.length}</span>
+      </div>
       <div class="ds-list hidden" id="ds-list">
         ${binned.map(s => `
           <div class="ds-row">
