@@ -917,7 +917,7 @@ function renderSessionDetail(s) {
     .filter(x => x.vnId === s.vnId)
     .sort((a, b) => a.startedAt - b.startedAt);
   const idx = mine.findIndex(x => sessionKey(x) === sessionKey(s));
-  cell('SESSION', `${idx + 1} of ${mine.length}`);
+  cell('SESSION', `${idx + 1} of ${mine.length}`, 'for this title');
   cell('WHEN', longDate(s.startedAt), timeOfDay(s.startedAt));
 
   if (idx > 0) {
