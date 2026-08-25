@@ -356,6 +356,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .stats-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; }
 .stats-head h2 { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 800; color: var(--ink); margin: 0; }
 .stats-head .sub { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--mut); }
+/* Header is baseline-aligned for the title/subtitle pair; a button would sit oddly. */
+.stats-head .btn-sm { align-self: center; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
 .stat-card { background: var(--card); border: 1.5px solid var(--border); border-radius: 15px; box-shadow: 0 3px 0 var(--edge); padding: 20px 22px; }
 .stat-val { font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 800; color: var(--ink); line-height: 1; }
@@ -1251,6 +1253,48 @@ html, body { height: 100%; background: #141714; user-select: none; }
   background: var(--card); border: 1.5px dashed var(--line-2); border-radius: 12px;
   padding: 18px 20px; margin-top: 14px;
 }
+.session-item { cursor: pointer; transition: border-color .12s; }
+.session-item:hover { border-color: var(--accent-edge); }
+.session-item.on { border-color: var(--accent-deep); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.session-status {
+  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.4px;
+  color: var(--accent-deep); border: 1.5px solid var(--accent-edge); border-radius: 6px;
+  padding: 1px 7px; flex-shrink: 0;
+}
+/* Expanded detail — visually joined to the row above it. */
+.session-detail {
+  background: var(--card); border: 1.5px solid var(--accent-deep); border-top: none;
+  border-radius: 0 0 12px 12px; padding: 14px 16px 12px; margin-top: -8px;
+}
+.sd-row { display: flex; gap: 12px; padding: 3px 0; font-size: 12px; }
+.sd-k {
+  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--faint); width: 78px; flex-shrink: 0; padding-top: 1px;
+}
+.sd-v { color: var(--ink); }
+.sd-flag { font-weight: 700; color: var(--accent-deep); }
+.sd-actions { display: flex; gap: 8px; margin-top: 12px; }
+/* Manual add/edit form */
+.session-form {
+  background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-top: 14px;
+}
+.sf-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 12px; }
+.sf-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.sf-grid label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--faint);
+}
+.sf-grid select, .sf-grid input {
+  background: var(--paper); border: 2px solid var(--border); color: var(--ink);
+  padding: 7px 10px; border-radius: 9px; font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 12.5px; outline: none; text-transform: none; letter-spacing: 0;
+}
+.sf-grid select { min-width: 220px; cursor: pointer; }
+.sf-grid input[type="number"] { width: 90px; }
+.sf-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.sf-err { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--coral-deep); }
 
 /* =====================================================================
    REUSABLE APP DIALOG (name input · confirm · picker)

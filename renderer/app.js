@@ -802,7 +802,9 @@ function renderSessionsLog() {
     <div class="stats-head" style="margin-top:28px">
       <h2>Reading Sessions</h2>
       <span class="sub">${sessions.length} session${sessions.length !== 1 ? 's' : ''} logged</span>
+      <div class="btn-sm sec" id="session-add-btn" style="margin-left:auto">+ Add session</div>
     </div>
+    <div id="session-form-host"></div>
     <div class="sessions-list">
       ${sessions.map(s => {
         const e = entryById(s.vnId);
@@ -810,15 +812,188 @@ function renderSessionsLog() {
         const title = s.vnTitle || (e && e.title) || s.vnId;
         const when  = formatLastPlayed(s.endedAt);
         const dur   = formatPlaytime(s.durationSeconds);
-        return `<div class="session-item">
+        const status = e && e.status ? e.status : null;
+        return `<div class="session-item" data-skey="${escHtml(sessionKey(s))}" title="Click for details">
           <div class="session-thumb">${url ? `<img src="${escHtml(url)}" loading="lazy" />` : ''}</div>
           <div class="session-title">${escHtml(title)}</div>
+          ${status ? `<div class="session-status">${escHtml(capitalize(status))}</div>` : ''}
           ${when ? `<div class="session-when">${escHtml(when)}</div>` : ''}
           ${dur   ? `<div class="session-dur">${escHtml(dur)}</div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
   wrap.appendChild(section);
+
+  section.querySelectorAll('.session-item').forEach(el =>
+    el.addEventListener('click', () => toggleSessionDetail(el)));
+  section.querySelector('#session-add-btn')?.addEventListener('click', () => openSessionForm(null));
+}
+
+// Stable identity for a session — the stored objects have no id, and the list is
+// rendered newest-first while the array is oldest-first, so an index would drift.
+const sessionKey = s => `${s.vnId}|${s.startedAt}`;
+
+const clockTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const longDate  = ts => new Date(ts).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+
+function timeOfDay(ts) {
+  const h = new Date(ts).getHours();
+  if (h < 5)  return 'night';
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  if (h < 22) return 'evening';
+  return 'night';
+}
+
+// Coarse gap between two sessions ("5 days", "3 hours") — enough to spot a
+// stalled read without pretending to precision.
+function formatGap(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days !== 1 ? 's' : ''}`;
+  const months = Math.round(days / 30);
+  return `${months} month${months !== 1 ? 's' : ''}`;
+}
+
+function toggleSessionDetail(el) {
+  const existing = el.nextElementSibling;
+  if (existing && existing.classList.contains('session-detail')) {
+    existing.remove(); el.classList.remove('on');
+    return;
+  }
+  // Only one open at a time — keeps the list scannable.
+  document.querySelectorAll('.session-detail').forEach(d => d.remove());
+  document.querySelectorAll('.session-item.on').forEach(i => i.classList.remove('on'));
+
+  const s = (settings.sessions || []).find(x => sessionKey(x) === el.dataset.skey);
+  if (!s) return;
+  el.classList.add('on');
+  const panel = document.createElement('div');
+  panel.className = 'session-detail';
+  panel.innerHTML = renderSessionDetail(s);
+  el.after(panel);
+  panel.querySelector('.session-edit')?.addEventListener('click', () => openSessionForm(s));
+  panel.querySelector('.session-delete')?.addEventListener('click', () => deleteSession(s));
+}
+
+function renderSessionDetail(s) {
+  const e = entryById(s.vnId);
+  const rows = [];
+  const row = (k, v) => rows.push(`<div class="sd-row"><span class="sd-k">${escHtml(k)}</span><span class="sd-v">${v}</span></div>`);
+
+  row('When', `${escHtml(longDate(s.startedAt))} · ${escHtml(timeOfDay(s.startedAt))}`);
+  row('Clock', `${escHtml(clockTime(s.startedAt))} → ${escHtml(clockTime(s.endedAt))}`);
+  row('Duration', escHtml(formatPlaytime(s.durationSeconds) || '—'));
+
+  // Position within this title's own history, and the gap before it.
+  const mine = (settings.sessions || [])
+    .filter(x => x.vnId === s.vnId)
+    .sort((a, b) => a.startedAt - b.startedAt);
+  const idx = mine.findIndex(x => sessionKey(x) === sessionKey(s));
+  if (mine.length > 1) row('Session', `${idx + 1} of ${mine.length} for this title`);
+  if (idx > 0) {
+    const gap = s.startedAt - mine[idx - 1].endedAt;
+    if (gap > 0) row('Gap', `${escHtml(formatGap(gap))} after the previous session`);
+  }
+
+  if (e) {
+    const total = e.playtime_seconds || 0;
+    if (total > 0) {
+      const pct = Math.round((s.durationSeconds / total) * 100);
+      row('Share', `${escHtml(formatPlaytime(s.durationSeconds) || '')} of ${escHtml(formatPlaytime(total) || '')} total · ${pct}%`);
+    }
+    const avgSec = (e.length_minutes || 0) * 60;
+    if (avgSec > 0 && total > 0) {
+      const pct = Math.round((total / avgSec) * 100);
+      row('Progress', `${escHtml(formatPlaytime(total) || '')} of ~${Math.round(avgSec / 3600)}h average · ${pct}%`);
+    }
+    if (e.status) row('Status', escHtml(capitalize(e.status)));
+    // Only claim a session finished the title when the recorded finish actually
+    // falls inside it; otherwise just note it was the last one.
+    const fin = e.finished_at;
+    if (fin && fin >= s.startedAt && fin <= s.endedAt) row('', `<span class="sd-flag">Finished in this session</span>`);
+    else if (e.status === 'finished' && idx === mine.length - 1) row('', `<span class="sd-flag">Last session before finishing</span>`);
+  }
+
+  return `${rows.join('')}
+    <div class="sd-actions">
+      <div class="btn-sm sec session-edit">Edit</div>
+      <div class="btn-sm danger session-delete">Delete</div>
+    </div>`;
+}
+
+async function writeSessions(list) {
+  // Kept oldest-first to match how the tracker appends them.
+  const sorted = list.slice().sort((a, b) => a.startedAt - b.startedAt);
+  settings.sessions = sorted;
+  await window.api.writeSetting('sessions', sorted);
+  renderStats();
+}
+
+async function deleteSession(s) {
+  if (!confirm('Delete this reading session? Your total playtime is not affected.')) return;
+  await writeSessions((settings.sessions || []).filter(x => sessionKey(x) !== sessionKey(s)));
+}
+
+// Manual add/edit — for sessions the tracker missed (or got wrong).
+function openSessionForm(existing) {
+  const host = document.getElementById('session-form-host');
+  if (!host) return;
+  if (host.dataset.open === (existing ? sessionKey(existing) : 'new')) { host.innerHTML = ''; host.dataset.open = ''; return; }
+  host.dataset.open = existing ? sessionKey(existing) : 'new';
+
+  const owned = entries.filter(e => e.library || e.wishlist || e.wishlistPrivate)
+    .sort((a, b) => displayTitle(a).localeCompare(displayTitle(b)));
+  const start = existing ? new Date(existing.startedAt) : new Date();
+  const dateVal = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+  const timeVal = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+  const mins = existing ? Math.round(existing.durationSeconds / 60) : 60;
+
+  host.innerHTML = `
+    <div class="session-form">
+      <div class="sf-title">${existing ? 'Edit session' : 'Add session'}</div>
+      <div class="sf-grid">
+        <label>Title<select id="sf-vn">${owned.map(e =>
+          `<option value="${escHtml(e.id)}" ${existing && existing.vnId === e.id ? 'selected' : ''}>${escHtml(displayTitle(e))}</option>`).join('')}</select></label>
+        <label>Date<input type="date" id="sf-date" value="${dateVal}" /></label>
+        <label>Start<input type="time" id="sf-time" value="${timeVal}" /></label>
+        <label>Minutes<input type="number" id="sf-mins" min="1" step="1" value="${mins}" /></label>
+      </div>
+      <div class="sf-actions">
+        <div class="btn-sm pri" id="sf-save">Save</div>
+        <div class="btn-sm sec" id="sf-cancel">Cancel</div>
+        <span class="sf-err" id="sf-err"></span>
+      </div>
+    </div>`;
+
+  host.querySelector('#sf-cancel').addEventListener('click', () => { host.innerHTML = ''; host.dataset.open = ''; });
+  host.querySelector('#sf-save').addEventListener('click', async () => {
+    const vnId = host.querySelector('#sf-vn').value;
+    const date = host.querySelector('#sf-date').value;
+    const time = host.querySelector('#sf-time').value;
+    const minutes = parseInt(host.querySelector('#sf-mins').value, 10);
+    const err = host.querySelector('#sf-err');
+    if (!vnId || !date || !time || !Number.isFinite(minutes) || minutes < 1) {
+      err.textContent = 'Fill in every field.'; return;
+    }
+    const startedAt = new Date(`${date}T${time}`).getTime();
+    if (!Number.isFinite(startedAt)) { err.textContent = 'That date/time is not valid.'; return; }
+    const e = entryById(vnId);
+    const next = (settings.sessions || []).filter(x => !existing || sessionKey(x) !== sessionKey(existing));
+    next.push({
+      vnId,
+      vnTitle: (e && e.title) || vnId,
+      startedAt,
+      endedAt: startedAt + minutes * 60000,
+      durationSeconds: minutes * 60,
+      manual: true,
+    });
+    host.innerHTML = ''; host.dataset.open = '';
+    await writeSessions(next);
+  });
 }
 
 // ── Achievement helpers ────────────────────────────────────────────────────────
