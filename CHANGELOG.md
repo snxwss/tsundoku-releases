@@ -6,7 +6,7 @@ All notable changes to Tsundoku are listed here. Newest first.
 
 ## 1.6.3-beta — 2026-09-13
 
-- Aiyoku no Eustia is now findable in Browse and search. It had been excluded by a content rule that, on review, doesn't reflect the game.
+- Bug fixes.
 
 ## 1.6.2-beta — 2026-09-13
 
