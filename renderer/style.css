@@ -542,6 +542,14 @@ html, body { height: 100%; background: #141714; user-select: none; }
 /* =====================================================================
    BROWSE SCREEN
    ===================================================================== */
+/* Always reserve the scrollbar's width on scrollers holding width-scaled grids.
+   Posters grow with column width, so when content sits right at the overflow
+   threshold, a scrollbar appearing narrows the grid enough to make it fit, which
+   removes the scrollbar, which widens it again — the layout flip-flops on every
+   hover/relayout. A fixed gutter keeps the width constant so it can't oscillate. */
+.browse-wrap, .browse-wrap.browse-side-mode .browse-results,
+.browse-wrap.browse-side-mode .browse-side,
+.wishlist-wrap, .shelfgrid, .home2 .scrollarea { scrollbar-gutter: stable; }
 .browse-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: 26px 36px; display: flex; flex-direction: column; gap: 18px; }
 .browse-top  { display: flex; gap: 12px; align-items: center; }
 .browse-input { flex: 1; height: 50px; background: var(--card); border: 2px solid var(--border); border-radius: 14px; padding: 0 18px; font-family: 'Hanken Grotesk', sans-serif; font-size: 15px; color: var(--ink); outline: none; }
