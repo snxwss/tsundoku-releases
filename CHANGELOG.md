@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.6-beta — 2026-09-13
+
+- Tsundoku now has a Linux version (AppImage), released alongside the Windows installer. Windows games launch through Wine, and playtime is tracked whether a game runs under Wine, Proton or natively — including games started outside Tsundoku. See the README for setup notes. Linux support is new and hasn't been tested as much as Windows.
+
 ## 1.6.5-beta — 2026-09-13
 
 - Removed the thin empty strip that 1.6.4 left along the right edge of Browse, Wishlist and Library. Spacing is back to how it looked before, and the resizing fix still holds.

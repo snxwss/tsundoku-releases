@@ -22,4 +22,20 @@ Tsundoku is currently in beta. Not all features may work exactly as intended, an
 
 Get the latest release from the [Releases page](https://github.com/snxwss/tsundoku-releases/releases/latest).
 
+- **Windows:** `Tsundoku-Setup-<version>.exe`
+- **Linux:** `Tsundoku-<version>.AppImage`
+
+## Linux
+
+Linux support is new and less tested than Windows.
+
+1. Download the `.AppImage`, make it executable (`chmod +x Tsundoku-*.AppImage`), and run it.
+2. Your library is stored in `~/.local/share/Tsundoku`.
+3. Most visual novels are Windows games. Tsundoku launches them through **Wine** (install it from your distro), or you can add a game to Steam and run it with Proton. Playtime is tracked either way, including when you start the game outside Tsundoku.
+4. Updates install automatically, as on Windows.
+
+**If it won't start** on Ubuntu 24.04 or newer with a sandbox error, run it with `--no-sandbox`. Newer Ubuntu releases restrict the sandbox that AppImages rely on.
+
+**No tray icon?** Some desktops (e.g. GNOME without an extension) don't show tray icons. Closing the window then sends Tsundoku to the background. Launch it again to bring the window back, or turn off *Minimize to tray on close* in Settings.
+
 See [CHANGELOG.md](CHANGELOG.md) for release notes.

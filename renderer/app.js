@@ -3670,7 +3670,7 @@ async function renderSettingsSection(section) {
 
         <div class="settings-row">
           <div>
-            <div class="settings-label">Start with Windows (background)</div>
+            <div class="settings-label">${window.api.platform === 'win32' || !window.api.platform ? 'Start with Windows' : 'Start on login'} (background)</div>
             <div class="settings-sub">Launch Tsundoku hidden in the tray at login, so it automatically tracks your reading time even for games started from Steam or the desktop.</div>
           </div>
           <div class="toggle-switch ${s.startWithWindows !== false ? 'on' : ''}" id="tog-autostart"></div>

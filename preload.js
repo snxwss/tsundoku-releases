@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // 'win32' or 'linux' — lets the UI word OS-specific settings correctly.
+  platform: process.platform,
   // VNDB
   vndbSearch:  (query, sort, opts) => ipcRenderer.invoke('vndb-search', query, sort, opts),
   vndbGet:     (id, opts)     => ipcRenderer.invoke('vndb-get', id, opts),

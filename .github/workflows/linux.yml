@@ -1,0 +1,57 @@
+name: Linux build
+
+# Builds the Linux AppImage on a real Linux runner and attaches it to the release.
+# The Windows installer is built and uploaded separately (scripts/release.mjs);
+# this job only ever adds Linux files to a release, so it can't affect Windows.
+# An AppImage can't be produced on Windows (its squashfs step has no Windows tool),
+# which is why it's built here.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build, e.g. v1.6.6-beta
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build AppImage
+        run: npx electron-builder --linux AppImage --x64 --publish never
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist-installer
+          ls -la
+          # electron-builder names the update manifest after the prerelease tag
+          # (1.6.6-beta -> beta-linux.yml). Installs pin the 'latest' channel, so
+          # publish it as latest-linux.yml too — mirroring what release.mjs does
+          # for the Windows latest.yml.
+          manifest=$(ls *-linux.yml | head -n 1)
+          if [ "$manifest" != "latest-linux.yml" ]; then cp "$manifest" latest-linux.yml; fi
+          shopt -s nullglob
+          files=( *.AppImage latest-linux.yml )
+          if [ "$manifest" != "latest-linux.yml" ]; then files+=( "$manifest" ); fi
+          files+=( *.AppImage.blockmap )
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"

@@ -5,14 +5,23 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const { spawn, execFile } = require('child_process');
 
+// Tsundoku was built for Windows; Linux support is layered on top. Every Linux
+// code path is gated on this flag so the Windows build keeps running exactly the
+// same code it always has.
+const IS_WIN = process.platform === 'win32';
+
 // Windows recomputes the per-monitor DPI scale factor on window restore/move,
 // and Chromium sometimes fails to relayout content to match — leaving the UI
 // rendered oversized/undersized until a manual resize (a long-standing Electron/
 // Windows bug). Forcing a fixed scale factor sidesteps the recompute entirely;
 // the app's own Zoom setting (Settings → Appearance) already covers user-driven
 // scaling, so OS-level DPI scaling isn't needed on top of it.
-app.commandLine.appendSwitch('high-dpi-support', '1');
-app.commandLine.appendSwitch('force-device-scale-factor', '1');
+// Windows-only: Linux doesn't have this bug, and forcing 1x there would make the
+// UI tiny on HiDPI displays.
+if (IS_WIN) {
+  app.commandLine.appendSwitch('high-dpi-support', '1');
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+}
 
 // ── Taskbar icon (pure Node.js, no native deps) ───────────────────────────────
 // Renders the yellow tsundoku tile with a dark "積" glyph, returns a PNG buffer.
@@ -99,6 +108,18 @@ function makeIcoBuffer(pngBuffer) {
 let _iconCache = null;
 function getAppIcon() {
   if (_iconCache) return _iconCache;
+  if (!IS_WIN) {
+    // Electron only decodes .ico on Windows, so Linux uses the PNG.
+    try {
+      const png = path.join(__dirname, 'build', 'icon.png');
+      const hasPng = fs.existsSync(png);
+      _iconCache = {
+        iconPath: hasPng ? png : null,
+        nativeImg: hasPng ? nativeImage.createFromPath(png) : nativeImage.createFromBuffer(makeIconPng(256)),
+      };
+    } catch { _iconCache = { iconPath: null, nativeImg: null }; }
+    return _iconCache;
+  }
   try {
     // Prefer the bundled kanji .ico (used for the packaged build) if present.
     const bundled = path.join(__dirname, 'build', 'icon.ico');
@@ -156,24 +177,111 @@ let pollInFlight = false; // re-entrancy guard: burst-polling after launch can f
                            // this, two overlapping polls each read the same last-tick
                            // timestamp and independently credit the same real-time
                            // window to playtime, double-counting seconds.
-function pollRunningGames() {
-  if (pollInFlight) return;
-  pollInFlight = true;
+// Lists running processes as { pid, ppid, path }. Windows asks Win32_Process via
+// PowerShell (unchanged); Linux reads /proc directly.
+function listProcesses(cb) {
+  if (!IS_WIN) {
+    let procs = [];
+    try { procs = listProcessesLinux(); } catch {}
+    cb(null, procs);
+    return;
+  }
   const psCmd = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)|$($_.ParentProcessId)|$($_.ExecutablePath)" }';
   execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
-    pollInFlight = false;
-    if (err) return;
-    const pidToPpid = new Map();
-    const pathToPids = new Map(); // normalized lowercased exe path → Set(pid)
+    if (err) return cb(err);
+    const procs = [];
     for (const line of stdout.split(/\r?\n/)) {
       const first = line.indexOf('|');
       const second = line.indexOf('|', first + 1);
       if (first === -1 || second === -1) continue;
-      const pid = parseInt(line.slice(0, first), 10);
-      const ppid = parseInt(line.slice(first + 1, second), 10);
+      procs.push({
+        pid:  parseInt(line.slice(0, first), 10),
+        ppid: parseInt(line.slice(first + 1, second), 10),
+        path: line.slice(second + 1).trim(),
+      });
+    }
+    cb(null, procs);
+  });
+}
+
+// ── Linux process discovery ──────────────────────────────────────────────────
+// VNs on Linux almost always run through Wine or Proton. There /proc/<pid>/exe
+// points at the Wine loader rather than the game, but the game's own path is still
+// in its command line — as a Windows path (Z:\home\...\game.exe) or, for a freshly
+// started `wine /path/game.exe`, as the Unix path. Both are translated back to the
+// real Unix path so they match the library's exe_path.
+const wineDriveCache = new Map(); // "<prefix>|<drive>" → resolved Unix dir
+
+function wineDriveRoot(prefix, drive) {
+  const key = `${prefix}|${drive}`;
+  if (wineDriveCache.has(key)) return wineDriveCache.get(key);
+  let root = null;
+  try { root = fs.realpathSync(path.join(prefix, 'dosdevices', `${drive}:`)); } catch {}
+  if (!root && drive === 'z') root = '/'; // Wine's default Z: mapping
+  wineDriveCache.set(key, root);
+  return root;
+}
+
+function winePathToUnix(winPath, pid) {
+  const m = /^([a-zA-Z]):[\\/](.*)$/.exec(winPath);
+  if (!m) return null;
+  let prefix = path.join(app.getPath('home'), '.wine');
+  try {
+    const env = fs.readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0');
+    const wp = env.find(v => v.startsWith('WINEPREFIX='));
+    if (wp) prefix = wp.slice('WINEPREFIX='.length);
+  } catch {}
+  const root = wineDriveRoot(prefix, m[1].toLowerCase());
+  return root ? path.join(root, m[2].replace(/\\/g, '/')) : null;
+}
+
+function wineGamePath(pid) {
+  let args;
+  try { args = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean); } catch { return null; }
+  if (!args.length) return null;
+  // argv[0] is the game once Wine has started it; argv[1] while it's still `wine game.exe`.
+  const cands = [args[0]];
+  if (args[1] && /wine/i.test(path.basename(args[0]))) cands.push(args[1]);
+  for (const a of cands) {
+    if (!/\.exe$/i.test(a)) continue;
+    if (a.startsWith('/')) return a;
+    const unix = winePathToUnix(a, pid);
+    if (unix) return unix;
+  }
+  return null;
+}
+
+function listProcessesLinux() {
+  const procs = [];
+  for (const name of fs.readdirSync('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    let ppid;
+    try {
+      const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf8');
+      // The command name can contain spaces and parentheses; the fields after the
+      // LAST ')' are fixed: state, then ppid.
+      ppid = parseInt(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1], 10) || 0;
+    } catch { continue; } // process exited mid-scan
+    let exe = '';
+    try { exe = fs.readlinkSync(`/proc/${name}/exe`).replace(/ \(deleted\)$/, ''); } catch {}
+    let p = wineGamePath(name) || exe;
+    try { if (p) p = fs.realpathSync(p); } catch {}
+    procs.push({ pid: parseInt(name, 10), ppid, path: p });
+  }
+  return procs;
+}
+
+function pollRunningGames() {
+  if (pollInFlight) return;
+  pollInFlight = true;
+  listProcesses((err, procs) => {
+    pollInFlight = false;
+    if (err) return;
+    const pidToPpid = new Map();
+    const pathToPids = new Map(); // normalized lowercased exe path → Set(pid)
+    for (const { pid, ppid, path: p } of procs) {
       if (!pid) continue;
       pidToPpid.set(pid, ppid);
-      const p = line.slice(second + 1).trim();
       if (p) {
         const norm = path.normalize(p).toLowerCase();
         if (!pathToPids.has(norm)) pathToPids.set(norm, new Set());
@@ -196,7 +304,10 @@ function pollRunningGames() {
     // full exe_path(lower) → id for every library game with a known exe
     const idx = new Map();
     for (const e of Object.values(store)) {
-      if (e.library && e.exe_path) idx.set(path.normalize(e.exe_path).toLowerCase(), e.id);
+      if (!(e.library && e.exe_path)) continue;
+      let exe = e.exe_path;
+      if (!IS_WIN) { try { exe = fs.realpathSync(exe); } catch {} } // /proc paths are resolved
+      idx.set(path.normalize(exe).toLowerCase(), e.id);
     }
     const now = Date.now();
     let changed = false;
@@ -290,7 +401,24 @@ function finalizeVnStop(id, entry, now) {
 }
 
 function applyAutoStart(enabled) {
+  if (!IS_WIN) { applyAutoStartLinux(enabled); return; }
   try { app.setLoginItemSettings({ openAtLogin: !!enabled, args: ['--hidden'] }); } catch {}
+}
+
+// Electron's login-item API does nothing on Linux; the freedesktop equivalent is a
+// .desktop file in ~/.config/autostart.
+function applyAutoStartLinux(enabled) {
+  try {
+    const dir = path.join(process.env.XDG_CONFIG_HOME || path.join(app.getPath('home'), '.config'), 'autostart');
+    const file = path.join(dir, 'tsundoku.desktop');
+    if (!enabled || !app.isPackaged) { try { fs.unlinkSync(file); } catch {} return; }
+    const exe = process.env.APPIMAGE || process.execPath; // the AppImage itself, not its temp mount
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, [
+      '[Desktop Entry]', 'Type=Application', 'Name=Tsundoku',
+      `Exec="${exe}" --hidden`, 'Terminal=false', 'X-GNOME-Autostart-enabled=true', '',
+    ].join('\n'));
+  } catch {}
 }
 
 // ── Auto-update ────────────────────────────────────────────────────────────────
@@ -362,7 +490,10 @@ Menu.setApplicationMenu(null);
 // everywhere and contains no per-user path. migrateToFixedDataDir() copies an
 // existing AppData library here on first launch so nobody loses data.
 const OLD_DATA_DIR  = path.join(app.getPath('appData'), 'Tsundoku', 'vn-launcher');
-const DATA_DIR      = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Tsundoku');
+// Linux has no ProgramData; it uses the XDG data dir (~/.local/share/Tsundoku).
+const DATA_DIR      = IS_WIN
+  ? path.join(process.env.ProgramData || 'C:\\ProgramData', 'Tsundoku')
+  : path.join(process.env.XDG_DATA_HOME || path.join(app.getPath('home'), '.local', 'share'), 'Tsundoku');
 const DB_PATH       = path.join(DATA_DIR, 'entries.json');
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
 const COVERS_DIR    = path.join(DATA_DIR, 'covers');
@@ -398,7 +529,10 @@ protocol.registerSchemesAsPrivileged([
 // at a different path on each PC, so install paths must never travel with the synced
 // library: Syncthing keeps entries.json (status/playtime/ratings) identical across
 // machines, while each PC keeps its own exe paths here and they survive every sync.
-const LOCAL_DIR    = path.join(process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local'), 'Tsundoku');
+// Linux keeps these machine-local paths in the XDG state dir (~/.local/state/Tsundoku).
+const LOCAL_DIR    = IS_WIN
+  ? path.join(process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local'), 'Tsundoku')
+  : path.join(process.env.XDG_STATE_HOME || path.join(app.getPath('home'), '.local', 'state'), 'Tsundoku');
 const PATHS_PATH   = path.join(LOCAL_DIR, 'exe-paths.json'); // { [vnId]: exePath }
 
 function readExePaths() {
@@ -970,6 +1104,16 @@ function pruneIfOrphan(store, id) {
 // If an exe lives under a Steam library (…\steamapps\common\<game>\…), find its
 // Steam appid from the appmanifest, so we can launch it through Steam (launching
 // the exe directly is usually blocked / relaunches via Steam anyway).
+// Linux: absolute path of an executable on $PATH, or null.
+function findOnPath(bin) {
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    const full = path.join(dir, bin);
+    try { fs.accessSync(full, fs.constants.X_OK); return full; } catch {}
+  }
+  return null;
+}
+
 function findSteamAppId(exePath) {
   try {
     const marker = `${path.sep}steamapps${path.sep}common${path.sep}`;
@@ -1109,6 +1253,9 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
+    // Linux desktops often have no tray, so a window hidden by close-to-tray has no
+    // way back except launching the app again — which has to actually show it.
+    if (!IS_WIN) { showWindow(); return; }
     if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
   });
 
@@ -1259,6 +1406,22 @@ ipcMain.handle('open-path', (_e, p) => {
   return true;
 });
 ipcMain.handle('uninstall-app', (_e, deleteData) => {
+  if (!IS_WIN) {
+    // Linux: the AppImage is the whole install. Deleting it while it runs is safe —
+    // the mounted image stays readable until the app exits. No file locks here, so
+    // the data can be removed in-process instead of via a post-exit script.
+    try { clearInterval(pollTimer); pollTimer = null; } catch {}
+    try { dataWatcher?.close(); dataWatcher = null; } catch {}
+    applyAutoStartLinux(false);
+    if (process.env.APPIMAGE) { try { fs.unlinkSync(process.env.APPIMAGE); } catch {} }
+    if (deleteData) {
+      for (const d of [DATA_DIR, LOCAL_DIR, path.join(app.getPath('appData'), 'Tsundoku')]) {
+        try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
+      }
+    }
+    setTimeout(() => app.quit(), 300);
+    return true;
+  }
   // The NSIS uninstaller only removes the installed program (deleteAppDataOnUninstall
   // is false). The library lives in C:\ProgramData\Tsundoku, which the installer never
   // created, so it's never touched by the uninstaller.
@@ -2227,7 +2390,19 @@ ipcMain.handle('launch-vn', (_e, exePath, id) => {
   const appId = findSteamAppId(exePath);
   if (appId) { try { shell.openExternal('steam://rungameid/' + appId); } catch {} return true; }
 
-  const proc = spawn(exePath, [], { cwd: path.dirname(exePath), detached: true, stdio: 'ignore' });
+  let proc;
+  if (!IS_WIN && /\.exe$/i.test(exePath)) {
+    // A Windows game on Linux: run it through Wine. (Steam titles already went
+    // through the Steam client above, which applies Proton itself.)
+    const wine = findOnPath('wine');
+    if (!wine) throw new Error('Wine is needed to run Windows games on Linux. Install Wine, or add the game to Steam and run it with Proton.');
+    proc = spawn(wine, [exePath], { cwd: path.dirname(exePath), detached: true, stdio: 'ignore' });
+  } else {
+    proc = spawn(exePath, [], { cwd: path.dirname(exePath), detached: true, stdio: 'ignore' });
+  }
+  // On Linux a failed spawn (e.g. a native binary without the executable bit)
+  // arrives as an 'error' event, which would crash the main process if unhandled.
+  if (!IS_WIN) proc.on('error', err => { debugLog(`LAUNCH-ERROR id=${id} ${err && err.message}`); if (id) runningVNs.delete(id); });
   debugLog(`LAUNCH id=${id} exe="${exePath}" spawnedPid=${proc.pid}`);
   if (id) runningVNs.set(id, { proc, startTime: Date.now() });
   // Playtime is handled by the process-detection poller (pollRunningGames), which
@@ -2253,6 +2428,26 @@ ipcMain.handle('stop-vn', (_e, id) => {
   const runningEntry = runningVNs.get(id);
   const trackedFamily = seenPidTrees.get(id); // last-known live pids, incl. any bootstrapper hand-off
   debugLog(`STOP-VN id=${id} runningEntryPid=${runningEntry ? runningEntry.proc.pid : null} trackedFamily=[${trackedFamily ? [...trackedFamily].join(',') : ''}] exe="${e && e.exe_path}"`);
+  if (!IS_WIN) {
+    // Same precedence as Windows: the exact pids seen alive, else the whole process
+    // group we spawned (it was started detached, so it leads its own group — a
+    // negative pid signals all of it), else anything running from this exe path.
+    let pids = null;
+    if (trackedFamily && trackedFamily.size) pids = [...trackedFamily];
+    else if (runningEntry && runningEntry.proc.pid) pids = [-runningEntry.proc.pid];
+    else if (e && e.exe_path) {
+      let want = e.exe_path;
+      try { want = fs.realpathSync(want); } catch {}
+      want = path.normalize(want).toLowerCase();
+      pids = listProcessesLinux().filter(pr => pr.path && path.normalize(pr.path).toLowerCase() === want).map(pr => pr.pid);
+    }
+    if (!pids) return false;
+    // SIGKILL mirrors Windows' Stop-Process -Force.
+    for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+    if (autoTracking.has(id)) finalizeVnStop(id, e, now);
+    runningVNs.delete(id);
+    return true;
+  }
   if (trackedFamily && trackedFamily.size) {
     // Most precise: kill the exact pids we've actually seen alive for this VN
     // (covers the case where a bootstrapper exe already exited and only its
@@ -2375,7 +2570,9 @@ ipcMain.handle('remove-scan-dir', (_e, dir) => {
 ipcMain.handle('pick-exe', async () => {
   const r = await dialog.showOpenDialog({
     title: 'Select VN Executable',
-    filters: [{ name: 'Executable', extensions: ['exe'] }],
+    filters: IS_WIN
+      ? [{ name: 'Executable', extensions: ['exe'] }]
+      : [{ name: 'Windows game (.exe)', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
     properties: ['openFile'],
   });
   return r.canceled ? null : r.filePaths[0];
