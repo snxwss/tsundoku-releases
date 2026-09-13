@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.5-beta — 2026-09-13
+
+- Removed the thin empty strip that 1.6.4 left along the right edge of Browse, Wishlist and Library. Spacing is back to how it looked before, and the resizing fix still holds.
+
 ## 1.6.4-beta — 2026-09-13
 
 - Fixed the Browse, Wishlist and Library grids repeatedly resizing back and forth as you moved the mouse, which could happen at certain window sizes when the results were just tall enough to need a scrollbar.

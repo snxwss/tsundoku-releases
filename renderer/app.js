@@ -504,6 +504,21 @@ function cardSizeKey() {
   const k = settings.cardSize === 'compact' ? 'small' : settings.cardSize; // legacy alias
   return CARD_SIZES[k] ? k : 'cozy';
 }
+// Width of a scrollbar as the app styles it, in CSS px. The stable-gutter rules in
+// style.css subtract it from padding so reserved scrollbar space isn't visible as
+// an empty strip. Re-measured on resize because page zoom changes it.
+function measureScrollbarWidth() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;top:-9999px;left:0;width:100px;height:100px;overflow-y:scroll;visibility:hidden;';
+  app.appendChild(probe);
+  const w = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  app.style.setProperty('--sbw', `${w}px`);
+}
+window.addEventListener('resize', measureScrollbarWidth);
+
 function applyCardSize() {
   document.getElementById('app')?.style.setProperty('--card-min', `${CARD_SIZES[cardSizeKey()]}px`);
 }
@@ -4989,6 +5004,7 @@ function updateVndbImportCount() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
+  measureScrollbarWidth();
   // Load settings first
   settings = await window.api.getSettings().catch(() => ({}));
 

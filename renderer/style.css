@@ -542,14 +542,6 @@ html, body { height: 100%; background: #141714; user-select: none; }
 /* =====================================================================
    BROWSE SCREEN
    ===================================================================== */
-/* Always reserve the scrollbar's width on scrollers holding width-scaled grids.
-   Posters grow with column width, so when content sits right at the overflow
-   threshold, a scrollbar appearing narrows the grid enough to make it fit, which
-   removes the scrollbar, which widens it again — the layout flip-flops on every
-   hover/relayout. A fixed gutter keeps the width constant so it can't oscillate. */
-.browse-wrap, .browse-wrap.browse-side-mode .browse-results,
-.browse-wrap.browse-side-mode .browse-side,
-.wishlist-wrap, .shelfgrid, .home2 .scrollarea { scrollbar-gutter: stable; }
 .browse-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: 26px 36px; display: flex; flex-direction: column; gap: 18px; }
 .browse-top  { display: flex; gap: 12px; align-items: center; }
 .browse-input { flex: 1; height: 50px; background: var(--card); border: 2px solid var(--border); border-radius: 14px; padding: 0 18px; font-family: 'Hanken Grotesk', sans-serif; font-size: 15px; color: var(--ink); outline: none; }
@@ -1480,3 +1472,30 @@ html, body { height: 100%; background: #141714; user-select: none; }
 .coll-picker-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .coll-picker-hidden-badge { font-size: 10px; color: var(--mut); background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
 .sync-opt-row { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px; color: var(--ink); user-select: none; }
+
+/* =====================================================================
+   STABLE SCROLLBAR GUTTERS
+   Posters grow with column width, so when a grid's content sits right at the
+   overflow threshold, a scrollbar appearing narrows it enough to fit, which
+   removes the scrollbar, which widens it again — the layout flip-flops on every
+   mouse move. Reserving the gutter keeps the width constant. The gutter's width
+   (--sbw, measured at runtime since zoom changes it) is then taken back out of
+   the padding beside it, so the right edge looks exactly as it did without one.
+   Only scrollers holding width-scaled grids need this; the filter rail and Home
+   shelves can't oscillate (a scrollbar there only ever makes content taller).
+   Kept at the end of the file so it wins over each scroller's base padding.
+   ===================================================================== */
+.browse-wrap:not(.browse-side-mode),
+.browse-wrap.browse-side-mode .browse-results,
+.wishlist-wrap,
+.shelfgrid { scrollbar-gutter: stable; }
+
+.browse-wrap:not(.browse-side-mode),
+.wishlist-wrap { padding-right: max(0px, calc(36px - var(--sbw, 0px))); }
+.shelfgrid     { padding-right: max(0px, calc(26px - var(--sbw, 0px))); }
+/* Only 8px of padding here — less than the gutter — so the rest comes out of the
+   gap to the filter rail via a negative margin. */
+.browse-wrap.browse-side-mode .browse-results {
+  padding-right: max(0px, calc(8px - var(--sbw, 0px)));
+  margin-right:  min(0px, calc(8px - var(--sbw, 0px)));
+}
