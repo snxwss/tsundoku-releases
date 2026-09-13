@@ -2707,17 +2707,26 @@ function hasBlockedTag(vn) {
   // (avg rating >= 2.0/3), not just present from a weak/incidental mention.
   return (vn.tags || []).some(t => BLOCKED_TAG_IDS.has(String(t?.id || '').trim()) && Number(t?.rating) >= 2.0);
 }
-// Lowercased set of tag names the user has chosen to auto-hide from discovery.
+// Tags the user has chosen to auto-hide from discovery, keyed by both VNDB id and
+// lowercased name (ids are stable; names cover entries saved without one).
 // Empty when the master "Blocked tags" toggle is off, without touching the saved list.
 function hiddenTagSet() {
   if (settings.hiddenTagsEnabled === false) return new Set();
-  return new Set((settings.hiddenTags || []).map(t => (t.name || '').toLowerCase()));
+  const set = new Set();
+  for (const t of settings.hiddenTags || []) {
+    if (t.id) set.add(String(t.id).trim());
+    if (t.name) set.add(t.name.toLowerCase());
+  }
+  return set;
 }
 
-// True if a VN carries any blocked tag (so it should be hidden from Browse/Search).
+// True if a VN strongly carries any user-hidden tag (so it's hidden from
+// Browse/Search). Uses the same >= 2.0 strength bar as every other tag check —
+// presence alone hid titles over a single weakly applied or disputed vote.
 function hasHiddenTag(vn, set = hiddenTagSet()) {
   if (!set.size) return false;
-  return (vn.tags || []).some(t => set.has((t.name || '').toLowerCase()));
+  return (vn.tags || []).some(t => t && Number(t.rating) >= 2.0 &&
+    (set.has(String(t.id || '').trim()) || set.has((t.name || '').toLowerCase())));
 }
 
 function renderBrowseGrid(vns) {
