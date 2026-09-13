@@ -23,13 +23,13 @@ Tsundoku is currently in beta. Not all features may work exactly as intended, an
 Get the latest release from the [Releases page](https://github.com/snxwss/tsundoku-releases/releases/latest).
 
 - **Windows:** `Tsundoku-Setup-<version>.exe`
-- **Linux:** `Tsundoku-<version>.AppImage`
+- **Linux (alpha):** `Tsundoku-<version>-linux-alpha.AppImage`
 
-## Linux
+## Linux (alpha)
 
-Linux support is new and less tested than Windows.
+The Linux version is an **alpha**. It shares the Windows version number and features, but it's early and hasn't had much real-world testing yet, so expect rough edges.
 
-1. Download the `.AppImage`, make it executable (`chmod +x Tsundoku-*.AppImage`), and run it.
+1. Download the `-linux-alpha.AppImage`, make it executable (`chmod +x Tsundoku-*.AppImage`), and run it.
 2. Your library is stored in `~/.local/share/Tsundoku`.
 3. Most visual novels are Windows games. Tsundoku launches them through **Wine** (install it from your distro), or you can add a game to Steam and run it with Proton. Playtime is tracked either way, including when you start the game outside Tsundoku.
 4. Updates install automatically, as on Windows.

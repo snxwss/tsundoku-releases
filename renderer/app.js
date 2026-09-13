@@ -323,6 +323,10 @@ const EXTREME_TAG_IDS = new Set([
 const isExtreme = vn => (vn.tags || []).some(t =>
   t && Number(t.rating) >= 2.0 && EXTREME_TAG_IDS.has(String(t.id || '').trim()));
 
+// Linux builds share the app's version number but are labelled alpha until
+// they've had real-world use. Remove this flag to drop the label.
+const IS_LINUX_ALPHA = window.api && window.api.platform === 'linux';
+
 function escHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -3503,6 +3507,7 @@ async function renderSettingsSection(section) {
           <div><div class="settings-label">Version</div><div class="settings-sub update-status" id="update-status-line"></div></div>
           <div style="display:flex;gap:8px;align-items:center">
             <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--ink)">${escHtml(String(version))}</span>
+            ${IS_LINUX_ALPHA ? `<span class="platform-alpha" title="Linux support is early and less tested than Windows">Linux alpha</span>` : ''}
             <button class="btn-sm sec" id="btn-restart-update" style="display:none">Restart &amp; install</button>
             <button class="btn-sm pri" id="btn-check-update">Check for updates</button>
           </div>
@@ -5062,7 +5067,7 @@ async function init() {
   // Version in top bar
   const version = await window.api.getVersion().catch(() => null);
   const vEl = document.getElementById('tbar-version');
-  if (vEl && version) vEl.textContent = /^beta\b/i.test(version) ? version : `v${version}`;
+  if (vEl && version) vEl.textContent = (/^beta\b/i.test(version) ? version : `v${version}`) + (IS_LINUX_ALPHA ? ' · Linux alpha' : '');
 
   // Settings icon
   const settingsNav = document.getElementById('settings-nav');

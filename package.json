@@ -1,7 +1,7 @@
 {
   "name": "vn-launcher",
   "productName": "Tsundoku",
-  "version": "1.6.6-beta",
+  "version": "1.6.7-beta",
   "description": "Visual Novel Launcher powered by VNDB",
   "main": "main.js",
   "scripts": {
@@ -55,7 +55,7 @@
       "target": "AppImage",
       "icon": "build/icon.png",
       "category": "Game",
-      "artifactName": "${productName}-${version}.${ext}",
+      "artifactName": "${productName}-${version}-linux-alpha.${ext}",
       "synopsis": "Visual novel library manager and launcher powered by VNDB"
     }
   }

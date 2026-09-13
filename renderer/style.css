@@ -250,6 +250,11 @@ html, body { height: 100%; background: #141714; user-select: none; }
   border: 2px solid var(--border); box-shadow: 0 3px 0 var(--edge);
 }
 .tbar-jp      { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: var(--mut); letter-spacing: 1px; white-space: nowrap; }
+/* "Linux alpha" label beside the version in Settings → About (Linux builds only). */
+.platform-alpha {
+  font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  color: var(--on-accent); background: var(--accent); border-radius: 20px; padding: 2px 8px; white-space: nowrap;
+}
 .tbar-version { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); background: var(--panel); border: 1.5px solid var(--line-2); border-radius: 7px; padding: 3px 8px; white-space: nowrap; }
 .tbar-nav { display: flex; gap: 3px; min-width: 0; flex-shrink: 1; overflow-x: auto; }
 .tnav { font-size: 14.5px; font-weight: 700; color: var(--mut); padding: 8px 14px; border-radius: 9px; cursor: default; user-select: none; transition: background .12s, color .12s; }
