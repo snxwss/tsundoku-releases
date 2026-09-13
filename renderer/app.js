@@ -2693,6 +2693,7 @@ const BLOCKED_TAG_IDS = new Set([
 
 const BLOCKED_TAG_EXCEPTIONS = new Set([
   'v27519',
+  'v3770',
 ]);
 
 function hasBlockedTag(vn) {

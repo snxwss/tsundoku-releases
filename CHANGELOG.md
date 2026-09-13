@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.3-beta — 2026-09-13
+
+- Aiyoku no Eustia is now findable in Browse and search. It had been excluded by a content rule that, on review, doesn't reflect the game.
+
 ## 1.6.2-beta — 2026-09-13
 
 - Fixed tags you've chosen to hide in Settings hiding titles where that tag is only weakly or disputedly applied. They now use the same strength bar as every other tag filter, so a single low-confidence vote no longer makes a well-known title disappear from Browse and search.

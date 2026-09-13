@@ -1516,6 +1516,7 @@ const BLOCKED_TAG_IDS = new Set([
 // Titles that are allowed even if they contain blocked tags.
 const BLOCKED_TAG_EXCEPTIONS = new Set([
   'v27519',
+  'v3770',
 ]);
 
 function hasBlockedTag(vn) {
