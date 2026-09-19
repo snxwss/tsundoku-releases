@@ -44,10 +44,10 @@ const STATUS_DOT = {
   dropped:  'oklch(0.55 0.19 18)',
 };
 const STATUS_LIST = ['unplayed', 'reading', 'paused', 'finished', 'dropped'];
-const PALETTE_MAP = { banana: 'pal-banana', mint: 'pal-mint', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone' };
+const PALETTE_MAP = { banana: 'pal-banana', clover: 'pal-clover', rose: 'pal-rose', cherry: 'pal-cherry', sky: 'pal-sky', lavender: 'pal-lavender', coffee: 'pal-coffee', stone: 'pal-stone' };
 const PALETTES = [
   { k: 'banana',   color: 'oklch(0.905 0.105 97)' },
-  { k: 'mint',     color: 'oklch(0.800 0.130 152)' },
+  { k: 'clover',   color: 'oklch(0.800 0.130 152)' },
   { k: 'rose',     color: 'oklch(0.900 0.110 5)' },
   { k: 'cherry',   color: 'oklch(0.760 0.175 25)' },
   { k: 'sky',      color: 'oklch(0.870 0.130 218)' },
@@ -444,13 +444,13 @@ function formatLastPlayed(ts) {
   if (diff < 3600)      return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400)     return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(ts).toLocaleDateString();
+  return new Date(ts).toLocaleDateString(uiLocale());
 }
 
 // Absolute calendar date (e.g. "Jun 11, 2026") for started/finished timestamps.
 function formatDate(ts) {
   if (!ts) return null;
-  return new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(ts).toLocaleDateString(window.I18N && I18N.lang === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // blur: whether to blur this cover if it's nsfw (caller decides per context —
@@ -604,12 +604,15 @@ function initWindowControls() {
   });
 }
 
-// ── Render icon via canvas → set as window icon ───────────────────────────────
+// ── Render icon via canvas → set as window icon (Windows only) ────────────────
 // Draws a square yellow rounded tile with the dark "積" kanji centered, using
-// the system Japanese fonts available in the renderer, then hands the PNG to
-// main.js (which calls win.setIcon). With AppUserModelID set, Windows shows
-// this in the taskbar instead of the default Electron icon.
+// the system Japanese fonts, then hands the PNG to main.js (which calls
+// win.setIcon). With AppUserModelID set, Windows shows this in the taskbar
+// instead of the default Electron icon. Skipped on Linux: those fonts don't exist
+// there, so 積 could render as an empty box — and main.js already sets the proper
+// icon from build/icon.png.
 function renderWindowIcon() {
+  if (window.api.platform && window.api.platform !== 'win32') return;
   try {
     const S = 256, r = 46;
     const canvas = document.createElement('canvas');
@@ -893,8 +896,10 @@ function renderDeletedBin(section) {
 // rendered newest-first while the array is oldest-first, so an index would drift.
 const sessionKey = s => `${s.vnId}|${s.startedAt}`;
 
-const clockTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const longDate  = ts => new Date(ts).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+// Dates and times follow the interface language; English keeps the system locale.
+const uiLocale  = () => (window.I18N && I18N.lang === 'ja' ? 'ja-JP' : []);
+const clockTime = ts => new Date(ts).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' });
+const longDate  = ts => new Date(ts).toLocaleDateString(uiLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 // Prefer the live entry's display title (respects the title-language setting) over
 // the name frozen into the session at write time — the tracker and manual entry
 // captured different title variants, so the same VN could appear under two names.
@@ -1354,7 +1359,7 @@ function renderAchievements(achStats) {
         let extra = '';
         if (isUnlocked) {
           const dateStr = new Date(saved[a.id].unlockedAt)
-            .toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            .toLocaleDateString(window.I18N && I18N.lang === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
           extra = `<div class="ach-date">${escHtml(dateStr)}</div>`;
         } else if (!a.binary && a.prog) {
           const [val, max] = a.prog(achStats);
@@ -3044,7 +3049,7 @@ async function renderSettingsSection(section) {
         <div class="settings-row">
           <div><div class="settings-label">Color palette</div><div class="settings-sub">Background tint and accent color</div></div>
           <div class="accent-swatches">
-            ${PALETTES.map(p => `<div class="accent-swatch${palette === p.k ? ' on' : ''}" data-palette="${p.k}" style="background:${p.color}" title="${p.k}"></div>`).join('')}
+            ${PALETTES.map(p => `<div class="accent-swatch${palette === p.k ? ' on' : ''}" data-palette="${p.k}" style="background:${p.color}" title="${p.name || p.k}"></div>`).join('')}
           </div>
         </div>
 
@@ -3679,6 +3684,17 @@ async function renderSettingsSection(section) {
         <div class="settings-h">System</div>
 
         <div class="settings-row">
+          <div data-no-i18n>
+            <div class="settings-label">Language · 言語</div>
+            <div class="settings-sub">Interface language · 表示言語</div>
+          </div>
+          <div class="settings-toggle" data-no-i18n>
+            <div class="stog-btn ${s.uiLang !== 'ja' ? 'on' : ''}" data-uilang="en">English</div>
+            <div class="stog-btn ${s.uiLang === 'ja' ? 'on' : ''}" data-uilang="ja">日本語</div>
+          </div>
+        </div>
+
+        <div class="settings-row">
           <div>
             <div class="settings-label">Minimize to tray on close</div>
             <div class="settings-sub">Keep Tsundoku running in the background when you close the window. Quit fully from the tray icon. Recommended so playtime keeps tracking while you read.</div>
@@ -3845,6 +3861,12 @@ async function renderSettingsSection(section) {
       ist.textContent = '';
       openVndbImport(batch, r.username); // review + confirm in a modal, like the folder scan
     };
+    // Switching language reloads the window, so everything re-renders in it.
+    content.querySelectorAll('[data-uilang]').forEach(el => el.addEventListener('click', async () => {
+      if ((settings.uiLang === 'ja' ? 'ja' : 'en') === el.dataset.uilang) return;
+      await setSetting('uiLang', el.dataset.uilang);
+      location.reload();
+    }));
     document.getElementById('btn-vndb-fetch')?.addEventListener('click', runVndbFetch);
     userInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
     tokenInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
@@ -5025,6 +5047,8 @@ async function init() {
   measureScrollbarWidth();
   // Load settings first
   settings = await window.api.getSettings().catch(() => ({}));
+  // Interface language (renderer/i18n.js) — before anything renders.
+  if (window.I18N) I18N.start(settings.uiLang);
 
   // Theme prefs: settings.json is the durable source of truth (localStorage can
   // reset between builds). Adopt any saved values, then re-mirror to localStorage.
@@ -5032,11 +5056,22 @@ async function init() {
   if (settings.autoLight) autoLight = settings.autoLight;
   if (settings.autoDark)  autoDark  = settings.autoDark;
   if (settings.palette)   palette   = settings.palette;
-  // Legacy palette renames: yellow/mint → banana, green → mint, lav → lavender, gray → stone
-  if (palette === 'yellow' || palette === 'mint') palette = 'banana';
-  else if (palette === 'green') palette = 'mint';
+  // Legacy palette renames: yellow → banana, green/mint → clover, lav → lavender,
+  // gray → stone. (Long ago 'mint' meant the yellow palette; it has since been the
+  // green one, now renamed Clover. Mapping it to banana here used to run on every
+  // launch and reset the green palette to Banana after each restart.)
+  const savedPalette = palette;
+  if (palette === 'yellow') palette = 'banana';
+  else if (palette === 'green' || palette === 'mint') palette = 'clover';
   else if (palette === 'lav') palette = 'lavender';
   else if (palette === 'gray') palette = 'stone';
+  // Green schemes that only ever existed in a dev build → their closest match.
+  else if (['softmint', 'teal', 'sage', 'seafoam'].includes(palette)) palette = 'clover';
+  // Anything else unknown would leave no palette class at all (bare default
+  // colours), so fall back to the real default instead.
+  if (!PALETTE_MAP[palette]) palette = 'banana';
+  // Save the new name so the rename happens once, and synced devices get it too.
+  if (palette !== savedPalette) window.api.writeSetting('palette', palette);
   // titleLang 'ja' used to mean romaji; 'ja' is now unused (kanji uses 'kanji').
   if (settings.titleLang === 'ja') { settings.titleLang = 'romaji'; window.api.writeSetting('titleLang', 'romaji'); }
   // Persist the Browse 18+ default (hide) once, so the filter, the Settings toggle
@@ -5053,7 +5088,6 @@ async function init() {
   applyZoom();
   applyCardSize();
   applyBrowseLayout();
-  renderWindowIcon();   // upgrade taskbar icon to the real 積 kanji
   initWindowControls();
 
   // Auto theme: re-evaluate every minute so it flips at the scheduled times.
@@ -5081,6 +5115,8 @@ async function init() {
   const version = await window.api.getVersion().catch(() => null);
   const vEl = document.getElementById('tbar-version');
   if (vEl && version) vEl.textContent = (/^beta\b/i.test(version) ? version : `v${version}`) + (IS_LINUX_ALPHA ? ' · Linux alpha' : '');
+
+  renderWindowIcon();   // upgrade taskbar icon to the real 積 kanji (Windows)
 
   // Settings icon
   const settingsNav = document.getElementById('settings-nav');

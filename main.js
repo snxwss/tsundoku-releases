@@ -719,6 +719,11 @@ const SYNC_PREF_KEYS = [
   'nsfwBlurLibraryImages', 'nsfwBlurBrowseImages', 'browseNsfwFilter',
   'extremeContentWarnings', 'extremeContentShowWarning',
   'showExcluded', 'minimizeOnClose', 'importPriority',
+  // "Sync from VNDB" account: changing it on one PC carries over to the others
+  // (last change wins, like every preference). The token travels only inside the
+  // user's own sync folder — backups still never include it.
+  'vndbUsername', 'vndbToken',
+  'uiLang',
 ];
 const SYNC_APPEARANCE_KEYS = ['palette', 'themeMode', 'autoLight', 'autoDark'];
 
@@ -741,7 +746,6 @@ function buildSyncPayload() {
   }
   if (opts.library) {
     if (s.collections   !== undefined) syncSettings.collections   = s.collections;
-    if (s.vndbUsername  !== undefined) syncSettings.vndbUsername  = s.vndbUsername;
   }
   if (opts.hidden) {
     if (s.hiddenTags !== undefined) syncSettings.hiddenTags = s.hiddenTags;
@@ -872,9 +876,6 @@ function mergeFromPayload(payload, { triggerSync = true } = {}) {
       }
     }
     if (opts.library) {
-      if (imp.vndbUsername !== undefined && local.vndbUsername == null) {
-        local.vndbUsername = imp.vndbUsername; settingsApplied = true;
-      }
       if (Array.isArray(imp.collections) && imp.collections.length) {
         const merged = Array.isArray(local.collections) ? local.collections.slice() : [];
         const byId = new Map(merged.map(c => [c.id, c]));
@@ -1259,17 +1260,42 @@ function showWindow() {
   try { win.webContents.send('window-shown'); } catch {}
 }
 
+// Strings shown by the main process itself (tray menu, native dialogs). The
+// renderer's own text is translated by renderer/i18n.js.
+const MAIN_JA = {
+  'Quit': '終了', 'Cancel': 'キャンセル', 'Quit Tsundoku': 'Tsundoku を終了', 'Open Tsundoku': 'Tsundoku を開く',
+  'Quit Tsundoku completely?': 'Tsundoku を完全に終了しますか？',
+  'It will stop running in the background, and any game currently being tracked will no longer have its playtime recorded.':
+    'バックグラウンドでの実行が止まり、記録中のゲームのプレイ時間は記録されなくなります。',
+  'Select a folder that contains your VN folders': 'VN のフォルダが入っているフォルダを選択',
+  'Select VN Executable': 'VN の実行ファイルを選択',
+  'Export Tsundoku library': 'Tsundoku ライブラリをエクスポート',
+  'Import Tsundoku library': 'Tsundoku ライブラリをインポート',
+};
+function mt(text) {
+  try { return (readSettings().uiLang === 'ja' && MAIN_JA[text]) || text; } catch { return text; }
+}
+
 function quitFromTray() {
   const choice = dialog.showMessageBoxSync({
     type: 'question',
-    buttons: ['Quit', 'Cancel'],
+    buttons: [mt('Quit'), mt('Cancel')],
     defaultId: 0,
     cancelId: 1,
-    title: 'Quit Tsundoku',
-    message: 'Quit Tsundoku completely?',
-    detail: 'It will stop running in the background, and any game currently being tracked will no longer have its playtime recorded.',
+    title: mt('Quit Tsundoku'),
+    message: mt('Quit Tsundoku completely?'),
+    detail: mt('It will stop running in the background, and any game currently being tracked will no longer have its playtime recorded.'),
   });
   if (choice === 0) { isQuitting = true; app.quit(); }
+}
+
+function buildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: mt('Open Tsundoku'), click: showWindow },
+    { type: 'separator' },
+    { label: mt('Quit Tsundoku'), click: quitFromTray },
+  ]));
 }
 
 function createTray() {
@@ -1277,11 +1303,7 @@ function createTray() {
     const { iconPath, nativeImg } = getAppIcon();
     tray = new Tray(iconPath || nativeImg);
     tray.setToolTip('Tsundoku');
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Open Tsundoku', click: showWindow },
-      { type: 'separator' },
-      { label: 'Quit Tsundoku', click: quitFromTray },
-    ]));
+    buildTrayMenu();
     tray.on('click', showWindow);
     tray.on('double-click', showWindow);
   } catch {}
@@ -2638,6 +2660,7 @@ ipcMain.handle('write-setting', (_e, key, value) => {
   if (SYNC_PREF_KEYS.includes(key)) s.preferencesAt = Date.now();
   if (SYNC_APPEARANCE_KEYS.includes(key)) s.paletteAt = Date.now();
   writeSettings(s);
+  if (key === 'uiLang') buildTrayMenu(); // relabel the tray menu in the new language
   return true;
 });
 
@@ -2691,7 +2714,7 @@ function getScanDirs(s) {
 
 ipcMain.handle('add-scan-dir', async () => {
   const r = await dialog.showOpenDialog({
-    title: 'Select a folder that contains your VN folders',
+    title: mt('Select a folder that contains your VN folders'),
     properties: ['openDirectory'],
   });
   if (r.canceled) return null;
@@ -2714,7 +2737,7 @@ ipcMain.handle('remove-scan-dir', (_e, dir) => {
 // ── File / folder pickers ─────────────────────────────────────────────────────
 ipcMain.handle('pick-exe', async () => {
   const r = await dialog.showOpenDialog({
-    title: 'Select VN Executable',
+    title: mt('Select VN Executable'),
     filters: IS_WIN
       ? [{ name: 'Executable', extensions: ['exe'] }]
       : [{ name: 'Windows game (.exe)', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
@@ -2731,7 +2754,7 @@ ipcMain.handle('pick-exe', async () => {
 ipcMain.handle('export-data', async () => {
   const ts = new Date().toISOString().slice(0, 10);
   const r = await dialog.showSaveDialog({
-    title: 'Export Tsundoku library',
+    title: mt('Export Tsundoku library'),
     defaultPath: `tsundoku-backup-${ts}.json`,
     filters: [{ name: 'Tsundoku backup', extensions: ['json'] }],
   });
@@ -2758,7 +2781,7 @@ ipcMain.handle('export-data', async () => {
 
 ipcMain.handle('import-data', async () => {
   const r = await dialog.showOpenDialog({
-    title: 'Import Tsundoku library',
+    title: mt('Import Tsundoku library'),
     filters: [{ name: 'Tsundoku backup', extensions: ['json'] }],
     properties: ['openFile'],
   });
@@ -3397,7 +3420,7 @@ ipcMain.handle('scan-folder', async () => {
   let dirs = getScanDirs(s).filter(d => d && fs.existsSync(d));
   if (!dirs.length) {
     const r = await dialog.showOpenDialog({
-      title: 'Select a folder that contains your VN folders',
+      title: mt('Select a folder that contains your VN folders'),
       properties: ['openDirectory'],
     });
     if (r.canceled) return null;

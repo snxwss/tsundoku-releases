@@ -4,6 +4,13 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.9-beta — 2026-09-19
+
+- Tsundoku can now be used in Japanese. Choose the language under Settings → System. Visual novel titles, tags and descriptions stay as they come from VNDB.
+- Your VNDB username and API token now sync between your PCs along with your other preferences, so changing them on one PC carries over to the rest.
+- The green colour scheme is now called Clover, and it no longer switches back to Banana after a restart.
+- *(Linux alpha)* The taskbar icon no longer risks showing an empty box in place of 積 when no Japanese font is installed.
+
 ## 1.6.8-beta — 2026-09-19
 
 - Fixed the folder scan listing the same game twice when one scan folder is inside another. Each game is now found once, and only searched on VNDB once.

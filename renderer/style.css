@@ -103,8 +103,8 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --brand:   oklch(0.895 0.150 97);  --brand-deep: oklch(0.640 0.130 92); --logo-ink: oklch(0.310 0.060 100);
   --accent:  oklch(0.865 0.145 95);  --accent-deep: oklch(0.545 0.120 92); --accent-edge: oklch(0.675 0.130 93); --on-accent: oklch(0.985 0.020 100);
 }
-/* Mint — the former default's green accent, now a distinct palette */
-.app2.pal-mint {
+/* Clover — the former default's green accent (called Mint until 1.6.9) */
+.app2.pal-clover {
   --paper:   oklch(0.972 0.016 154); --paper-2: oklch(0.983 0.013 154); --card:    oklch(0.994 0.008 154);
   --panel:   oklch(0.953 0.024 156); --panel-2: oklch(0.934 0.030 158);
   --line:    oklch(0.885 0.024 156); --line-2:  oklch(0.820 0.030 158);
@@ -112,6 +112,7 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --brand:   oklch(0.825 0.150 150); --brand-deep: oklch(0.560 0.130 152); --logo-ink: oklch(0.300 0.060 150);
   --accent:  oklch(0.800 0.110 158); --accent-deep: oklch(0.520 0.120 158); --accent-edge: oklch(0.640 0.110 158); --on-accent: oklch(0.975 0.012 158);
 }
+
 
 /* ─── dark theme ─── */
 .app2.t-dark {
@@ -202,13 +203,14 @@ html, body { height: 100%; background: #141714; user-select: none; }
   --brand: oklch(0.880 0.150 97); --brand-deep: oklch(0.830 0.150 95); --logo-ink: oklch(0.230 0.060 100);
   --accent: oklch(0.870 0.150 95); --accent-deep: oklch(0.840 0.150 95); --accent-edge: oklch(0.620 0.130 92); --on-accent: oklch(0.230 0.060 95);
 }
-.app2.t-dark.pal-mint {
+.app2.t-dark.pal-clover {
   --paper: oklch(0.208 0.022 152); --paper-2: oklch(0.242 0.025 152); --card: oklch(0.268 0.027 152);
   --panel: oklch(0.286 0.029 152); --panel-2: oklch(0.316 0.033 151); --line: oklch(0.362 0.029 152); --line-2: oklch(0.462 0.033 152);
   --border: oklch(0.422 0.040 152); --edge: oklch(0.106 0.018 152);
   --brand: oklch(0.855 0.150 152); --brand-deep: oklch(0.805 0.145 152); --logo-ink: oklch(0.210 0.058 152);
   --accent: oklch(0.845 0.145 152); --accent-deep: oklch(0.825 0.145 152); --accent-edge: oklch(0.595 0.125 152); --on-accent: oklch(0.205 0.052 152);
 }
+
 
 /* ─── scrollbars ─── */
 .app2 *::-webkit-scrollbar             { width: 10px; height: 10px; }
