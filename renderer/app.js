@@ -3874,11 +3874,6 @@ async function renderSettingsSection(section) {
       const next = el.dataset.uilang;
       if ((settings.uiLang === 'ja' ? 'ja' : 'en') === next) return;
       await setSetting('uiLang', next);
-      // Game titles follow: Japanese interface → original Japanese titles, English
-      // → English. Only switches between those two, so a Romaji choice is kept.
-      const tl = settings.titleLang || 'en';
-      if (next === 'ja' && tl === 'en') await setSetting('titleLang', 'kanji');
-      if (next === 'en' && tl === 'kanji') await setSetting('titleLang', 'en');
       // The reload would otherwise land on Home; come back to this page.
       try { sessionStorage.setItem('tsund-return', JSON.stringify({ view: 'settings', section: settingsSection })); } catch {}
       location.reload();

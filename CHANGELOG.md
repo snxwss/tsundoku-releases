@@ -4,6 +4,10 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.7.2-beta — 2026-09-19
+
+- Switching the interface language no longer changes how visual novel titles are shown. Titles follow only the *Title language* setting, as before 1.7.1.
+
 ## 1.7.1-beta — 2026-09-19
 
 - The VNDB list import settings ("Sync from VNDB" and "When importing, prioritize") have moved from System to the Sync section.
