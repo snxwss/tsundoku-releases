@@ -3326,7 +3326,91 @@ async function renderSettingsSection(section) {
         ${syncOptsHtml}
         <div class="settings-sub" id="sync-status-msg" style="margin-top:12px;min-height:14px"></div>
         `}
+      </div>
+
+      <div class="settings-section" style="margin-top:34px">
+        <div class="settings-h">VNDB</div>
+        <div class="settings-row" style="align-items:flex-start">
+          <div>
+            <div class="settings-label">Sync from VNDB</div>
+            <div class="settings-sub">Import a VNDB list — statuses, wishlist and start/finish dates carry over; you pick which titles to add. Public list: enter a username. Private list: paste a read token (VNDB → Settings → Applications). Re-run any time.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:210px">
+            <input type="text" id="vndb-user" placeholder="VNDB username" autocomplete="off" value="${escHtml(s.vndbUsername || '')}"
+              style="height:30px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;padding:0 10px;outline:none" />
+            <input type="password" id="vndb-token" placeholder="API token (private lists)" autocomplete="off" value="${escHtml(s.vndbToken || '')}"
+              style="height:30px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;padding:0 10px;outline:none" />
+            <div class="btn-sm pri" id="btn-vndb-fetch">${icon('plus', 12)} Fetch list</div>
+          </div>
+        </div>
+        <div class="settings-sub" id="vndb-import-status" style="margin-top:8px"></div>
+
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">When importing, prioritize</div>
+            <div class="settings-sub">Which side wins when an import and your existing entry disagree.</div>
+          </div>
+          <div class="settings-toggle">
+            <div class="stog-btn ${(s.importPriority || 'vndb') === 'vndb' ? 'on' : ''}" data-importpri="vndb">VNDB</div>
+            <div class="stog-btn ${s.importPriority === 'tsundoku' ? 'on' : ''}" data-importpri="tsundoku">Tsundoku</div>
+          </div>
+        </div>
+
       </div>`;
+
+    // ── Sync from VNDB ──
+    // Built-in VNDB label ids → Tsundoku (1 Playing, 2 Finished, 3 Stalled, 4 Dropped,
+    // 5 Wishlist, 6 Blacklist → hidden). Voted (7)/custom labels are ignored.
+    const VNDB_LABEL_STATUS = { 1: 'reading', 2: 'finished', 3: 'paused', 4: 'dropped' };
+    const mapUlistItem = (it) => {
+      const ids = (it.labels || []).map(l => l.id);
+      const statusId = [2, 4, 3, 1].find(id => ids.includes(id)); // finished/dropped/paused/reading
+      const isWish   = ids.includes(5);
+      const isBlack  = ids.includes(6);
+      if (!statusId && !isWish && !isBlack) return null;           // only Voted/custom → skip
+      if (hasBlockedTag(it.vn)) return null;
+      const meta = metaOf({ ...it.vn, id: it.id });
+      const dates = { started_at: it.started || null, finished_at: it.finished || null };
+      if (statusId) return { meta, list: 'library', status: VNDB_LABEL_STATUS[statusId], ...dates };
+      if (isWish)   return { meta, list: 'wishlist', ...dates };
+      return { meta, list: 'blacklist', ...dates };                // Blacklist → Tsundoku hidden
+    };
+
+    const userInput  = document.getElementById('vndb-user');
+    const tokenInput = document.getElementById('vndb-token');
+    const ist  = document.getElementById('vndb-import-status');
+
+    const runVndbFetch = async () => {
+      const name  = userInput.value.trim();
+      const token = tokenInput.value.trim();
+      if (!name && !token) { userInput.focus(); return; }
+      const fetchBtn = document.getElementById('btn-vndb-fetch');
+      fetchBtn.style.pointerEvents = 'none'; fetchBtn.style.opacity = '0.6';
+      ist.textContent = `Fetching ${token ? 'your' : (name + "'s")} list from VNDB…`;
+      const r = await window.api.vndbImportFetch({ user: name, token }).catch(e => ({ ok: false, error: e.message }));
+      fetchBtn.style.pointerEvents = ''; fetchBtn.style.opacity = '';
+      if (!r?.ok) { ist.textContent = '✕ ' + (r?.error || 'Could not fetch list.'); return; }
+      // Remember the resolved username (and token, if given) for one-click re-sync.
+      await setSetting('vndbUsername', r.username || name);
+      if (token) await setSetting('vndbToken', token);
+      userInput.value = r.username || name;
+      const batch = (r.items || []).map(mapUlistItem).filter(Boolean);
+      if (!batch.length) {
+        ist.textContent = `No importable titles for ${r.username}. (The list may be private — paste a token — or it only holds voted titles.)`;
+        return;
+      }
+      ist.textContent = '';
+      openVndbImport(batch, r.username); // review + confirm in a modal, like the folder scan
+    };
+    document.getElementById('btn-vndb-fetch')?.addEventListener('click', runVndbFetch);
+    userInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
+    tokenInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
+    document.querySelectorAll('[data-importpri]').forEach(btn =>
+      btn.addEventListener('click', async function() {
+        document.querySelectorAll('[data-importpri]').forEach(b => b.classList.remove('on'));
+        this.classList.add('on');
+        await setSetting('importPriority', this.dataset.importpri);
+      }));
 
     // Sync option toggles (shared between connected/disconnected state)
     content.querySelectorAll('[data-syncopt]').forEach(tog => {
@@ -3710,32 +3794,6 @@ async function renderSettingsSection(section) {
           <div class="toggle-switch ${s.startWithWindows !== false ? 'on' : ''}" id="tog-autostart"></div>
         </div>
 
-        <div class="settings-row" style="margin-top:18px;align-items:flex-start">
-          <div>
-            <div class="settings-label">Sync from VNDB</div>
-            <div class="settings-sub">Import a VNDB list — statuses, wishlist and start/finish dates carry over; you pick which titles to add. Public list: enter a username. Private list: paste a read token (VNDB → Settings → Applications). Re-run any time.</div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:210px">
-            <input type="text" id="vndb-user" placeholder="VNDB username" autocomplete="off" value="${escHtml(s.vndbUsername || '')}"
-              style="height:30px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;padding:0 10px;outline:none" />
-            <input type="password" id="vndb-token" placeholder="API token (private lists)" autocomplete="off" value="${escHtml(s.vndbToken || '')}"
-              style="height:30px;background:var(--panel);border:1.5px solid var(--line-2);border-radius:9px;color:var(--ink);font-family:'Space Mono',monospace;font-size:12px;padding:0 10px;outline:none" />
-            <div class="btn-sm pri" id="btn-vndb-fetch">${icon('plus', 12)} Fetch list</div>
-          </div>
-        </div>
-        <div class="settings-sub" id="vndb-import-status" style="margin-top:8px"></div>
-
-        <div class="settings-row">
-          <div>
-            <div class="settings-label">When importing, prioritize</div>
-            <div class="settings-sub">Which side wins when an import and your existing entry disagree.</div>
-          </div>
-          <div class="settings-toggle">
-            <div class="stog-btn ${(s.importPriority || 'vndb') === 'vndb' ? 'on' : ''}" data-importpri="vndb">VNDB</div>
-            <div class="stog-btn ${s.importPriority === 'tsundoku' ? 'on' : ''}" data-importpri="tsundoku">Tsundoku</div>
-          </div>
-        </div>
-
         <div class="settings-row" style="margin-top:18px">
           <div>
             <div class="settings-label">Backup &amp; restore</div>
@@ -3779,12 +3837,6 @@ async function renderSettingsSection(section) {
       settings.startWithWindows = on;
       await window.api.setAutoStart(on);
     });
-    document.querySelectorAll('[data-importpri]').forEach(btn =>
-      btn.addEventListener('click', async function() {
-        document.querySelectorAll('[data-importpri]').forEach(b => b.classList.remove('on'));
-        this.classList.add('on');
-        await setSetting('importPriority', this.dataset.importpri);
-      }));
     document.getElementById('btn-export')?.addEventListener('click', async () => {
       const st = document.getElementById('backup-status');
       st.textContent = 'Choose where to save…';
@@ -3817,60 +3869,20 @@ async function renderSettingsSection(section) {
       else st.textContent = '';
     });
 
-    // ── Sync from VNDB ──
-    // Built-in VNDB label ids → Tsundoku (1 Playing, 2 Finished, 3 Stalled, 4 Dropped,
-    // 5 Wishlist, 6 Blacklist → hidden). Voted (7)/custom labels are ignored.
-    const VNDB_LABEL_STATUS = { 1: 'reading', 2: 'finished', 3: 'paused', 4: 'dropped' };
-    const mapUlistItem = (it) => {
-      const ids = (it.labels || []).map(l => l.id);
-      const statusId = [2, 4, 3, 1].find(id => ids.includes(id)); // finished/dropped/paused/reading
-      const isWish   = ids.includes(5);
-      const isBlack  = ids.includes(6);
-      if (!statusId && !isWish && !isBlack) return null;           // only Voted/custom → skip
-      if (hasBlockedTag(it.vn)) return null;
-      const meta = metaOf({ ...it.vn, id: it.id });
-      const dates = { started_at: it.started || null, finished_at: it.finished || null };
-      if (statusId) return { meta, list: 'library', status: VNDB_LABEL_STATUS[statusId], ...dates };
-      if (isWish)   return { meta, list: 'wishlist', ...dates };
-      return { meta, list: 'blacklist', ...dates };                // Blacklist → Tsundoku hidden
-    };
-
-    const userInput  = document.getElementById('vndb-user');
-    const tokenInput = document.getElementById('vndb-token');
-    const ist  = document.getElementById('vndb-import-status');
-
-    const runVndbFetch = async () => {
-      const name  = userInput.value.trim();
-      const token = tokenInput.value.trim();
-      if (!name && !token) { userInput.focus(); return; }
-      const fetchBtn = document.getElementById('btn-vndb-fetch');
-      fetchBtn.style.pointerEvents = 'none'; fetchBtn.style.opacity = '0.6';
-      ist.textContent = `Fetching ${token ? 'your' : (name + "'s")} list from VNDB…`;
-      const r = await window.api.vndbImportFetch({ user: name, token }).catch(e => ({ ok: false, error: e.message }));
-      fetchBtn.style.pointerEvents = ''; fetchBtn.style.opacity = '';
-      if (!r?.ok) { ist.textContent = '✕ ' + (r?.error || 'Could not fetch list.'); return; }
-      // Remember the resolved username (and token, if given) for one-click re-sync.
-      await setSetting('vndbUsername', r.username || name);
-      if (token) await setSetting('vndbToken', token);
-      userInput.value = r.username || name;
-      const batch = (r.items || []).map(mapUlistItem).filter(Boolean);
-      if (!batch.length) {
-        ist.textContent = `No importable titles for ${r.username}. (The list may be private — paste a token — or it only holds voted titles.)`;
-        return;
-      }
-      ist.textContent = '';
-      openVndbImport(batch, r.username); // review + confirm in a modal, like the folder scan
-    };
     // Switching language reloads the window, so everything re-renders in it.
     content.querySelectorAll('[data-uilang]').forEach(el => el.addEventListener('click', async () => {
-      if ((settings.uiLang === 'ja' ? 'ja' : 'en') === el.dataset.uilang) return;
-      await setSetting('uiLang', el.dataset.uilang);
+      const next = el.dataset.uilang;
+      if ((settings.uiLang === 'ja' ? 'ja' : 'en') === next) return;
+      await setSetting('uiLang', next);
+      // Game titles follow: Japanese interface → original Japanese titles, English
+      // → English. Only switches between those two, so a Romaji choice is kept.
+      const tl = settings.titleLang || 'en';
+      if (next === 'ja' && tl === 'en') await setSetting('titleLang', 'kanji');
+      if (next === 'en' && tl === 'kanji') await setSetting('titleLang', 'en');
+      // The reload would otherwise land on Home; come back to this page.
+      try { sessionStorage.setItem('tsund-return', JSON.stringify({ view: 'settings', section: settingsSection })); } catch {}
       location.reload();
     }));
-    document.getElementById('btn-vndb-fetch')?.addEventListener('click', runVndbFetch);
-    userInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
-    tokenInput?.addEventListener('keydown', e => { if (e.key === 'Enter') runVndbFetch(); });
-
     // ── Danger zone ──
     // Single inline "Are you sure?" confirm (buttons on top, prompt below) before
     // running a destructive action.
@@ -5389,6 +5401,18 @@ async function init() {
   await loadEntries();
   renderCollectionsSidebar();
   updateWishBadge();
+  // After a reload that asked to come back (the language switch), reopen that page.
+  try {
+    const ret = JSON.parse(sessionStorage.getItem('tsund-return') || 'null');
+    sessionStorage.removeItem('tsund-return');
+    if (ret && ret.view) {
+      if (ret.section) {
+        settingsSection = ret.section;
+        document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.toggle('on', n.dataset.section === ret.section));
+      }
+      switchView(ret.view);
+    }
+  } catch {}
   // Check for new English releases on wishlisted VNs (fire-and-forget)
   setTimeout(checkWishlistAlerts, 3000);
   setTimeout(checkNewGames, 5000); // detect newly installed games in scan folders
