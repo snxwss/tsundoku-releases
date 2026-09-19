@@ -4,6 +4,18 @@ Tsundoku is a Windows visual novel launcher, library manager, and playtime track
 
 All notable changes to Tsundoku are listed here. Newest first.
 
+## 1.6.8-beta — 2026-09-19
+
+- Fixed the folder scan listing the same game twice when one scan folder is inside another. Each game is now found once, and only searched on VNDB once.
+- Adding a single game's own folder as a scan folder now finds that game, instead of treating its support subfolders as separate games.
+- The Stop button now tells you when it can't find the running game, instead of silently doing nothing.
+- Tsundoku no longer leaves debug files in your data folder, and its diagnostic log stays small.
+- *(Linux alpha)* Steam games stay tracked when Steam switches them between their Windows (Proton) build and their native Linux build, and launching them still works after a switch.
+- *(Linux alpha)* Folder scans now find native Linux games, not just Windows `.exe` ones.
+- *(Linux alpha)* Stop now closes Steam and Proton games properly, giving them a moment to close cleanly first, so Steam no longer keeps showing them as running.
+- *(Linux alpha)* Tsundoku now adds itself to your desktop's app menu, and the entry keeps working after updates.
+- *(Linux alpha)* File names that differ only in upper/lower case are now treated as different files, as Linux does.
+
 ## 1.6.7-beta — 2026-09-13
 
 - *(Linux alpha)* The Linux version is now labelled as an alpha in its download's file name, next to the version number in the app, and in the README. Windows is unchanged.

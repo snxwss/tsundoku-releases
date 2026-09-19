@@ -1552,7 +1552,7 @@ function renderHome() {
     if (!cur) { switchView('browse'); return; }
     if (runningVNIds.has(cur.id)) {
       if (confirm('Save your game first! Force-stop the process?')) {
-        await window.api.stopVN(cur.id);
+        await stopVN(cur.id);
       }
       return;
     }
@@ -1629,6 +1629,19 @@ function wireShelfArrows() {
     strip.addEventListener('shelf-resync', sync);
     requestAnimationFrame(sync);
   });
+}
+
+// Force-stop a running VN. When the game can't be found (it was already closed,
+// or it's running somewhere Tsundoku can't see), say so — Stop used to do
+// nothing silently, so clicking it again and again looked broken.
+async function stopVN(id) {
+  let stopped = false;
+  try { stopped = await window.api.stopVN(id); } catch {}
+  if (!stopped) {
+    runningVNIds.delete(id);
+    alert("Couldn't find the running game to stop it. If it's still open, close it from inside the game.");
+    await loadEntries();
+  }
 }
 
 // ── LIBRARY ───────────────────────────────────────────────────────────────────
@@ -1978,7 +1991,7 @@ function renderLibPreview(entry) {
   document.getElementById('pv-action')?.addEventListener('click', async () => {
     if (runningVNIds.has(entry.id)) {
       if (confirm('Save your game first! Force-stop the process?')) {
-        await window.api.stopVN(entry.id);
+        await stopVN(entry.id);
       }
       return;
     }
@@ -4207,7 +4220,7 @@ async function openModal(item, nav = null) {
   document.getElementById('m-launch')?.addEventListener('click', async () => {
     if (isRunning) {
       if (confirm('Save your game first! Force-stop the process?')) {
-        await window.api.stopVN(full.id);
+        await stopVN(full.id);
       }
       return;
     }

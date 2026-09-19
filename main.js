@@ -177,6 +177,33 @@ let pollInFlight = false; // re-entrancy guard: burst-polling after launch can f
                            // this, two overlapping polls each read the same last-tick
                            // timestamp and independently credit the same real-time
                            // window to playtime, double-counting seconds.
+// Comparison key for an exe path. Windows paths are case-insensitive; Linux paths
+// aren't, so there two files differing only in case are different games.
+function exePathKey(p) {
+  const n = path.normalize(p);
+  return IS_WIN ? n.toLowerCase() : n;
+}
+
+// Linux: the Steam install folder a game lives in (…/steamapps/common/<Game>),
+// resolved through symlinks, or null for non-Steam paths. Cached per path.
+const steamDirCache = new Map();
+function steamInstallDir(exePath) {
+  if (IS_WIN || !exePath) return null;
+  if (steamDirCache.has(exePath)) return steamDirCache.get(exePath);
+  let dir = null;
+  const marker = '/steamapps/common/';
+  const i = exePath.indexOf(marker);
+  if (i !== -1) {
+    const game = exePath.slice(i + marker.length).split('/')[0];
+    if (game) {
+      dir = exePath.slice(0, i + marker.length) + game;
+      try { dir = fs.realpathSync(dir); } catch {}
+    }
+  }
+  steamDirCache.set(exePath, dir);
+  return dir;
+}
+
 // Lists running processes as { pid, ppid, path }. Windows asks Win32_Process via
 // PowerShell (unchanged); Linux reads /proc directly.
 function listProcesses(cb) {
@@ -251,6 +278,23 @@ function wineGamePath(pid) {
   return null;
 }
 
+// Linux: pids of every process Steam launched for an app — Steam sets SteamAppId
+// (and SteamGameId) in the environment of the game and all its Proton helpers.
+// Only processes of the current user are readable, which is exactly what's wanted.
+function pidsForSteamApp(appId) {
+  const pids = [];
+  const want = [`SteamAppId=${appId}`, `SteamGameId=${appId}`];
+  let names = [];
+  try { names = fs.readdirSync('/proc'); } catch { return pids; }
+  for (const name of names) {
+    if (!/^\d+$/.test(name)) continue;
+    let env;
+    try { env = fs.readFileSync(`/proc/${name}/environ`, 'utf8').split('\0'); } catch { continue; }
+    if (env.some(v => want.includes(v))) pids.push(parseInt(name, 10));
+  }
+  return pids;
+}
+
 function listProcessesLinux() {
   const procs = [];
   for (const name of fs.readdirSync('/proc')) {
@@ -283,7 +327,7 @@ function pollRunningGames() {
       if (!pid) continue;
       pidToPpid.set(pid, ppid);
       if (p) {
-        const norm = path.normalize(p).toLowerCase();
+        const norm = exePathKey(p);
         if (!pathToPids.has(norm)) pathToPids.set(norm, new Set());
         pathToPids.get(norm).add(pid);
       }
@@ -307,7 +351,32 @@ function pollRunningGames() {
       if (!(e.library && e.exe_path)) continue;
       let exe = e.exe_path;
       if (!IS_WIN) { try { exe = fs.realpathSync(exe); } catch {} } // /proc paths are resolved
-      idx.set(path.normalize(exe).toLowerCase(), e.id);
+      idx.set(exePathKey(exe), e.id);
+    }
+    // Linux + Steam: match any process running from the game's install folder,
+    // not just the one recorded exe. Steam can swap a game between its Windows
+    // (Proton) and native Linux builds, deleting the recorded .exe and installing
+    // a differently named binary; bootstrappers and renamed exes are covered too.
+    // Steam's own helpers (reaper, pressure-vessel, Proton, wineserver) live
+    // outside the game folder, so they never count.
+    const dirPids = new Map(); // id → Set(pid)
+    if (!IS_WIN) {
+      const dirs = [];
+      for (const e of Object.values(store)) {
+        if (!(e.library && e.exe_path)) continue;
+        const d = steamInstallDir(e.exe_path);
+        if (d) dirs.push([d + '/', e.id]);
+      }
+      if (dirs.length) {
+        for (const { pid, path: p } of procs) {
+          if (!pid || !p) continue;
+          for (const [prefix, id] of dirs) {
+            if (!p.startsWith(prefix)) continue;
+            if (!dirPids.has(id)) dirPids.set(id, new Set());
+            dirPids.get(id).add(pid);
+          }
+        }
+      }
     }
     const now = Date.now();
     let changed = false;
@@ -316,7 +385,8 @@ function pollRunningGames() {
     // bootstrapper that already exited doesn't drop tracking of the game it spawned).
     const liveThisTick = new Map(); // id → Set(pid)
     for (const [exePath, id] of idx) {
-      const direct = pathToPids.get(exePath);
+      let direct = pathToPids.get(exePath);
+      if (dirPids.has(id)) direct = new Set([...(direct || []), ...dirPids.get(id)]);
       const family = direct ? new Set(direct) : new Set();
       const prevFamily = seenPidTrees.get(id);
       if (prevFamily && prevFamily.size) {
@@ -327,7 +397,7 @@ function pollRunningGames() {
       }
       if (family.size) { seenPidTrees.set(id, family); liveThisTick.set(id, family); }
       else seenPidTrees.delete(id);
-      {
+      if (family.size || (prevFamily && prevFamily.size)) {
         const e = store[id];
         debugLog(`poll id=${id} title="${e && e.title}" exe="${exePath}" directMatches=${direct ? direct.size : 0} prevFamily=${prevFamily ? prevFamily.size : 0} resolvedFamily=${family.size} pids=[${[...family].join(',')}]`);
       }
@@ -405,6 +475,32 @@ function applyAutoStart(enabled) {
   try { app.setLoginItemSettings({ openAtLogin: !!enabled, args: ['--hidden'] }); } catch {}
 }
 
+// Linux: put Tsundoku in the desktop's app menu. An AppImage doesn't do this on
+// its own. Rewritten on every launch because auto-update renames the AppImage
+// (its file name carries the version), which would otherwise break the entry.
+const LINUX_APPS_DIR = () => path.join(process.env.XDG_DATA_HOME || path.join(app.getPath('home'), '.local', 'share'), 'applications');
+const LINUX_ICON_PATH = () => path.join(process.env.XDG_DATA_HOME || path.join(app.getPath('home'), '.local', 'share'), 'icons', 'hicolor', '256x256', 'apps', 'tsundoku.png');
+function installDesktopEntryLinux() {
+  if (IS_WIN || !process.env.APPIMAGE) return; // only for the real AppImage, not dev runs
+  try {
+    const icon = LINUX_ICON_PATH();
+    const src = path.join(__dirname, 'build', 'icon.png');
+    fs.mkdirSync(path.dirname(icon), { recursive: true });
+    if (fs.existsSync(src)) fs.copyFileSync(src, icon);
+    fs.mkdirSync(LINUX_APPS_DIR(), { recursive: true });
+    fs.writeFileSync(path.join(LINUX_APPS_DIR(), 'tsundoku.desktop'), [
+      '[Desktop Entry]', 'Type=Application', 'Name=Tsundoku',
+      'Comment=Visual novel library manager and launcher',
+      `Exec="${process.env.APPIMAGE}" %U`, `Icon=${icon}`,
+      'Terminal=false', 'Categories=Game;', '',
+    ].join('\n'));
+  } catch {}
+}
+function removeDesktopEntryLinux() {
+  try { fs.unlinkSync(path.join(LINUX_APPS_DIR(), 'tsundoku.desktop')); } catch {}
+  try { fs.unlinkSync(LINUX_ICON_PATH()); } catch {}
+}
+
 // Electron's login-item API does nothing on Linux; the freedesktop equivalent is a
 // .desktop file in ~/.config/autostart.
 function applyAutoStartLinux(enabled) {
@@ -436,6 +532,7 @@ function setUpdateState(patch) {
 
 function initAutoUpdate() {
   if (!app.isPackaged) return;
+  if (autoUpdaterRef) return; // already set up — a second init would check twice
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch { setUpdateState({ state: 'unsupported' }); return; }
   autoUpdaterRef = autoUpdater;
@@ -510,8 +607,9 @@ const DEBUG_LOG_PATH = path.join(DATA_DIR, 'process-debug.log');
 function debugLog(line) {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    if (fs.existsSync(DEBUG_LOG_PATH) && fs.statSync(DEBUG_LOG_PATH).size > 2 * 1024 * 1024) {
-      fs.writeFileSync(DEBUG_LOG_PATH, '');
+    // Rotate at 1MB, keeping one previous file, so a repro isn't wiped mid-capture.
+    if (fs.existsSync(DEBUG_LOG_PATH) && fs.statSync(DEBUG_LOG_PATH).size > 1024 * 1024) {
+      try { fs.renameSync(DEBUG_LOG_PATH, DEBUG_LOG_PATH + '.old'); } catch { fs.writeFileSync(DEBUG_LOG_PATH, ''); }
     }
     fs.appendFileSync(DEBUG_LOG_PATH, `[${new Date().toISOString()}] ${line}\n`);
   } catch {}
@@ -1080,6 +1178,18 @@ function repairJunkExePaths() {
 // Write where this instance is actually reading/writing — so the exact build +
 // path in use can be verified (this is what diagnosed the "two datasets" issue).
 function writeRuntimeDebug() {
+  // Dev builds only. Installed builds used to leave this (and icon-debug.png) in
+  // the synced data folder, where sync tools then produced conflict copies of them.
+  if (app.isPackaged) {
+    try {
+      for (const f of fs.readdirSync(DATA_DIR)) {
+        if (/^(runtime-debug|icon-debug)(\.sync-conflict-[^.]*)?\.(json|png)$/i.test(f)) {
+          try { fs.unlinkSync(path.join(DATA_DIR, f)); } catch {}
+        }
+      }
+    } catch {}
+    return;
+  }
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(path.join(DATA_DIR, 'runtime-debug.json'), JSON.stringify({
@@ -1328,6 +1438,7 @@ if (!gotLock) {
     repairJunkExePaths();
     writeRuntimeDebug();
     applyAutoStart(readSettings().startWithWindows);
+    installDesktopEntryLinux();
     createWindow();
     createTray();
     watchDataDir();
@@ -1378,8 +1489,8 @@ ipcMain.handle('win-set-icon', (_e, dataUrl) => {
     const img = nativeImage.createFromDataURL(dataUrl);
     if (win && !img.isEmpty()) {
       win.setIcon(img);
-      // Dump what we actually set, so the icon can be inspected off-screen.
-      try { fs.writeFileSync(path.join(DATA_DIR, 'icon-debug.png'), img.toPNG()); } catch {}
+      // Dump what we actually set, so the icon can be inspected off-screen (dev only).
+      if (!app.isPackaged) { try { fs.writeFileSync(path.join(DATA_DIR, 'icon-debug.png'), img.toPNG()); } catch {} }
     }
   } catch {}
 });
@@ -1413,6 +1524,7 @@ ipcMain.handle('uninstall-app', (_e, deleteData) => {
     try { clearInterval(pollTimer); pollTimer = null; } catch {}
     try { dataWatcher?.close(); dataWatcher = null; } catch {}
     applyAutoStartLinux(false);
+    removeDesktopEntryLinux();
     if (process.env.APPIMAGE) { try { fs.unlinkSync(process.env.APPIMAGE); } catch {} }
     if (deleteData) {
       for (const d of [DATA_DIR, LOCAL_DIR, path.join(app.getPath('appData'), 'Tsundoku')]) {
@@ -2373,6 +2485,23 @@ ipcMain.handle('library-update-exe', (_e, id, exePath) => {
 
 // ── Playtime: launch with tracking ───────────────────────────────────────────
 ipcMain.handle('launch-vn', (_e, exePath, id) => {
+  if (!IS_WIN && exePath && !fs.existsSync(exePath) && steamInstallDir(exePath)) {
+    // Linux: Steam replaced the recorded exe (e.g. switched Proton ↔ native build).
+    // The game still launches through Steam by app id, and the saved path is
+    // repointed at whatever the install folder now contains.
+    const appId = findSteamAppId(exePath);
+    if (appId) {
+      const fresh = pickMainExe(steamInstallDir(exePath));
+      if (fresh && id) {
+        const store = readStore();
+        if (store[id]) { store[id].exe_path = fresh; writeStore(store); }
+        debugLog(`EXE-REPAIRED id=${id} old="${exePath}" new="${fresh}"`);
+      }
+      if (id) launchTimes.set(id, Date.now());
+      try { shell.openExternal('steam://rungameid/' + appId); } catch {}
+      return true;
+    }
+  }
   if (!exePath || !fs.existsSync(exePath)) throw new Error('Executable not found');
   // Don't double-launch
   if (id && runningVNs.has(id)) return true;
@@ -2429,21 +2558,37 @@ ipcMain.handle('stop-vn', (_e, id) => {
   const trackedFamily = seenPidTrees.get(id); // last-known live pids, incl. any bootstrapper hand-off
   debugLog(`STOP-VN id=${id} runningEntryPid=${runningEntry ? runningEntry.proc.pid : null} trackedFamily=[${trackedFamily ? [...trackedFamily].join(',') : ''}] exe="${e && e.exe_path}"`);
   if (!IS_WIN) {
-    // Same precedence as Windows: the exact pids seen alive, else the whole process
-    // group we spawned (it was started detached, so it leads its own group — a
-    // negative pid signals all of it), else anything running from this exe path.
-    let pids = null;
-    if (trackedFamily && trackedFamily.size) pids = [...trackedFamily];
-    else if (runningEntry && runningEntry.proc.pid) pids = [-runningEntry.proc.pid];
-    else if (e && e.exe_path) {
+    // Gather everything that belongs to the game:
+    //  - the pids seen alive for it (incl. a bootstrapper's hand-off),
+    //  - for Steam games, every process Steam started for that app — the game plus
+    //    Proton's wineserver/wrapper processes, which otherwise linger and keep
+    //    Steam showing it as "Running" so it can't be relaunched right away,
+    //  - failing those, the process group we spawned, or anything from its folder/exe.
+    const pids = new Set(trackedFamily || []);
+    const appId = e && e.exe_path ? findSteamAppId(e.exe_path) : null;
+    if (appId) for (const pid of pidsForSteamApp(appId)) pids.add(pid);
+    if (!pids.size && runningEntry && runningEntry.proc.pid) pids.add(-runningEntry.proc.pid);
+    if (!pids.size && e && e.exe_path) {
       let want = e.exe_path;
       try { want = fs.realpathSync(want); } catch {}
-      want = path.normalize(want).toLowerCase();
-      pids = listProcessesLinux().filter(pr => pr.path && path.normalize(pr.path).toLowerCase() === want).map(pr => pr.pid);
+      want = exePathKey(want);
+      const dir = steamInstallDir(e.exe_path);
+      for (const pr of listProcessesLinux()) {
+        if (!pr.path) continue;
+        if (exePathKey(pr.path) === want || (dir && pr.path.startsWith(dir + '/'))) pids.add(pr.pid);
+      }
     }
-    if (!pids) return false;
-    // SIGKILL mirrors Windows' Stop-Process -Force.
-    for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+    pids.delete(process.pid);
+    debugLog(`STOP-VN-LINUX id=${id} appId=${appId} pids=[${[...pids].join(',')}]`);
+    // Nothing found: report it, so the UI can say so instead of silently no-op'ing.
+    if (!pids.size) return false;
+    // Ask nicely first so the game can save/clean up, then force whatever's left.
+    for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch {} }
+    setTimeout(() => {
+      for (const pid of pids) {
+        try { process.kill(pid, 0); process.kill(pid, 'SIGKILL'); } catch {} // kill(pid, 0) = still alive?
+      }
+    }, 4000);
     if (autoTracking.has(id)) finalizeVnStop(id, e, now);
     runningVNs.delete(id);
     return true;
@@ -3070,6 +3215,25 @@ ipcMain.handle('library-import-batch', (_e, batch) => {
 // names that sit at a word boundary.
 const EXE_JUNK = /(unitycrashhandler|crashhandler|crashpad|werfault|epicwebhelper|prereqsetup|nvngx|installer|cleanup)|(^|[\s_-])(unins\d*|uninstall|setup|install|vc_?redist|vcredist|dx_?websetup|dx_?setup|directx|oalinst|crashreport|notification_helper|sendrpt|dotnet(fx)?|dxsetup|config\.|settings?\.|updater|update|patcher|launcher|touchup|repair)/i;
 
+// Is this file a game executable? Windows: any .exe (unchanged). Linux also
+// accepts native binaries — Steam installs a game's Linux build (e.g. a bare
+// "Danganronpa") instead of its .exe when Proton isn't forced. Only files with no
+// extension or a typical binary one are checked, then confirmed by the ELF magic
+// bytes, so asset files are never opened.
+function isGameBinary(full, name) {
+  if (name.toLowerCase().endsWith('.exe')) return true;
+  if (IS_WIN) return false;
+  if (!/^[^.]+$|\.(x86_64|x86|bin)$/i.test(name)) return false;
+  let fd;
+  try {
+    fd = fs.openSync(full, 'r');
+    const head = Buffer.alloc(4);
+    fs.readSync(fd, head, 0, 4, 0);
+    return head[0] === 0x7f && head[1] === 0x45 && head[2] === 0x4c && head[3] === 0x46; // \x7fELF
+  } catch { return false; }
+  finally { if (fd !== undefined) try { fs.closeSync(fd); } catch {} }
+}
+
 function findExes(dir, depth, acc) {
   if (depth < 0) return;
   let items;
@@ -3077,7 +3241,7 @@ function findExes(dir, depth, acc) {
   for (const it of items) {
     const full = path.join(dir, it.name);
     if (it.isDirectory()) findExes(full, depth - 1, acc);
-    else if (it.isFile() && it.name.toLowerCase().endsWith('.exe')) acc.push(full);
+    else if (it.isFile() && isGameBinary(full, it.name)) acc.push(full);
   }
 }
 
@@ -3095,7 +3259,7 @@ function pickMainExe(folder) {
 function hasOwnExe(dir) {
   let items;
   try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch { return false; }
-  return items.some(it => it.isFile() && it.name.toLowerCase().endsWith('.exe') && !EXE_JUNK.test(it.name));
+  return items.some(it => it.isFile() && !EXE_JUNK.test(it.name) && isGameBinary(path.join(dir, it.name), it.name));
 }
 
 // Like pickMainExe, but never falls back to a junk exe — used to decide whether a
@@ -3117,12 +3281,24 @@ function cleanName(folder) {
     .replace(/\s+/g, ' ').trim();
 }
 
-async function scanDirectory(root) {
+// Finds the game folders under one scan folder and each one's main exe (local disk
+// only — no VNDB calls, so results from several scan folders can be de-duplicated
+// before anything is searched).
+function collectScanTargets(root) {
   let subdirs;
   try {
     subdirs = fs.readdirSync(root, { withFileTypes: true })
       .filter(d => d.isDirectory()).map(d => d.name);
   } catch (e) { throw new Error('Could not read folder: ' + e.message); }
+
+  // The scan folder is itself a single game (its exe sits directly inside it) —
+  // e.g. one game's install folder added on its own. Treat it as one game rather
+  // than scanning its support subfolders (Launcher/, lib/, …) as separate games.
+  if (hasOwnExe(root)) {
+    const exe = pickMainExe(root);
+    return exe ? { withExe: [{ name: path.basename(root), exe }], noExe: [] }
+               : { withExe: [], noExe: [path.basename(root)] };
+  }
 
   // A top-level folder normally IS a game (its own exe lives directly inside it).
   // But a "collection" folder — like a Nekopara-style pack with Vol.0/1/2/3/Extra
@@ -3151,15 +3327,19 @@ async function scanDirectory(root) {
     targets.push({ name: path.basename(root), folderPath: root });
   }
 
-  // Find exes synchronously (fast, local disk), then fire all VNDB searches in parallel.
+  // Find exes synchronously (fast, local disk).
   const withExe = [], noExe = [];
   for (const { name, folderPath } of targets) {
     const exe = pickMainExe(folderPath);
     if (!exe) { noExe.push(name); continue; }
     withExe.push({ name, exe });
   }
+  return { withExe, noExe };
+}
 
-  const matches = await Promise.all(withExe.map(async ({ name, exe }) => {
+// Search VNDB for each found game, all in parallel.
+async function searchScanTargets(withExe) {
+  return Promise.all(withExe.map(async ({ name, exe }) => {
     const query = cleanName(name) || name;
     let candidates = [];
     let searchFailed = false;
@@ -3182,8 +3362,34 @@ async function scanDirectory(root) {
     const steamAppId = findSteamAppId(exe);
     return { folderName: name, exePath: exe, query, candidates, steamAppId, searchFailed };
   }));
+}
 
-  return { root, matches, noExe };
+// Same exe reached through different paths (a scan folder inside another, a
+// symlink, "./" segments) must collapse to one key.
+function scanExeKey(p) {
+  let r = p;
+  try { r = fs.realpathSync(p); } catch {}
+  return exePathKey(r);
+}
+
+// Scans every configured folder. When scan folders overlap (one inside another),
+// the same game would otherwise be listed once per folder — and searched on VNDB
+// twice, against its rate limit — so games are de-duplicated by exe first.
+async function scanAllDirs(dirs) {
+  const withExe = [], noExe = [], seen = new Set();
+  for (const root of dirs) {
+    let res;
+    try { res = collectScanTargets(root); } catch { continue; } // skip unreadable dir
+    for (const t of res.withExe) {
+      const key = scanExeKey(t.exe);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      withExe.push(t);
+    }
+    noExe.push(...res.noExe);
+  }
+  const matches = await searchScanTargets(withExe);
+  return { root: dirs.join('  ·  '), matches, noExe: [...new Set(noExe)] };
 }
 
 ipcMain.handle('scan-folder', async () => {
@@ -3200,15 +3406,7 @@ ipcMain.handle('scan-folder', async () => {
     writeSettings(s);
   }
   // Scan every configured directory and aggregate the results.
-  const matches = [], noExe = [];
-  for (const root of dirs) {
-    try {
-      const res = await scanDirectory(root);
-      matches.push(...res.matches);
-      noExe.push(...res.noExe);
-    } catch { /* skip unreadable dir */ }
-  }
-  return { root: dirs.join('  ·  '), matches, noExe };
+  return scanAllDirs(dirs);
 });
 
 // Non-interactive scan of the SAVED folders only (for the startup "new games"
@@ -3217,13 +3415,5 @@ ipcMain.handle('scan-folder-silent', async () => {
   const s = readSettings();
   const dirs = getScanDirs(s).filter(d => d && fs.existsSync(d));
   if (!dirs.length) return null;
-  const matches = [], noExe = [];
-  for (const root of dirs) {
-    try {
-      const res = await scanDirectory(root);
-      matches.push(...res.matches);
-      noExe.push(...res.noExe);
-    } catch { /* skip unreadable dir */ }
-  }
-  return { root: dirs.join('  ·  '), matches, noExe };
+  return scanAllDirs(dirs);
 });
